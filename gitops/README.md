@@ -19,9 +19,9 @@ This folder contains the declarative state of the Nekazari cluster.
    spec:
      project: default
      source:
-       repoURL: https://github.com/k8-benetis/nekazari-public
+       repoURL: https://github.com/k8-benetis/nkz
        targetRevision: HEAD
-       path: modules/nekazari-module-<module-name>/k8s
+       path: k8s/<module-name>
      destination:
        server: https://kubernetes.default.svc
        namespace: nekazari
