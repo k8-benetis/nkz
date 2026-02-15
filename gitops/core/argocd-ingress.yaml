@@ -7,7 +7,6 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/service.serverstransport: argocd-insecure-transport@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
@@ -20,7 +19,7 @@ spec:
               service:
                 name: argocd-server
                 port:
-                  name: https
+                  name: http
   tls:
     - hosts:
         - argo.robotika.cloud
