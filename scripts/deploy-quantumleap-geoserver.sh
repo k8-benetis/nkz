@@ -24,7 +24,7 @@ echo "=========================================="
 echo ""
 
 # Change to repository directory
-cd ~/nekazari-public
+cd ~/nkz
 
 # Pull latest changes
 log_info "Pulling latest changes from GitHub..."
