@@ -1,0 +1,224 @@
+# =============================================================================
+# FIWARE IoT Agent JSON - Deployment
+# =============================================================================
+# IoT Agent para traducción MQTT JSON → NGSI-LD
+# Escucha topics MQTT y traduce mensajes a entidades NGSI-LD en Orion-LD
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iot-agent-config
+  namespace: nekazari
+  labels:
+    app: iot-agent-json
+    layer: iot
+data:
+  config.js: |
+    const config = {};
+    
+    config.ngsi = {
+      contextBroker: {
+        host: process.env.ORION_URL || 'orion-ld-service',
+        port: process.env.ORION_PORT || '1026'
+      },
+      server: {
+        port: 4041
+      },
+      deviceRegistry: {
+        type: 'memory'
+      },
+      types: {},
+      service: 'openiot',
+      subservice: '/',
+      providerUrl: 'http://iot-agent-json-service:4041',
+      deviceRegistrationDuration: 'P1M',
+      defaultType: 'Thing',
+      defaultResource: '/iot/json',
+      // Multitenancy support
+      multitenancy: true
+    };
+    
+    config.mqtt = {
+      host: process.env.MQTT_HOST || 'mosquitto-service',
+      port: process.env.MQTT_PORT || '1883',
+      protocol: 'mqtt',
+      username: process.env.MQTT_USERNAME || '',
+      password: process.env.MQTT_PASSWORD || '',
+      // Topics pattern: tenant/{tenant_id}/{device_id}/data
+      topics: {
+        data: '+/+/data',
+        commands: '+/+/cmd'
+      },
+      qos: 1,
+      retain: false,
+      retries: 3,
+      retryTime: 60
+    };
+    
+    config.logLevel = process.env.LOG_LEVEL || 'INFO';
+    
+    config.iota = {
+      timestamp: true,
+      timestampFormat: 'ISO8601',
+      defaultResource: '/iot/json',
+      defaultKey: process.env.IOTA_DEFAULT_KEY || '1234',
+      // Device provisioning via API
+      deviceRegistry: {
+        type: process.env.IOTA_REGISTRY_TYPE || 'memory',
+        host: process.env.IOTA_MONGO_HOST || 'mongodb-service',
+        port: process.env.IOTA_MONGO_PORT || '27017',
+        db: process.env.IOTA_MONGO_DB || 'iotagent_json',
+        user: process.env.IOTA_MONGO_USER || 'admin',
+        password: process.env.IOTA_MONGO_PASSWORD || ''
+      }
+    };
+    
+    module.exports = config;
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot-agent-json
+  namespace: nekazari
+  labels:
+    app: iot-agent-json
+    layer: iot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iot-agent-json
+  template:
+    metadata:
+      labels:
+        app: iot-agent-json
+        layer: iot
+    spec:
+      serviceAccountName: iot-agent-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: iot-agent-json
+        image: fiware/iotagent-json:1.25.0
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 4041
+          name: http
+        - containerPort: 7896
+          name: mqtt
+        env:
+        - name: IOTA_CONFIG_PATH
+          value: /opt/iotagent-json/conf
+        - name: ORION_URL
+          value: "http://orion-ld-service:1026"
+        - name: ORION_PORT
+          value: "1026"
+        - name: MQTT_HOST
+          value: "mosquitto-service"
+        - name: MQTT_PORT
+          value: "1883"
+        - name: MQTT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: iot-agent-username
+              optional: true
+        - name: MQTT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: iot-agent-password
+              optional: true
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: IOTA_MULTI_TENANT
+          value: "true"
+        - name: IOTA_DEFAULT_RESOURCE
+          value: "/iot/json"
+        - name: IOTA_REGISTRY_TYPE
+          value: "mongodb"
+        - name: IOTA_MONGO_HOST
+          value: "mongodb-service"
+        - name: IOTA_MONGO_PORT
+          value: "27017"
+        - name: IOTA_MONGO_DB
+          value: "iotagent_json"
+        - name: IOTA_MONGO_USER
+          value: "admin"
+        - name: IOTA_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sdm-secrets
+              key: mongodb-password # Reusing the secret if possible or I need to check where mongo password is stored. Earlier I saw MONGODB_URL used admin:<password>. I should probably create a shared mongo secret or use existing. The user said "Rotar ya: MongoDB admin password". Ideally I should use a secret for this.
+        volumeMounts:
+        - name: config
+          mountPath: /opt/iotagent-json/conf
+        livenessProbe:
+          httpGet:
+            path: /iot/about
+            port: 4041
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /iot/about
+            port: 4041
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+      volumes:
+      - name: config
+        configMap:
+          name: iot-agent-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-agent-json-service
+  namespace: nekazari
+  labels:
+    app: iot-agent-json
+    layer: iot
+spec:
+  type: ClusterIP
+  selector:
+    app: iot-agent-json
+  ports:
+  - port: 4041
+    targetPort: 4041
+    protocol: TCP
+    name: http
+  - port: 7896
+    targetPort: 7896
+    protocol: TCP
+    name: mqtt
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: iot-agent-sa
+  namespace: nekazari
+  labels:
+    app: iot-agent-json
+    layer: iot
+

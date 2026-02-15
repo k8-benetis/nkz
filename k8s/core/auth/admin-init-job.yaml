@@ -1,0 +1,376 @@
+# =============================================================================
+# Keycloak Admin User Initialization Job
+# =============================================================================
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-admin-init
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-admin-init
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-keycloak
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Keycloak to be ready..."
+              until curl -f -s https://nekazari.robotika.cloud/auth/realms/master > /dev/null; do
+                echo "Keycloak not ready yet, waiting..."
+                sleep 10
+              done
+              echo "Keycloak is ready."
+      containers:
+        - name: admin-init
+          image: quay.io/keycloak/keycloak:26.4.1
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: "admin"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: admin-password
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: admin-password
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              
+              echo "Keycloak is ready, initializing admin user..."
+              
+              # Wait a bit more for Keycloak to be fully ready
+              sleep 30
+              
+              # Configure kcadm.sh credentials
+              /opt/keycloak/bin/kcadm.sh config credentials --server https://nekazari.robotika.cloud/auth --realm master --user admin --password "${KEYCLOAK_ADMIN_PASSWORD}"
+              
+              # Initialize admin user using kcadm.sh
+              /opt/keycloak/bin/kcadm.sh create users -r master -s username=admin -s enabled=true -s email=nekazari@robotika.cloud || echo "Admin user already exists"
+              
+              # Set admin password
+              /opt/keycloak/bin/kcadm.sh set-password -r master --username admin --new-password "${ADMIN_PASSWORD}"
+              
+              echo "Admin user initialized successfully."
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+data:
+  nekazari-realm.json: |
+    {
+      "realm": "nekazari",
+      "enabled": true,
+      "displayName": "Nekazari Platform",
+      "displayNameHtml": "<div class=\"kc-logo-text\"><span>Nekazari</span></div>",
+      "loginTheme": "keycloak",
+      "accountTheme": "keycloak",
+      "adminTheme": "keycloak",
+      "emailTheme": "keycloak",
+      "accessTokenLifespan": 300,
+      "accessTokenLifespanForImplicitFlow": 900,
+      "ssoSessionIdleTimeout": 1800,
+      "ssoSessionMaxLifespan": 36000,
+      "ssoSessionIdleTimeoutRememberMe": 0,
+      "ssoSessionMaxLifespanRememberMe": 0,
+      "offlineSessionIdleTimeout": 2592000,
+      "offlineSessionMaxLifespanEnabled": false,
+      "offlineSessionMaxLifespan": 5184000,
+      "clientSessionIdleTimeout": 0,
+      "clientSessionMaxLifespan": 0,
+      "clientOfflineSessionIdleTimeout": 0,
+      "clientOfflineSessionMaxLifespan": 0,
+      "accessCodeLifespan": 60,
+      "accessCodeLifespanUserAction": 300,
+      "accessCodeLifespanLogin": 1800,
+      "actionTokenGeneratedByAdminLifespan": 43200,
+      "actionTokenGeneratedByUserLifespan": 300,
+      "oauth2DeviceCodeLifespan": 600,
+      "oauth2DevicePollingInterval": 5,
+      "internationalizationEnabled": true,
+      "supportedLocales": ["en", "es", "ca", "eu", "fr", "pt"],
+      "defaultLocale": "es",
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "editUsernameAllowed": false,
+      "bruteForceProtected": true,
+      "permanentLockout": false,
+      "maxFailureWaitSeconds": 900,
+      "minimumQuickLoginWaitSeconds": 60,
+      "waitIncrementSeconds": 60,
+      "quickLoginCheckMilliSeconds": 1000,
+      "maxDeltaTimeSeconds": 43200,
+      "failureFactor": 30,
+      "clients": [
+        {
+          "clientId": "nekazari-frontend",
+          "name": "Nekazari Frontend",
+          "description": "Frontend application for Nekazari platform",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "frontend-secret",
+          "redirectUris": [
+            "https://nekazari.robotika.cloud/*",
+            "http://localhost:3000/*",
+            "http://localhost:5173/*"
+          ],
+          "webOrigins": [
+            "https://nekazari.robotika.cloud",
+            "http://localhost:3000",
+            "http://localhost:5173"
+          ],
+          "protocol": "openid-connect",
+          "attributes": {
+            "saml.assertion.signature": "false",
+            "saml.force.post.binding": "false",
+            "saml.multivalued.roles": "false",
+            "saml.encrypt": "false",
+            "saml.server.signature": "false",
+            "saml.server.signature.keyinfo.ext": "false",
+            "exclude.session.state.from.auth.response": "false",
+            "saml_force_name_id_format": "false",
+            "saml.client.signature": "false",
+            "tls.client.certificate.bound.access.tokens": "false",
+            "saml.authnstatement": "false",
+            "display.on.consent.screen": "false",
+            "saml.onetimeuse.condition": "false"
+          },
+          "authenticationFlowBindingOverrides": {},
+          "fullScopeAllowed": true,
+          "nodeReRegistrationTimeout": -1,
+          "defaultClientScopes": [
+            "web-origins",
+            "role_list",
+            "profile",
+            "roles",
+            "email"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access",
+            "microprofile-jwt"
+          ]
+        },
+        {
+          "clientId": "nekazari-api-gateway",
+          "name": "Nekazari API Gateway",
+          "description": "API Gateway for Nekazari platform",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "api-gateway-secret",
+          "serviceAccountsEnabled": true,
+          "protocol": "openid-connect",
+          "attributes": {
+            "saml.assertion.signature": "false",
+            "saml.force.post.binding": "false",
+            "saml.multivalued.roles": "false",
+            "saml.encrypt": "false",
+            "saml.server.signature": "false",
+            "saml.server.signature.keyinfo.ext": "false",
+            "exclude.session.state.from.auth.response": "false",
+            "saml_force_name_id_format": "false",
+            "saml.client.signature": "false",
+            "tls.client.certificate.bound.access.tokens": "false",
+            "saml.authnstatement": "false",
+            "display.on.consent.screen": "false",
+            "saml.onetimeuse.condition": "false"
+          },
+          "authenticationFlowBindingOverrides": {},
+          "fullScopeAllowed": true,
+          "nodeReRegistrationTimeout": -1,
+          "defaultClientScopes": [
+            "web-origins",
+            "role_list",
+            "profile",
+            "roles",
+            "email"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access",
+            "microprofile-jwt"
+          ]
+        }
+      ],
+      "roles": {
+        "realm": [
+          {
+            "name": "PlatformAdmin",
+            "description": "Platform Administrator with full access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari"
+          },
+          {
+            "name": "TenantAdmin",
+            "description": "Tenant Administrator with tenant-level access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari"
+          },
+          {
+            "name": "DeviceManager",
+            "description": "Device Manager with device management access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari"
+          },
+          {
+            "name": "Farmer",
+            "description": "Farmer with basic access to their data",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari"
+          },
+          {
+            "name": "DashboardViewer",
+            "description": "Dashboard Viewer with read-only access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari"
+          }
+        ]
+      },
+      "users": [
+        {
+          "username": "admin",
+          "email": "nekazari@robotika.cloud",
+          "firstName": "Platform",
+          "lastName": "Administrator",
+          "enabled": true,
+          "emailVerified": true,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "admin-password",
+              "temporary": false
+            }
+          ],
+          "attributes": {
+            "tenant_id": ["platform"]
+          },
+          "realmRoles": ["PlatformAdmin"]
+        }
+      ],
+      "defaultRoles": [
+        "offline_access",
+        "uma_authorization"
+      ],
+      "requiredCredentials": [
+        "password"
+      ],
+      "otpPolicyType": "totp",
+      "otpPolicyAlgorithm": "HmacSHA1",
+      "otpPolicyInitialCounter": 0,
+      "otpPolicyDigits": 6,
+      "otpPolicyLookAheadWindow": 1,
+      "otpPolicyPeriod": 30,
+      "otpSupportedApplications": [
+        "FreeOTP",
+        "Google Authenticator"
+      ],
+      "webAuthnPolicyRpEntityName": "keycloak",
+      "webAuthnPolicySignatureAlgorithms": [
+        "ES256"
+      ],
+      "webAuthnPolicyRpId": "",
+      "webAuthnPolicyAttestationConveyancePreference": "not specified",
+      "webAuthnPolicyAuthenticatorAttachment": "not specified",
+      "webAuthnPolicyRequireResidentKey": "not specified",
+      "webAuthnPolicyUserVerificationRequirement": "not specified",
+      "webAuthnPolicyCreateTimeout": 0,
+      "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+      "webAuthnPolicyAcceptableAaguids": [],
+      "webAuthnPolicyPasswordlessRpEntityName": "keycloak",
+      "webAuthnPolicyPasswordlessSignatureAlgorithms": [
+        "ES256"
+      ],
+      "webAuthnPolicyPasswordlessRpId": "",
+      "webAuthnPolicyPasswordlessAttestationConveyancePreference": "not specified",
+      "webAuthnPolicyPasswordlessAuthenticatorAttachment": "not specified",
+      "webAuthnPolicyPasswordlessRequireResidentKey": "not specified",
+      "webAuthnPolicyPasswordlessUserVerificationRequirement": "not specified",
+      "webAuthnPolicyPasswordlessCreateTimeout": 0,
+      "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
+      "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+      "browserSecurityHeaders": {
+        "contentSecurityPolicyReportOnly": "",
+        "xContentTypeOptions": "nosniff",
+        "xRobotsTag": "none",
+        "xFrameOptions": "SAMEORIGIN",
+        "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+        "xXSSProtection": "1; mode=block",
+        "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+      },
+      "smtpServer": {},
+      "login": {
+        "allowForgotPassword": true,
+        "rememberMe": true,
+        "resetPasswordAllowed": true,
+        "editUsernameAllowed": false,
+        "passwordRequired": true
+      },
+      "otpPolicy": {
+        "type": "totp",
+        "algorithm": "HmacSHA1",
+        "initialCounter": 0,
+        "digits": 6,
+        "lookAheadWindow": 1,
+        "period": 30
+      },
+      "otpSupportedApplications": [
+        "FreeOTP",
+        "Google Authenticator"
+      ],
+      "webAuthnPolicy": {
+        "rpEntityName": "keycloak",
+        "signatureAlgorithms": [
+          "ES256"
+        ],
+        "rpId": "",
+        "attestationConveyancePreference": "not specified",
+        "authenticatorAttachment": "not specified",
+        "requireResidentKey": "not specified",
+        "userVerificationRequirement": "not specified",
+        "createTimeout": 0,
+        "avoidSameAuthenticatorRegister": false,
+        "acceptableAaguids": []
+      },
+      "webAuthnPolicyPasswordless": {
+        "rpEntityName": "keycloak",
+        "signatureAlgorithms": [
+          "ES256"
+        ],
+        "rpId": "",
+        "attestationConveyancePreference": "not specified",
+        "authenticatorAttachment": "not specified",
+        "requireResidentKey": "not specified",
+        "userVerificationRequirement": "not specified",
+        "createTimeout": 0,
+        "avoidSameAuthenticatorRegister": false,
+        "acceptableAaguids": []
+      }
+    }

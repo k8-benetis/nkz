@@ -1,0 +1,483 @@
+{
+  "realm": "nekazari",
+  "displayName": "Nekazari Platform",
+  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Nekazari</span></div>",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
+  "defaultRoles": [
+    "offline_access",
+    "uma_authorization"
+  ],
+  "requiredCredentials": [
+    "password"
+  ],
+  "passwordPolicy": "length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpSupportedApplications": [
+    "FreeOTP",
+    "Google Authenticator"
+  ],
+  "webAuthnPolicyRpEntityName": "keycloak",
+  "webAuthnPolicySignatureAlgorithms": [
+    "ES256"
+  ],
+  "webAuthnPolicyRpId": "",
+  "webAuthnPolicyAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyRequireResidentKey": "not specified",
+  "webAuthnPolicyUserVerificationRequirement": "not specified",
+  "webAuthnPolicyCreateTimeout": 0,
+  "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyAcceptableAaguids": [],
+  "webAuthnPolicyPasswordlessRpEntityName": "keycloak",
+  "webAuthnPolicyPasswordlessSignatureAlgorithms": [
+    "ES256"
+  ],
+  "webAuthnPolicyPasswordlessRpId": "",
+  "webAuthnPolicyPasswordlessAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyPasswordlessAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyPasswordlessRequireResidentKey": "not specified",
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "not specified",
+  "webAuthnPolicyPasswordlessCreateTimeout": 0,
+  "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+  "clients": [
+    {
+      "clientId": "nekazari-frontend",
+      "name": "Nekazari Frontend",
+      "description": "Frontend application for Nekazari platform",
+      "enabled": true,
+      "publicClient": true,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "https://nekazari.robotika.cloud/*",
+        "http://localhost:3000/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "https://nekazari.robotika.cloud",
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "saml.assertion.signature": "false",
+        "saml.force.post.binding": "false",
+        "saml.multivalued.roles": "false",
+        "saml.encrypt": "false",
+        "saml.server.signature": "false",
+        "saml.server.signature.keyinfo.ext": "false",
+        "exclude.session.state.from.auth.response": "false",
+        "saml_force_name_id_format": "false",
+        "saml.client.signature": "false",
+        "tls.client.certificate.bound.access.tokens": "false",
+        "saml.authnstatement": "false",
+        "display.on.consent.screen": "false",
+        "saml.onetimeuse.condition": "false",
+        "access.token.lifespan": "300",
+        "refresh.token.max.reuse": "0",
+        "pkce.code.challenge.method": "S256"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "web-origins",
+        "role_list",
+        "profile",
+        "roles",
+        "email",
+        "tenant-id",
+        "basic"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "access": {
+        "view": true,
+        "configure": true,
+        "manage": true
+      },
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "tenant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "multivalued": "false"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "group-tenant-attributes-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-script-based-protocol-mapper",
+          "consentRequired": false,
+          "config": {
+            "script": "var groups = user.getGroups();\nvar tenantId = null;\nvar tenantType = null;\n\n// Iterate through user's groups to find tenant attributes\nfor (var i = 0; i < groups.size(); i++) {\n    var group = groups.get(i);\n    var attributes = group.getAttributes();\n    \n    // Check for tenant_id attribute\n    if (attributes.containsKey(\"tenant_id\")) {\n        var tenantIdValues = attributes.get(\"tenant_id\");\n        if (tenantIdValues != null && tenantIdValues.size() > 0) {\n            tenantId = tenantIdValues.get(0);\n        }\n    }\n    \n    // Check for tenant_type attribute\n    if (attributes.containsKey(\"tenant_type\")) {\n        var tenantTypeValues = attributes.get(\"tenant_type\");\n        if (tenantTypeValues != null && tenantTypeValues.size() > 0) {\n            tenantType = tenantTypeValues.get(0);\n        }\n    }\n    \n    // If we found tenant_id, we can break (or continue to find highest priority)\n    // For now, take from first group that has tenant_id\n    if (tenantId != null) {\n        break;\n    }\n}\n\n// Add claims to token if found\nif (tenantId != null) {\n    token.setOtherClaims(\"tenant_id\", tenantId);\n}\nif (tenantType != null) {\n    token.setOtherClaims(\"tenant_type\", tenantType);\n}",
+            "token.claim.name": "tenant_id",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "nekazari-admin",
+      "name": "Nekazari Admin Panel",
+      "description": "Administration panel for Nekazari platform",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "admin-secret-change-in-production",
+      "redirectUris": [
+        "https://nekazari.robotika.cloud/admin/*",
+        "http://localhost:3000/admin/*",
+        "http://localhost:5173/admin/*"
+      ],
+      "webOrigins": [
+        "https://nekazari.robotika.cloud",
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "refresh.token.max.reuse": "0",
+        "pkce.code.challenge.method": "S256"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "web-origins",
+        "role_list",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "access": {
+        "view": true,
+        "configure": true,
+        "manage": true
+      }
+    },
+    {
+      "clientId": "nekazari-api-gateway",
+      "name": "Nekazari API Gateway",
+      "description": "API Gateway service for Nekazari platform",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "api-gateway-secret-change-in-production",
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "3600",
+        "refresh.token.max.reuse": "0"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "web-origins",
+        "role_list",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "access": {
+        "view": true,
+        "configure": true,
+        "manage": true
+      }
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "tenant-id",
+      "description": "Tenant ID for multi-tenancy",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Tenant ID"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant-id",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "name": "user-roles",
+      "description": "User roles for authorization",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "User Roles"
+      },
+      "protocolMappers": [
+        {
+          "name": "user-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "PlatformAdmin",
+        "description": "Platform administrator with full access",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "nekazari",
+        "attributes": {}
+      },
+      {
+        "name": "TenantAdmin",
+        "description": "Tenant administrator with tenant-level access",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "nekazari",
+        "attributes": {}
+      },
+      {
+        "name": "TechnicalConsultant",
+        "description": "Technical consultant with device management and data analysis permissions",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "nekazari",
+        "attributes": {}
+      },
+      {
+        "name": "DashboardViewer",
+        "description": "Dashboard viewer with read-only access",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "nekazari",
+        "attributes": {}
+      },
+      {
+        "name": "Farmer",
+        "description": "Farmer with basic access to their data",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "nekazari",
+        "attributes": {}
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "Platform Administrators",
+      "path": "/Platform Administrators",
+      "subGroups": [],
+      "attributes": {
+        "tenantId": [
+          "NKZ-TEST"
+        ]
+      },
+      "realmRoles": [
+        "PlatformAdmin"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "name": "Tenant Administrators",
+      "path": "/Tenant Administrators",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": [
+        "TenantAdmin"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "name": "Technical Consultants",
+      "path": "/Technical Consultants",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": [
+        "TechnicalConsultant"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "name": "Farmers",
+      "path": "/Farmers",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": [
+        "Farmer"
+      ],
+      "clientRoles": {}
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "role_list",
+    "profile",
+    "email",
+    "roles",
+    "web-origins"
+  ],
+  "defaultOptionalClientScopes": [
+    "offline_access",
+    "address",
+    "phone",
+    "microprofile-jwt"
+  ],
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+  "smtpServer": {},
+  "loginTheme": "keycloak",
+  "accountTheme": "keycloak",
+  "adminTheme": "keycloak",
+  "emailTheme": "keycloak",
+  "eventsEnabled": false,
+  "eventsListeners": [],
+  "enabledEventTypes": [],
+  "adminEventsEnabled": false,
+  "adminEventsDetailsEnabled": false,
+  "internationalizationEnabled": false,
+  "supportedLocales": [],
+  "defaultLocale": "",
+  "browserFlow": "browser",
+  "registrationFlow": "registration",
+  "directGrantFlow": "direct grant",
+  "resetCredentialsFlow": "reset credentials",
+  "clientAuthenticationFlow": "clients",
+  "dockerAuthenticationFlow": "docker auth",
+  "attributes": {
+    "cibaBackchannelTokenDeliveryMode": "poll",
+    "cibaExpiresIn": "120",
+    "cibaInterval": "5",
+    "cibaAuthRequestedUserHint": "login_hint",
+    "parRequestUriLifespan": "60",
+    "frontendUrl": "https://auth.robotika.cloud/auth",
+    "adminUrl": "https://auth.robotika.cloud/auth/admin"
+  },
+  "users": [
+    {
+      "username": "admin@nekazari.local",
+      "enabled": true,
+      "email": "admin@nekazari.local",
+      "firstName": "Admin",
+      "lastName": "Nekazari",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "CHANGE_ME_ON_FIRST_LOGIN",
+          "temporary": true
+        }
+      ],
+      "attributes": {
+        "tenant_id": [
+          "platformadmin"
+        ]
+      },
+      "realmRoles": [
+        "PlatformAdmin"
+      ]
+    }
+  ]
+}

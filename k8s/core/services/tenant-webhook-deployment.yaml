@@ -1,0 +1,180 @@
+# =============================================================================
+# Tenant Webhook Service Deployment - Integration with Activation Codes
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-webhook
+  namespace: nekazari
+  labels:
+    app: tenant-webhook
+    layer: apis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tenant-webhook
+  template:
+    metadata:
+      labels:
+        app: tenant-webhook
+        layer: apis
+    spec:
+      serviceAccountName: tenant-webhook-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: tenant-webhook
+        image: ghcr.io/k8-benetis/nekazari-public/tenant-webhook:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        # Webhook authentication
+        - name: WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: tenant-webhook-secret
+              key: webhook-secret
+        # Keycloak configuration
+        - name: KEYCLOAK_URL
+          value: "http://keycloak-service:8080/auth"
+        - name: KEYCLOAK_PUBLIC_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_PUBLIC_URL
+        - name: KEYCLOAK_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_HOSTNAME
+        - name: KEYCLOAK_REALM
+          value: "nekazari"
+        - name: KEYCLOAK_CLIENT_ID
+          value: "nekazari-api-gateway"
+        - name: KEYCLOAK_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: client-secret
+              optional: true
+        # Keycloak admin credentials (for user creation - more reliable than service account)
+        - name: KEYCLOAK_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        # Production domain (used to construct public URLs)
+        - name: PRODUCTION_DOMAIN
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: PRODUCTION_DOMAIN
+        # Admin email (for platform notifications)
+        - name: ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: smtp-credentials
+              key: SMTP_FROM_EMAIL
+              optional: true
+        # SMTP FROM EMAIL (fallback for ADMIN_EMAIL)
+        - name: SMTP_FROM_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: smtp-credentials
+              key: SMTP_FROM_EMAIL
+              optional: true
+        # Database configuration
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: postgres-url
+        # WooCommerce webhook
+        - name: WOOCOMMERCE_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: tenant-webhook-secret
+              key: woocommerce-webhook-secret
+              optional: true
+        # Grafana configuration
+        - name: GRAFANA_URL
+          value: "http://grafana-service:3000"
+        - name: GRAFANA_ADMIN_USER
+          value: "admin"
+        - name: GRAFANA_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: admin-password
+        # TimescaleDB password for Grafana datasource creation
+        # Usa la misma contraseña que PostgreSQL (el usuario 'timescale' usa la misma contraseña)
+        - name: TIMESCALE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+              optional: true
+        - name: TENANT_NAMESPACE_PREFIX
+          value: "nekazari-tenant-"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-webhook-service
+  namespace: nekazari
+  labels:
+    app: tenant-webhook
+    layer: apis
+spec:
+  type: ClusterIP
+  selector:
+    app: tenant-webhook
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP

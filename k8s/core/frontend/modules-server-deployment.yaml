@@ -1,0 +1,187 @@
+# =============================================================================
+# Nekazari Modules Server - Servidor de Módulos Federados
+# =============================================================================
+# Este servicio sirve los archivos de los micro-frontends (remoteEntry.js)
+# para Module Federation. Los módulos se almacenan en un PVC persistente.
+#
+# Uso:
+#   1. kubectl apply -f k8s/core/frontend/modules-server-deployment.yaml
+#   2. Copiar módulos al PVC: kubectl cp ./<module-name>/dist nekazari/<pod>:/usr/share/nginx/html/<module-name>/
+#   3. Acceso: https://nekazari.robotika.cloud/modules/<module-name>/remoteEntry.js
+# =============================================================================
+
+---
+# ConfigMap: Configuración de Nginx con CORS para Module Federation
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modules-server-nginx-config
+  namespace: nekazari
+  labels:
+    app: modules-server
+    component: frontend
+    nekazari.io/profile: core
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Gzip compression for JS/CSS
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_types text/plain text/css text/javascript application/javascript application/json;
+
+        # CORS Headers - CRÍTICO para Module Federation
+        location / {
+            # Preflight OPTIONS requests
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain; charset=utf-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+
+            # Actual requests
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
+
+            # Cache headers for modules
+            add_header 'Cache-Control' 'public, max-age=3600' always;
+
+            try_files $uri $uri/ =404;
+        }
+
+        # Specific caching for remoteEntry.js (shorter cache for updates)
+        location ~* remoteEntry\.js$ {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Cache-Control' 'public, max-age=60' always;
+            try_files $uri =404;
+        }
+
+        # Long cache for immutable assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Cache-Control' 'public, max-age=31536000, immutable' always;
+            try_files $uri =404;
+        }
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 'OK';
+            add_header Content-Type text/plain;
+        }
+    }
+
+---
+# PersistentVolumeClaim: Almacenamiento para módulos
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: modules-storage-pvc
+  namespace: nekazari
+  labels:
+    app: modules-server
+    component: frontend
+    nekazari.io/profile: core
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-path  # K3s default storage class
+
+---
+# Deployment: Nginx servidor de módulos
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modules-server
+  namespace: nekazari
+  labels:
+    app: modules-server
+    component: frontend
+    nekazari.io/profile: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: modules-server
+  template:
+    metadata:
+      labels:
+        app: modules-server
+        component: frontend
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginx:1.25-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: modules-storage
+              mountPath: /usr/share/nginx/html
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: modules-storage
+          persistentVolumeClaim:
+            claimName: modules-storage-pvc
+        - name: nginx-config
+          configMap:
+            name: modules-server-nginx-config
+
+---
+# Service: Expone el servidor de módulos internamente
+apiVersion: v1
+kind: Service
+metadata:
+  name: modules-server-service
+  namespace: nekazari
+  labels:
+    app: modules-server
+    component: frontend
+    nekazari.io/profile: core
+spec:
+  type: ClusterIP
+  selector:
+    app: modules-server
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http

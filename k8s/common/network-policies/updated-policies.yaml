@@ -1,0 +1,253 @@
+# =============================================================================
+# NetworkPolicies Actualizadas - Incluyendo VPN y ROS2
+# =============================================================================
+# Políticas de red actualizadas para incluir VPN WireGuard y ROS2 Bridge
+# Corregidas para usar puerto 80 en frontend (no 3000)
+# =============================================================================
+
+---
+# =============================================================================
+# Network Policy: VPN WireGuard - Acceso desde Internet y ROS2
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wireguard-vpn-policy
+  namespace: nekazari-vpn
+  labels:
+    app: wireguard
+    component: vpn
+spec:
+  podSelector:
+    matchLabels:
+      app: wireguard
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Permitir conexiones VPN desde Internet
+  - from: []
+    ports:
+    - protocol: UDP
+      port: 51820
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Acceso a servicios principales
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari
+    ports:
+    - protocol: TCP
+      port: 80   # Frontend
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 1026 # Orion-LD
+    - protocol: TCP
+      port: 1883 # MQTT
+    - protocol: TCP
+      port: 8080 # Keycloak
+
+---
+# =============================================================================
+# Network Policy: ROS2 Bridge - Comunicación con Orion y MQTT
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ros2-bridge-policy
+  namespace: nekazari-ros2
+  labels:
+    app: ros2-bridge
+    component: ros2
+spec:
+  podSelector:
+    matchLabels:
+      app: ros2-bridge
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde VPN (robots conectados)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari-vpn
+    ports:
+    - protocol: TCP
+      port: 11811  # ROS2 DDS
+    - protocol: TCP
+      port: 11812  # ROS2 Discovery
+  
+  # Desde servicios principales
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari
+    ports:
+    - protocol: TCP
+      port: 11811
+    - protocol: TCP
+      port: 11812
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Comunicación con Orion-LD
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Comunicación con MQTT
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari
+    ports:
+    - protocol: TCP
+      port: 1883
+
+---
+# =============================================================================
+# Network Policy: Frontend - Solo puerto 80 (corregido)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: nekazari
+  labels:
+    app: frontend
+    component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Acceso a APIs
+  - to:
+    - podSelector:
+        matchLabels:
+          layer: apis
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  # Acceso a Keycloak
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# =============================================================================
+# Network Policy: MQTT Mosquitto - Acceso desde VPN y ROS2
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mosquitto-mqtt-policy
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: mqtt
+spec:
+  podSelector:
+    matchLabels:
+      app: mosquitto
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde VPN (robots y sensores)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari-vpn
+    ports:
+    - protocol: TCP
+      port: 1883  # MQTT
+    - protocol: TCP
+      port: 8883  # MQTT SSL
+    - protocol: TCP
+      port: 9001  # WebSocket
+  
+  # Desde ROS2 Bridge
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari-ros2
+    ports:
+    - protocol: TCP
+      port: 1883
+    - protocol: TCP
+      port: 8883
+  
+  # Desde servicios internos
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1883
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53

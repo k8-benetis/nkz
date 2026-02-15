@@ -1,0 +1,48 @@
+# =============================================================================
+# Ingress para Keycloak - Subdominio dedicado auth.robotika.cloud
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-ingress
+  namespace: nekazari
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - auth.robotika.cloud
+    secretName: auth-tls
+  rules:
+  - host: auth.robotika.cloud
+    http:
+      paths:
+      # Keycloak root - redirects to /auth
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: keycloak-service
+            port:
+              number: 8080
+      # Keycloak /auth endpoint
+      - path: /auth
+        pathType: Prefix
+        backend:
+          service:
+            name: keycloak-service
+            port:
+              number: 8080
+      # Keycloak /realms endpoint
+      - path: /realms
+        pathType: Prefix
+        backend:
+          service:
+            name: keycloak-service
+            port:
+              number: 8080
+

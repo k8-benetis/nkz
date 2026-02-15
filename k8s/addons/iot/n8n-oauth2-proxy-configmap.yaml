@@ -1,0 +1,83 @@
+# =============================================================================
+# OAuth2 Proxy ConfigMap - Configuration for n8n Keycloak Integration
+# =============================================================================
+# OAuth2 Proxy validates Keycloak OIDC tokens and injects Basic Auth headers
+# to n8n, providing SSO experience without n8n Enterprise license
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-oauth2-proxy-config
+  namespace: nekazari
+  labels:
+    app: n8n
+    component: oauth2-proxy
+data:
+  # OAuth2 Proxy configuration file
+  oauth2-proxy.cfg: |
+    ## OAuth2 Proxy Configuration for n8n with Keycloak OIDC
+    
+    # Provider Configuration
+    provider = "keycloak-oidc"
+    oidc_issuer_url = "https://nekazari.robotika.cloud/auth/realms/nekazari"
+    client_id = "n8n-client"
+    # client_secret is loaded from secret
+    
+    # Redirect Configuration
+    redirect_url = "https://n8n.nekazari.robotika.cloud/oauth2/callback"
+    
+    # Cookie Configuration
+    cookie_name = "_oauth2_proxy_n8n"
+    cookie_secret = "CHANGE_ME_IN_SECRET"  # Will be overridden by env var
+    cookie_domains = ".nekazari.robotika.cloud"
+    cookie_secure = true
+    cookie_httponly = true
+    cookie_samesite = "lax"
+    cookie_refresh = "1h"
+    cookie_expire = "168h"  # 7 days
+    
+    # Session Configuration
+    session_store_type = "cookie"
+    
+    # Upstream Configuration
+    upstreams = ["http://127.0.0.1:5678"]
+    
+    # Request Headers to pass to upstream
+    pass_host_header = true
+    pass_user_headers = true
+    
+    # Authentication Headers Injection
+    # This is the key: inject Basic Auth header after validating Keycloak token
+    # The username and password are loaded from n8n-secret
+    set_basic_auth = true
+    # Basic auth credentials will be set via environment variables
+    
+    # Email Configuration
+    email_domains = ["*"]
+    
+    # Skip OAuth for specific paths (health checks, etc.)
+    skip_auth_routes = ["/healthz", "/metrics"]
+    
+    # Role-based Access Control
+    # Only allow users with specific roles
+    # This will be enforced via Keycloak token claims
+    # OAuth2 Proxy will check the 'roles' claim in the token
+    
+    # Logging
+    logging_level = "info"
+    request_logging = true
+    
+    # Security
+    skip_provider_button = false
+    skip_jwt_bearer_tokens = false
+    
+    # Reverse Proxy Headers
+    reverse_proxy = true
+    set_xforwarded_for = true
+    set_authorization_header = true
+    
+    # Custom Headers to inject
+    # We'll inject Basic Auth via environment variable OAUTH2_PROXY_SET_BASIC_AUTH
+
+

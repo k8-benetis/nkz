@@ -1,0 +1,22 @@
+# =============================================================================
+# n8n PersistentVolumeClaim
+# =============================================================================
+# Persistent storage for n8n workflows and execution history
+# Storage class: local-path (for k3s)
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-workflows-pvc
+  namespace: nekazari
+  labels:
+    app: n8n
+    component: workflow-automation
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+

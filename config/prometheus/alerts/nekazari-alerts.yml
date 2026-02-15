@@ -1,0 +1,284 @@
+# =============================================================================
+# Prometheus Alerting Rules - Nekazari Platform
+# =============================================================================
+# Multi-tenant alerting rules for resource limits, device health, and data quality
+
+groups:
+  # =============================================================================
+  # Tenant Resource Limits
+  # =============================================================================
+  - name: tenant_resources
+    interval: 1m
+    rules:
+      - alert: TenantMaxUsersExceeded
+        expr: tenant_active_users > tenant_max_users
+        for: 5m
+        labels:
+          severity: warning
+          category: tenant_limit
+        annotations:
+          summary: "Tenant {{$labels.tenant_id}} exceeded max users"
+          description: "Tenant has {{$value}} active users, limit is {{$labels.max_users}}"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: TenantMaxRobotsExceeded
+        expr: tenant_active_robots > tenant_max_robots
+        for: 5m
+        labels:
+          severity: warning
+          category: tenant_limit
+        annotations:
+          summary: "Tenant {{$labels.tenant_id}} exceeded max robots"
+          description: "Tenant has {{$value}} active robots, limit is {{$labels.max_robots}}"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: TenantMaxSensorsExceeded
+        expr: tenant_active_sensors > tenant_max_sensors
+        for: 5m
+        labels:
+          severity: warning
+          category: tenant_limit
+        annotations:
+          summary: "Tenant {{$labels.tenant_id}} exceeded max sensors"
+          description: "Tenant has {{$value}} active sensors, limit is {{$labels.max_sensors}}"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: TenantExpiringSoon
+        expr: (tenant_expires_at - time()) / 86400 < 7
+        for: 1h
+        labels:
+          severity: warning
+          category: tenant_expiration
+        annotations:
+          summary: "Tenant {{$labels.tenant_id}} expiring soon"
+          description: "Tenant expires in {{$value}} days"
+          tenant: "{{$labels.tenant_id}}"
+
+  # =============================================================================
+  # Device Health
+  # =============================================================================
+  - name: device_health
+    interval: 1m
+    rules:
+      - alert: DeviceOffline
+        expr: (time() - device_last_seen) > 3600
+        for: 10m
+        labels:
+          severity: critical
+          category: device_health
+        annotations:
+          summary: "Device {{$labels.device_id}} offline"
+          description: "Device {{$labels.device_id}} hasn't reported in {{$value}} seconds"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: DeviceLowBattery
+        expr: device_battery_level < 20
+        for: 5m
+        labels:
+          severity: warning
+          category: device_health
+        annotations:
+          summary: "Device {{$labels.device_id}} low battery"
+          description: "Battery at {{$value}}%"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: DeviceErrorStatus
+        expr: device_status == "error"
+        for: 5m
+        labels:
+          severity: critical
+          category: device_health
+        annotations:
+          summary: "Device {{$labels.device_id}} in error state"
+          description: "Device status: {{$labels.status}}"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: HighDeviceUptimeDegradation
+        expr: device_uptime_percentage < 95
+        for: 1h
+        labels:
+          severity: warning
+          category: device_reliability
+        annotations:
+          summary: "Device {{$labels.device_id}} uptime degraded"
+          description: "Uptime: {{$value}}%"
+          tenant: "{{$labels.tenant_id}}"
+
+  # =============================================================================
+  # Data Quality
+  # =============================================================================
+  - name: data_quality
+    interval: 5m
+    rules:
+      - alert: DataStaleness
+        expr: (time() - metric_last_update) > 86400
+        for: 15m
+        labels:
+          severity: warning
+          category: data_quality
+        annotations:
+          summary: "Metric {{$labels.metric_name}} stale"
+          description: "Last update {{$value}} seconds ago"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: SensorDataInconsistent
+        expr: abs(metric_value - metric_expected) / metric_expected > 0.50
+        for: 10m
+        labels:
+          severity: warning
+          category: data_quality
+        annotations:
+          summary: "Sensor {{$labels.sensor_id}} data inconsistent"
+          description: "Value {{$value}} differs >50% from expected"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: NDVIPipelineFailure
+        expr: rate(ndvi_tasks_failed_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+          category: ndvi_pipeline
+        annotations:
+          summary: "NDVI pipeline high failure rate"
+          description: "{{$value}} failures/second"
+      
+      - alert: NDVIProcessingDelay
+        expr: (time() - ndvi_last_processed) > 172800
+        for: 2h
+        labels:
+          severity: warning
+          category: ndvi_pipeline
+        annotations:
+          summary: "NDVI processing delayed"
+          description: "Last processed {{$value}} seconds ago"
+
+  # =============================================================================
+  # System Health
+  # =============================================================================
+  - name: system_health
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: (100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resource_usage
+        annotations:
+          summary: "High CPU usage on {{$labels.instance}}"
+          description: "CPU usage: {{$value}}%"
+      
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.90
+        for: 10m
+        labels:
+          severity: critical
+          category: resource_usage
+        annotations:
+          summary: "High memory usage on {{$labels.instance}}"
+          description: "Memory usage: {{$value * 100}}%"
+      
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.10
+        for: 5m
+        labels:
+          severity: warning
+          category: resource_usage
+        annotations:
+          summary: "Low disk space on {{$labels.instance}}"
+          description: "Available: {{$value * 100}}%"
+      
+      - alert: PodCrashLoopBackOff
+        expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+        labels:
+          severity: critical
+          category: pod_health
+        annotations:
+          summary: "Pod {{$labels.pod}} in CrashLoopBackOff"
+          description: "Restarted {{$value}} times in 15 minutes"
+          namespace: "{{$labels.namespace}}"
+
+  # =============================================================================
+  # Application Health
+  # =============================================================================
+  - name: application_health
+    interval: 1m
+    rules:
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile: {{$value}}s"
+      
+      - alert: APIHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: application_health
+        annotations:
+          summary: "High API error rate"
+          description: "{{$value * 100}}% errors"
+      
+      - alert: DatabaseConnectionPoolExhausted
+        expr: db_connection_pool_active / db_connection_pool_max > 0.90
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Database connection pool almost exhausted"
+          description: "{{$value * 100}}% connections in use"
+      
+      - alert: RedisQueueDepthHigh
+        expr: redis_queue_depth > 1000
+        for: 10m
+        labels:
+          severity: warning
+          category: task_queue
+        annotations:
+          summary: "Redis queue depth high"
+          description: "{{$value}} tasks queued"
+      
+      - alert: TaskProcessingFailed
+        expr: rate(tasks_failed_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+          category: task_processing
+        annotations:
+          summary: "High task failure rate"
+          description: "{{$value}} failures/second"
+
+  # =============================================================================
+  # Security
+  # =============================================================================
+  - name: security
+    interval: 5m
+    rules:
+      - alert: HighFailedLoginAttempts
+        expr: rate(auth_failed_login_attempts_total[15m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High failed login attempts"
+          description: "{{$value}} failed attempts/second"
+          tenant: "{{$labels.tenant_id}}"
+      
+      - alert: SuspiciousAPIUsage
+        expr: rate(api_requests_total{user=~".*"}[5m]) > 100
+        for: 10m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "Suspicious high API usage"
+          description: "{{$value}} requests/second from {{$labels.user}}"
+          tenant: "{{$labels.tenant_id}}"
+

@@ -1,0 +1,483 @@
+# =============================================================================
+# RBAC - Roles de Plataforma (Nivel Infraestructura)
+# =============================================================================
+# Estos roles gestionan la infraestructura de Kubernetes y componentes core
+
+---
+# =============================================================================
+# 1. PlatformAdmin - Administrador de Plataforma 👑
+# =============================================================================
+# Tiene control total sobre el clúster
+# Puede desplegar, actualizar y gestionar todos los componentes
+# Puede crear nuevos namespaces para tenants
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-admin
+  labels:
+    app: nekazari
+    rbac.nekazari.io/role-type: platform
+    rbac.nekazari.io/level: admin
+  annotations:
+    rbac.nekazari.io/description: "Administrador completo de la plataforma Nekazari"
+rules:
+# Control total sobre todos los recursos
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+# ClusterRoleBinding para el equipo de desarrollo/operaciones
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-admin-binding
+  labels:
+    app: nekazari
+    rbac.nekazari.io/role-type: platform
+subjects:
+# Añadir usuarios específicos aquí
+- kind: User
+  name: nekazari@robotika.cloud
+  apiGroup: rbac.authorization.k8s.io
+- kind: User
+  name: ops@nekazari.com
+  apiGroup: rbac.authorization.k8s.io
+# ServiceAccount para scripts de deployment
+- kind: ServiceAccount
+  name: deployment-admin
+  namespace: nekazari-system
+roleRef:
+  kind: ClusterRole
+  name: platform-admin
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ServiceAccount para deployment admin
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deployment-admin
+  namespace: nekazari-system
+  labels:
+    app: nekazari
+    rbac.nekazari.io/role-type: platform
+
+---
+# =============================================================================
+# 2. PlatformObserver - Observador de Plataforma 👀
+# =============================================================================
+# Acceso de solo lectura a todo el clúster
+# Puede ver logs, métricas, estados de pods y configuraciones
+# No puede modificar nada
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-observer
+  labels:
+    app: nekazari
+    rbac.nekazari.io/role-type: platform
+    rbac.nekazari.io/level: observer
+  annotations:
+    rbac.nekazari.io/description: "Observador con acceso de solo lectura a toda la plataforma"
+rules:
+# Lectura de todos los recursos comunes
+- apiGroups: [""]
+  resources:
+    - pods
+    - pods/log
+    - pods/status
+    - services
+    - endpoints
+    - persistentvolumeclaims
+    - persistentvolumes
+    - configmaps
+    - secrets  # Solo metadata, no el contenido
+    - namespaces
+    - nodes
+    - events
+  verbs: ["get", "list", "watch"]
+
+# Lectura de deployments, statefulsets, etc
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - statefulsets
+    - replicasets
+    - daemonsets
+  verbs: ["get", "list", "watch"]
+
+# Lectura de ingress y network policies
+- apiGroups: ["networking.k8s.io"]
+  resources:
+    - ingresses
+    - networkpolicies
+  verbs: ["get", "list", "watch"]
+
+# Lectura de RBAC (para ver permisos)
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources:
+    - roles
+    - rolebindings
+    - clusterroles
+    - clusterrolebindings
+  verbs: ["get", "list", "watch"]
+
+# Lectura de métricas
+- apiGroups: ["metrics.k8s.io"]
+  resources:
+    - pods
+    - nodes
+  verbs: ["get", "list"]
+
+# Lectura de CRDs (Custom Resource Definitions)
+- apiGroups: ["apiextensions.k8s.io"]
+  resources:
+    - customresourcedefinitions
+  verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding para personal de soporte
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-observer-binding
+  labels:
+    app: nekazari
+    rbac.nekazari.io/role-type: platform
+subjects:
+# Añadir usuarios de soporte aquí
+- kind: User
+  name: support@nekazari.com
+  apiGroup: rbac.authorization.k8s.io
+- kind: User
+  name: developer-junior@nekazari.com
+  apiGroup: rbac.authorization.k8s.io
+# Grupo de soporte
+- kind: Group
+  name: support-team
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: platform-observer
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# =============================================================================
+# ServiceAccounts para Componentes Core de la Plataforma
+# =============================================================================
+# Cada componente tiene su propio ServiceAccount con permisos mínimos
+
+---
+# ServiceAccount para Nginx Ingress Controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nginx-ingress-sa
+  namespace: nekazari
+  labels:
+    app: nginx-ingress
+    component: ingress-controller
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nginx-ingress-role
+  labels:
+    app: nginx-ingress
+rules:
+# Necesita leer ingresses y services
+- apiGroups: [""]
+  resources: ["services", "endpoints", "secrets", "configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "ingressclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses/status"]
+  verbs: ["update"]
+# Events para debugging
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nginx-ingress-binding
+subjects:
+- kind: ServiceAccount
+  name: nginx-ingress-sa
+  namespace: nekazari
+roleRef:
+  kind: ClusterRole
+  name: nginx-ingress-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ServiceAccount para Prometheus
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-sa
+  namespace: nekazari
+  labels:
+    app: prometheus
+    component: monitoring
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-role
+  labels:
+    app: prometheus
+rules:
+# Necesita descubrir servicios y pods para scraping
+- apiGroups: [""]
+  resources:
+    - nodes
+    - nodes/proxy
+    - nodes/metrics
+    - services
+    - endpoints
+    - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+    - configmaps
+  verbs: ["get"]
+# Acceso a métricas
+- nonResourceURLs:
+    - /metrics
+    - /metrics/cadvisor
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-binding
+subjects:
+- kind: ServiceAccount
+  name: prometheus-sa
+  namespace: nekazari
+roleRef:
+  kind: ClusterRole
+  name: prometheus-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ServiceAccount para Grafana
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana-sa
+  namespace: nekazari
+  labels:
+    app: grafana
+    component: monitoring
+
+---
+# Grafana solo necesita permisos básicos (sin acceso al API)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-role
+  namespace: nekazari
+  labels:
+    app: grafana
+rules:
+# Solo lectura de ConfigMaps y Secrets en su namespace
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-binding
+  namespace: nekazari
+subjects:
+- kind: ServiceAccount
+  name: grafana-sa
+  namespace: nekazari
+roleRef:
+  kind: Role
+  name: grafana-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# =============================================================================
+# ServiceAccounts para Servicios de Aplicación
+# =============================================================================
+
+---
+# ServiceAccount para API Gateway
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-gateway-sa
+  namespace: nekazari
+  labels:
+    app: api-gateway
+    layer: apis
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-gateway-role
+  namespace: nekazari
+rules:
+# Crear y leer secrets para credenciales de plataforma (sin resourceNames para permitir creación y verificación)
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create", "get", "list"]
+# Actualización de secrets específicos de plataforma (con resourceNames para restricción)
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["update", "patch"]
+  resourceNames: ["copernicus-cdse-secret", "aemet-secret"]
+# Lectura de configuración
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+# Lectura de services para service discovery
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-binding
+  namespace: nekazari
+subjects:
+- kind: ServiceAccount
+  name: api-gateway-sa
+  namespace: nekazari
+roleRef:
+  kind: Role
+  name: api-gateway-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ServiceAccount para API Validator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-validator-sa
+  namespace: nekazari
+  labels:
+    app: api-validator
+    layer: apis
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-validator-role
+  namespace: nekazari
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-validator-binding
+  namespace: nekazari
+subjects:
+- kind: ServiceAccount
+  name: api-validator-sa
+  namespace: nekazari
+roleRef:
+  kind: Role
+  name: api-validator-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ServiceAccount para Entity Manager
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: entity-manager-sa
+  namespace: nekazari
+  labels:
+    app: entity-manager
+    layer: apis
+
+---
+# Role para Entity Manager - Permisos en namespace nekazari
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: entity-manager-role
+  namespace: nekazari
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+---
+# RoleBinding para Entity Manager en namespace nekazari
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: entity-manager-binding
+  namespace: nekazari
+subjects:
+- kind: ServiceAccount
+  name: entity-manager-sa
+  namespace: nekazari
+roleRef:
+  kind: Role
+  name: entity-manager-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole para Entity Manager - Acceso a ConfigMaps y Secrets en namespaces de tenants y VPN
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: entity-manager-cluster-role
+  labels:
+    app: entity-manager
+    layer: apis
+rules:
+# Lectura de ConfigMaps y Secrets en todos los namespaces (para tenants y VPN)
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+# Listar namespaces para descubrir tenants
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding para Entity Manager
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: entity-manager-cluster-binding
+  labels:
+    app: entity-manager
+    layer: apis
+subjects:
+- kind: ServiceAccount
+  name: entity-manager-sa
+  namespace: nekazari
+roleRef:
+  kind: ClusterRole
+  name: entity-manager-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+

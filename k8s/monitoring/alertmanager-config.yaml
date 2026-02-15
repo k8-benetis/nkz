@@ -1,0 +1,235 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager
+  namespace: nekazari
+  labels:
+    app: alertmanager
+type: Opaque
+stringData:
+  alertmanager.yml: |
+    # Alertmanager configuration for Nekazari
+    global:
+      resolve_timeout: 5m
+      
+      # SMTP configuration (adjust for your email server)
+      smtp_smarthost: 'smtp.example.com:587'
+      smtp_from: 'alerts@nekazari.robotika.cloud'
+      smtp_require_tls: false
+    
+    # Templates
+    templates:
+      - '/etc/alertmanager/templates/*.tmpl'
+    
+    # Route tree
+    route:
+      receiver: 'default'
+      group_by: ['alertname', 'tenant', 'cluster']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      
+      # Routes
+      routes:
+        # Critical alerts - immediate
+        - match:
+            severity: critical
+          receiver: 'oncall'
+          group_wait: 0s
+          repeat_interval: 30m
+          continue: true
+        
+        # Tenant limit alerts - tenant admins
+        - match:
+            category: tenant_limit
+          receiver: 'tenant-admins'
+          group_wait: 30s
+          group_interval: 5m
+          repeat_interval: 24h
+        
+        # Device health - device operators
+        - match:
+            category: device_health
+          receiver: 'device-operators'
+          group_wait: 1m
+          group_interval: 5m
+          repeat_interval: 1h
+        
+        # Security alerts
+        - match:
+            category: security
+          receiver: 'security-team'
+          group_wait: 30s
+          repeat_interval: 1h
+          continue: true
+        
+        # Data quality - data team
+        - match:
+            category: data_quality
+          receiver: 'data-team'
+          group_wait: 5m
+          repeat_interval: 6h
+        
+        # NDVI pipeline
+        - match:
+            category: ndvi_pipeline
+          receiver: 'operations'
+          group_wait: 5m
+          repeat_interval: 2h
+    
+    # Receivers
+    receivers:
+      # Default receiver (fallback)
+      - name: 'default'
+        email_configs:
+          - to: 'operations@nekazari.robotika.cloud'
+            headers:
+              Subject: 'Nekazari Alert: {{ .GroupLabels.alertname }}'
+      
+      # On-call team (critical alerts)
+      - name: 'oncall'
+        email_configs:
+          - to: 'oncall@nekazari.robotika.cloud'
+            headers:
+              Subject: '[CRITICAL] Nekazari Alert: {{ .GroupLabels.alertname }}'
+        webhook_configs:
+          - url: 'http://notification-service:5000/webhook/alerts'
+            send_resolved: true
+        # Optional: PagerDuty
+        # pagerduty_configs:
+        #   - service_key: '<PAGERDUTY_KEY>'
+      
+      # Tenant admins (receive alerts for their tenants)
+      - name: 'tenant-admins'
+        email_configs:
+          - to: '{{ .GroupLabels.tenant }}@nekazari.robotika.cloud'
+            headers:
+              Subject: 'Nekazari Alert: {{ .GroupLabels.alertname }}'
+      
+      # Device operators
+      - name: 'device-operators'
+        email_configs:
+          - to: 'devices@nekazari.robotika.cloud'
+            headers:
+              Subject: 'Device Alert: {{ .GroupLabels.alertname }}'
+      
+      # Security team
+      - name: 'security-team'
+        email_configs:
+          - to: 'security@nekazari.robotika.cloud'
+            headers:
+              Subject: '[SECURITY] Nekazari Alert: {{ .GroupLabels.alertname }}'
+        # Optional: Slack
+        # slack_configs:
+        #   - api_url: '<SLACK_WEBHOOK_URL>'
+        #     channel: '#security-alerts'
+      
+      # Data team
+      - name: 'data-team'
+        email_configs:
+          - to: 'data@nekazari.robotika.cloud'
+            headers:
+              Subject: 'Data Quality Alert: {{ .GroupLabels.alertname }}'
+      
+      # Operations
+      - name: 'operations'
+        email_configs:
+          - to: 'operations@nekazari.robotika.cloud'
+            headers:
+              Subject: 'Operations Alert: {{ .GroupLabels.alertname }}'
+    
+    # Inhibition rules (prevent duplicate alerts)
+    inhibit_rules:
+      # If node is down, inhibit all alerts for that node
+      - source_match:
+          alertname: 'NodeDown'
+        target_match:
+          severity: 'warning'
+        equal: ['instance']
+      
+      # If service is down, inhibit related alerts
+      - source_match:
+          alertname: 'PodCrashLoopBackOff'
+        target_match:
+          category: 'application_health'
+        equal: ['pod']
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: nekazari
+  labels:
+    app: alertmanager
+    layer: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+        layer: monitoring
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 9093
+        args:
+          - '--config.file=/etc/alertmanager/alertmanager.yml'
+          - '--storage.path=/alertmanager'
+          - '--web.external-url=http://alertmanager:9093'
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: storage
+          mountPath: /alertmanager
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9093
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9093
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: config
+        secret:
+          secretName: alertmanager
+      - name: storage
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-service
+  namespace: nekazari
+  labels:
+    app: alertmanager
+spec:
+  selector:
+    app: alertmanager
+  ports:
+  - name: http
+    port: 9093
+    targetPort: 9093
+    protocol: TCP
+

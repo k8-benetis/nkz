@@ -1,0 +1,157 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fix-keycloak-config
+  namespace: nekazari
+  labels:
+    app: keycloak-fix
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: fix
+          image: python:3.11-slim
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              pip install requests
+              python3 - <<EOF
+              import os
+              import requests
+              import json
+              import sys
+
+              KEYCLOAK_URL = "http://keycloak-service:8080/auth"
+              REALM = "nekazari"
+              ADMIN_USER = os.environ.get("KEYCLOAK_ADMIN")
+              ADMIN_PASS = os.environ.get("KEYCLOAK_ADMIN_PASSWORD")
+
+              if not ADMIN_USER or not ADMIN_PASS:
+                  print("Error: Credentials missing")
+                  sys.exit(1)
+
+              # 1. Get Admin Token
+              print("Getting Admin Token...")
+              token_url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
+              data = {
+                  "client_id": "admin-cli",
+                  "username": ADMIN_USER,
+                  "password": ADMIN_PASS,
+                  "grant_type": "password"
+              }
+              try:
+                  resp = requests.post(token_url, data=data)
+                  resp.raise_for_status()
+                  token = resp.json()["access_token"]
+              except Exception as e:
+                  print(f"Failed to get token: {e}")
+                  print(resp.text)
+                  sys.exit(1)
+
+              headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+              # 2. Fix nekazari-frontend Client
+              print("Checking nekazari-frontend client...")
+              clients_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients"
+              resp = requests.get(clients_url, params={"clientId": "nekazari-frontend"}, headers=headers)
+              if resp.status_code == 200 and len(resp.json()) > 0:
+                  client = resp.json()[0]
+                  client_id = client["id"]
+                  redirects = client.get("redirectUris", [])
+                  web_origins = client.get("webOrigins", [])
+                  
+                  new_redirect = "https://nekazari.robotika.cloud/*"
+                  new_origin = "https://nekazari.robotika.cloud"
+                  
+                  needs_update = False
+                  if new_redirect not in redirects:
+                      redirects.append(new_redirect)
+                      needs_update = True
+                  if new_origin not in web_origins:
+                      web_origins.append(new_origin)
+                      needs_update = True
+                      
+                  if needs_update:
+                      print(f"Updating client {client_id}...")
+                      update_data = {
+                          "redirectUris": redirects,
+                          "webOrigins": web_origins
+                      }
+                      requests.put(f"{clients_url}/{client_id}", json=update_data, headers=headers)
+                      print("Client updated.")
+                  else:
+                      print("Client configuration is correct.")
+              else:
+                  print("Client nekazari-frontend not found!")
+
+              # 3. Create Admin User if missing
+              print("Checking Admin User...")
+              users_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}/users"
+              target_email = "nekazari@robotika.cloud"
+              resp = requests.get(users_url, params={"email": target_email}, headers=headers)
+
+              if resp.status_code == 200 and len(resp.json()) == 0:
+                  print(f"Creating user {target_email}...")
+                  new_user = {
+                      "username": "admin",
+                      "email": target_email,
+                      "firstName": "Platform",
+                      "lastName": "Admin",
+                      "enabled": True,
+                      "emailVerified": True,
+                      "credentials": [{
+                          "type": "password",
+                          "value": "Nekazari2024!",
+                          "temporary": False
+                      }],
+                      "attributes": {"tenant_id": ["platform"]}
+                  }
+                  requests.post(users_url, json=new_user, headers=headers)
+                  print("Admin user created (Pass: Nekazari2024!).")
+                  
+                  # Assign Role
+                  user_id = requests.get(users_url, params={"username": "admin"}, headers=headers).json()[0]["id"]
+                  roles_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}/roles/PlatformAdmin"
+                  role_id = requests.get(roles_url, headers=headers).json()["id"]
+                  
+                  mapping_url = f"{users_url}/{user_id}/role-mappings/realm"
+                  requests.post(mapping_url, json=[{"id": role_id, "name": "PlatformAdmin"}], headers=headers)
+                  print("Role PlatformAdmin assigned.")
+              else:
+                  print("Admin user already exists.")
+
+              # 4. Fix Realm Attributes (frontendUrl)
+              print("Checking Realm Attributes...")
+              realm_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}"
+              resp = requests.get(realm_url, headers=headers)
+              if resp.status_code == 200:
+                  realm_data = resp.json()
+                  attributes = realm_data.get("attributes", {})
+                  current_frontend = attributes.get("frontendUrl")
+                  
+                  target_frontend = "https://auth.robotika.cloud/auth"
+                  if current_frontend != target_frontend:
+                      print(f"Updating frontendUrl from {current_frontend} to {target_frontend}")
+                      attributes["frontendUrl"] = target_frontend
+                      attributes["adminUrl"] = f"{target_frontend}/admin"
+                      
+                      # Update only attributes to avoid overwriting other settings
+                      requests.put(realm_url, json={"attributes": attributes}, headers=headers)
+                      print("Realm attributes updated.")
+                  else:
+                      print("Realm frontendUrl is correct.")
+
+              EOF
+          env:
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: admin-username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: admin-password

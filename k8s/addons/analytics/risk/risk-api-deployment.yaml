@@ -1,0 +1,114 @@
+# =============================================================================
+# Risk API Deployment
+# =============================================================================
+# REST API for risk management (catalog, subscriptions, states)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-api
+  namespace: nekazari
+  labels:
+    app: risk-api
+    component: risk-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-api
+  template:
+    metadata:
+      labels:
+        app: risk-api
+        component: risk-management
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: risk-api
+        image: ghcr.io/k8-benetis/nekazari-public/risk-api:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - name: http
+          containerPort: 5000
+        env:
+        # Database configuration - Use POSTGRES_URL from secret (standard approach)
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: postgres-url
+        - name: PORT
+          value: "5000"
+        # Keycloak authentication
+        - name: KEYCLOAK_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: secret
+        - name: HMAC_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: secret
+        - name: ALLOW_JWT_FALLBACK
+          value: "false"
+        - name: REQUIRE_HMAC_SIGNATURE
+          value: "true"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: risk-api-service
+  namespace: nekazari
+  labels:
+    app: risk-api
+spec:
+  selector:
+    app: risk-api
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+

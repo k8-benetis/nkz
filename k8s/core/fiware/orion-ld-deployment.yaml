@@ -1,0 +1,109 @@
+# =============================================================================
+# Orion-LD Deployment - Context Broker FIWARE
+# =============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orion-ld
+  namespace: nekazari
+  labels:
+    app: orion-ld
+    layer: apis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orion-ld
+  template:
+    metadata:
+      labels:
+        app: orion-ld
+        layer: apis
+    spec:
+      serviceAccountName: api-gateway-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: orion-ld
+        image: fiware/orion-ld:1.5.1
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 1026
+        env:
+        # ===========================================
+        # Multi-tenancy configuration (CRITICAL)
+        # ===========================================
+        - name: ORIONLD_MULTI_TENANCY
+          value: "TRUE"
+        # ===========================================
+        # MongoDB connection
+        # ===========================================
+        - name: ORIONLD_MONGO_HOST
+          value: mongodb-service
+        - name: ORIONLD_MONGO_PORT
+          value: "27017"
+        - name: ORIONLD_MONGO_DB
+          value: orion
+        - name: ORIONLD_MONGO_AUTH_SOURCE
+          value: authSource=admin
+        - name: ORIONLD_MONGO_USER
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: root-username
+        - name: ORIONLD_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: root-password
+        - name: ORIONLD_MONGO_URI
+          value: ""  # Empty to force use of separate variables
+        livenessProbe:
+          httpGet:
+            path: /version
+            port: 1026
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /version
+            port: 1026
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orion-ld-service
+  namespace: nekazari
+  labels:
+    app: orion-ld
+    layer: apis
+spec:
+  type: ClusterIP
+  selector:
+    app: orion-ld
+  ports:
+  - port: 1026
+    targetPort: 1026
+    protocol: TCP
+    name: http

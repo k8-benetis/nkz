@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply transition-colors duration-200;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+}
+
+@layer utilities {
+  /* Shimmer animation for skeleton loaders */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  /* Force grid display to prevent remote modules from breaking layout */
+  .force-grid {
+    display: grid !important;
+  }
+}
+
+/* =============================================================================
+   CSS Isolation for Remote Modules
+   =============================================================================
+   These styles prevent remote modules from affecting the host application's
+   layout. All remote modules are wrapped in .remote-module-container which
+   isolates their CSS using CSS containment.
+   ============================================================================= */
+
+/* Isolate remote modules from host layout */
+.remote-module-container {
+  /* CSS Containment: isolate layout and style calculations */
+  contain: layout style paint !important;
+  /* Create new stacking context to prevent z-index conflicts */
+  isolation: isolate !important;
+  /* Prevent remote module CSS from affecting parent */
+  position: relative !important;
+  /* Ensure content doesn't overflow and affect layout */
+  overflow: visible;
+  /* Reset any global styles that might leak */
+  display: block;
+  /* Prevent remote modules from changing box-sizing globally */
+  box-sizing: border-box;
+}
+
+/* Prevent remote modules from affecting host elements outside their container */
+/* This selector ensures remote module CSS cannot target host elements */
+.remote-module-container * {
+  /* Containment is inherited, but we ensure it's explicit */
+  contain: style layout;
+}
+
+/* Protect critical host layout elements from remote module CSS */
+.host-layout-protected,
+.host-protected {
+  /* Force layout properties that remote modules cannot override */
+  contain: layout style paint !important;
+  isolation: isolate !important;
+  position: relative !important;
+}
+
+/* Grid protection - Simple and effective */
+/* With preflight disabled in modules, this should be sufficient */
+div[class*="grid"]:not(.remote-module-container *) {
+  contain: layout style;
+}

@@ -1,0 +1,87 @@
+# =============================================================================
+# Frontend Static Nginx Deployment
+# =============================================================================
+# Lightweight Nginx proxy (~32Mi) that serves frontend from MinIO.
+# Replaces the heavier Docker-based frontend-host deployment.
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-static
+  namespace: nekazari
+  labels:
+    app: frontend-static
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend-static
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: frontend-static
+        component: frontend
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginx:1.25-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: frontend-nginx-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-static-service
+  namespace: nekazari
+  labels:
+    app: frontend-static
+    component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-static
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http

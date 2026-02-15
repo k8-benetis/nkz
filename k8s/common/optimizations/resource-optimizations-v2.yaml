@@ -1,0 +1,75 @@
+# =============================================================================
+# Resource Optimizations V2 - Phase 3 Preparation
+# =============================================================================
+# Apply these changes to reduce memory footprint and make room for NDVI
+# Target: Free up ~400-500Mi for NDVI worker
+# =============================================================================
+
+# GeoServer: Reduce from 1.5Gi/2Gi to 1.2Gi/1.5Gi (save ~500Mi)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geoserver
+  namespace: nekazari
+spec:
+  template:
+    spec:
+      containers:
+      - name: geoserver
+        resources:
+          requests:
+            memory: "1.2Gi"
+            cpu: "200m"
+          limits:
+            memory: "1.5Gi"
+            cpu: "500m"
+
+# MongoDB: Reduce from 384Mi/768Mi to 256Mi/512Mi (save ~256Mi)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: nekazari
+spec:
+  template:
+    spec:
+      containers:
+      - name: mongodb
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+
+# CrateDB: ELIMINADO - No se usa actualmente
+# Se eliminó porque no se estaba utilizando y consumía recursos innecesarios
+# Si en el futuro se necesita, se puede implementar QuantumLeap con TimescaleDB
+# o cambiar a CrateDB cuando haya miles de tenants activos
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: cratedb
+#   namespace: nekazari
+# spec:
+#   template:
+#     spec:
+#       containers:
+#       - name: cratedb
+#         env:
+#         - name: CRATE_HEAP_SIZE
+#           value: "256m"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "600m"
+
+# Total savings: ~1.2Gi memory freed up for NDVI
+

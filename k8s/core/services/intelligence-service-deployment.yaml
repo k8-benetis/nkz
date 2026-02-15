@@ -1,0 +1,128 @@
+# =============================================================================
+# Intelligence Module - External Module Deployment
+# =============================================================================
+# This module is now deployed from: https://github.com/k8-benetis/nekazari-module-intelligence
+# Image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:latest
+# =============================================================================
+
+---
+# Deployment: Intelligence Module Backend Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelligence-backend
+  namespace: nekazari
+  labels:
+    app: intelligence-backend
+    component: backend
+    module: intelligence
+    nekazari.io/profile: addon
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: intelligence-backend
+  template:
+    metadata:
+      labels:
+        app: intelligence-backend
+        component: backend
+        module: intelligence
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: backend
+          image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:main
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: APP_NAME
+              value: "Intelligence Module"
+            - name: DEBUG
+              value: "false"
+            - name: API_PREFIX
+              value: "/api/intelligence"
+            # Redis Configuration
+            - name: REDIS_HOST
+              value: "redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+            # Orion-LD Configuration
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
+            - name: CONTEXT_URL
+              value: "https://nekazari.robotika.cloud/ngsi-ld-context.json"
+            # Keycloak Configuration (optional)
+            - name: KEYCLOAK_URL
+              value: "https://auth.robotika.cloud/auth"
+            - name: KEYCLOAK_REALM
+              value: "nekazari"
+            - name: JWT_AUDIENCE
+              value: "account"
+          resources:
+            # Higher limits for Data Science workloads
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+---
+# Service: Intelligence Module Backend API
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelligence-api-service
+  namespace: nekazari
+  labels:
+    app: intelligence-backend
+    module: intelligence
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: intelligence-backend

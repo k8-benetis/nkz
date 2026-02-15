@@ -1,0 +1,48 @@
+# =============================================================================
+# Mosquitto SSL Configuration Template
+# =============================================================================
+# This file shows how to configure SSL for Mosquitto when certificates are available
+# Copy this configuration to mosquitto.conf and uncomment the SSL listener section
+
+# Basic configuration
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+log_type error
+log_type warning
+log_type notice
+log_type information
+
+# Connection settings
+max_connections 1000
+max_inflight_messages 100
+max_queued_messages 1000
+message_size_limit 268435456
+max_packet_size 268435456
+
+# Listeners
+listener 1883 0.0.0.0
+protocol mqtt
+
+# SSL listener (uncomment when SSL certificates are available)
+listener 8883 0.0.0.0
+protocol mqtt
+cafile /mosquitto/ssl/ca.crt
+certfile /mosquitto/ssl/server.crt
+keyfile /mosquitto/ssl/server.key
+
+listener 9001 0.0.0.0
+protocol websockets
+
+# Authentication (configure for production)
+allow_anonymous false
+password_file /mosquitto/config/passwd
+acl_file /mosquitto/config/acl
+
+# Security settings
+auto_save_interval 1800
+autosave_interval 1800
+
+# Performance tuning
+max_keepalive 65535
+keepalive_interval 60

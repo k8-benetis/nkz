@@ -1,0 +1,93 @@
+# =============================================================================
+# MinIO Bootstrap Job - Initialize Buckets
+# =============================================================================
+# This job initializes MinIO buckets required by the platform
+# Runs once on platform bootstrap or when MinIO is first deployed
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: nekazari
+  labels:
+    app: minio
+    layer: infrastructure
+    job-type: bootstrap
+spec:
+  ttlSecondsAfterFinished: 300 # Clean up after 5 minutes
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: minio-init
+        layer: infrastructure
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: minio-init
+          image: minio/mc:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for MinIO service to be ready..."
+              # Use mc to check if MinIO is available (retry logic)
+              for i in $(seq 1 30); do
+                if mc alias set test http://minio-service:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD 2>/dev/null; then
+                  echo "MinIO is ready!"
+                  break
+                fi
+                echo "Waiting for MinIO... (attempt $i/30)"
+                sleep 2
+              done
+
+              echo "Configuring MinIO client..."
+              mc alias set local http://minio-service:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
+
+              echo "Creating buckets..."
+              # Create ndvi-rasters bucket for NDVI worker
+              mc mb local/ndvi-rasters --ignore-existing || true
+              mc anonymous set none local/ndvi-rasters || true
+
+              # Create temp bucket for temporary files
+              mc mb local/temp --ignore-existing || true
+              mc anonymous set none local/temp || true
+
+              # Create modules-raw bucket for uploaded module ZIPs (private)
+              mc mb local/modules-raw --ignore-existing || true
+              mc anonymous set none local/modules-raw || true
+
+              # Create modules-public bucket for compiled module assets (public readonly)
+              mc mb local/modules-public --ignore-existing || true
+              # Set public readonly policy for modules-public
+              mc anonymous set download local/modules-public || true
+
+              # Create assets-3d bucket for 3D models and icons (tenant-specific paths)
+              # Structure: assets-3d/{tenant_id}/{original|optimized}/{asset_id}.glb
+              mc mb local/assets-3d --ignore-existing || true
+              # Set public readonly for serving optimized assets
+              mc anonymous set download local/assets-3d || true
+              # Note: CORS headers for GLB files handled via nginx ingress proxy
+
+              echo "MinIO initialization completed successfully"
+              echo "Buckets created: ndvi-rasters, temp, modules-raw, modules-public, assets-3d"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-password
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"

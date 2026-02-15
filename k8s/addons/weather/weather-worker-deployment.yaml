@@ -1,0 +1,127 @@
+# =============================================================================
+# Weather Worker Deployment
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weather-worker-sa
+  namespace: nekazari
+  labels:
+    app: weather-worker
+    layer: processing
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-worker
+  namespace: nekazari
+  labels:
+    app: weather-worker
+    layer: processing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-worker
+  template:
+    metadata:
+      labels:
+        app: weather-worker
+        layer: processing
+    spec:
+      serviceAccountName: weather-worker-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: weather-worker
+        image: ghcr.io/k8-benetis/nekazari-public/weather-worker:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - name: metrics
+          containerPort: 9106
+        env:
+        # PostgreSQL connection
+        - name: POSTGRES_HOST
+          value: "postgresql-service"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "nekazari"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        
+        # Open-Meteo API (Primary)
+        - name: OPENMETEO_API_URL
+          value: "https://api.open-meteo.com/v1"
+        
+        # AEMET API (Secondary - requires manual secret)
+        - name: AEMET_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: weather-secrets
+              key: aemet-api-key
+              optional: true
+        
+        # Configuration
+        - name: WEATHER_INGESTION_INTERVAL_HOURS
+          value: "1"
+        - name: WEATHER_FORECAST_DAYS
+          value: "14"
+        - name: METRICS_PORT
+          value: "9106"
+        - name: LOG_LEVEL
+          value: "INFO"
+
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9106
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+      restartPolicy: Always
+
+---
+# Service for Weather Worker Metrics
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-worker-metrics
+  namespace: nekazari
+  labels:
+    app: weather-worker
+spec:
+  selector:
+    app: weather-worker
+  ports:
+  - name: metrics
+    port: 9106
+    targetPort: 9106

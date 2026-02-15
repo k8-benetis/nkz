@@ -1,0 +1,183 @@
+# =============================================================================
+# Keycloak Add Tenant Attribute Job
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-add-tenant-attribute
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-add-tenant-attribute
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: add-tenant-attribute
+        image: debian:bullseye-slim
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "Installing curl and jq..."
+          apt-get update -qq && apt-get install -y -qq curl jq > /dev/null
+          
+          USER_EMAIL="${USER_EMAIL}"
+          TENANT_ID="${TENANT_ID:-default}"
+          
+          if [ -z "$USER_EMAIL" ]; then
+            echo "ERROR: USER_EMAIL not set"
+            exit 1
+          fi
+          
+          echo "Adding tenant-id attribute to user: $USER_EMAIL"
+          
+          ADMIN_USER=${KEYCLOAK_ADMIN}
+          ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+          
+          ADMIN_TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=${ADMIN_USER}" \
+            -d "password=${ADMIN_PASSWORD}" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" \
+            http://keycloak-service:8080/auth/realms/master/protocol/openid-connect/token | \
+            jq -r '.access_token')
+          
+          if [ "$ADMIN_TOKEN" = "null" ] || [ -z "$ADMIN_TOKEN" ]; then
+            echo "ERROR: Failed to get admin token"
+            exit 1
+          fi
+          
+          USER_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=$USER_EMAIL" | \
+            jq -r '.[0].id')
+          
+          if [ "$USER_ID" = "null" ] || [ -z "$USER_ID" ]; then
+            echo "ERROR: User not found: $USER_EMAIL"
+            exit 1
+          fi
+          
+          echo "Found user: $USER_EMAIL (ID: $USER_ID)"
+          
+          # Get current user data
+          USER_DATA=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users/$USER_ID")
+          
+          # Check response
+          if echo "$USER_DATA" | jq -e '.error' > /dev/null; then
+            echo "❌ ERROR: Failed to get user data"
+            echo "$USER_DATA" | jq .
+            exit 1
+          fi
+          
+          # Check if attributes field exists, if not, create it
+          HAS_ATTRIBUTES=$(echo "$USER_DATA" | jq 'has("attributes")')
+          
+          # Show current user data for debugging
+          echo "Current user data:"
+          echo "$USER_DATA" | jq '{id, email, username, attributes}'
+          
+          # Update attributes while preserving existing data
+          # Keycloak expects attributes as arrays even for single values
+          # Important: Preserve all required fields like email, username, etc.
+          if [ "$HAS_ATTRIBUTES" = "true" ]; then
+            # Merge with existing attributes, preserving all other fields
+            EXISTING_ATTRS=$(echo "$USER_DATA" | jq '.attributes // {}')
+            UPDATED_USER_DATA=$(echo "$USER_DATA" | jq --argjson attrs "$(echo "$EXISTING_ATTRS" | jq ".tenantId = [\"$TENANT_ID\"]")" '.attributes = $attrs')
+          else
+            # Create new attributes object, preserving all other fields
+            UPDATED_USER_DATA=$(echo "$USER_DATA" | jq ".attributes = {tenantId: [\"$TENANT_ID\"]}")
+          fi
+          
+          # Ensure required fields are preserved
+          # Keycloak requires email and username fields
+          if ! echo "$UPDATED_USER_DATA" | jq -e '.email' > /dev/null; then
+            EMAIL=$(echo "$USER_DATA" | jq -r '.email')
+            UPDATED_USER_DATA=$(echo "$UPDATED_USER_DATA" | jq ".email = \"$EMAIL\"")
+          fi
+          
+          if ! echo "$UPDATED_USER_DATA" | jq -e '.username' > /dev/null; then
+            USERNAME=$(echo "$USER_DATA" | jq -r '.username')
+            UPDATED_USER_DATA=$(echo "$UPDATED_USER_DATA" | jq ".username = \"$USERNAME\"")
+          fi
+          
+          echo ""
+          echo "Updating user with new attributes..."
+          echo "Updated attributes:"
+          echo "$UPDATED_USER_DATA" | jq '.attributes'
+          
+          # Try using the attributes endpoint first (more reliable for setting attributes)
+          echo "Attempting to set attribute via PUT to attributes endpoint..."
+          ATTR_PAYLOAD=$(echo "{\"tenantId\": [\"$TENANT_ID\"]}" | jq .)
+          ATTR_HTTP_CODE=$(curl -s -o /tmp/attr-response.json -w "%{http_code}" -X PUT \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$ATTR_PAYLOAD" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users/$USER_ID/attributes" 2>/dev/null || echo "000")
+          
+          if [ "$ATTR_HTTP_CODE" = "204" ] || [ "$ATTR_HTTP_CODE" = "200" ]; then
+            echo "✅ Attributes set via attributes endpoint (HTTP $ATTR_HTTP_CODE)"
+          else
+            echo "⚠️  Attributes endpoint returned $ATTR_HTTP_CODE, trying full user update..."
+            
+            # Fallback: Update entire user object
+            HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" -X PUT \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$UPDATED_USER_DATA" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/users/$USER_ID")
+            
+            if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
+              echo "❌ ERROR: Update failed with HTTP $HTTP_CODE"
+              cat /tmp/response.json
+              exit 1
+            fi
+            
+            echo "✅ User updated (HTTP $HTTP_CODE)"
+          fi
+          
+          # Verify the update
+          echo ""
+          echo "Verifying update..."
+          VERIFIED_USER=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users/$USER_ID")
+          
+          VERIFIED_TENANT=$(echo "$VERIFIED_USER" | jq -r '.attributes.tenantId[0] // empty')
+          
+          if [ -z "$VERIFIED_TENANT" ]; then
+            echo "❌ ERROR: tenantId not found after update!"
+            echo "User attributes:"
+            echo "$VERIFIED_USER" | jq '.attributes // "No attributes"'
+            exit 1
+          fi
+          
+          echo "✅ Verified: tenantId = $VERIFIED_TENANT"
+          echo ""
+          echo "✅ Successfully added tenant-id attribute: $TENANT_ID to user: $USER_EMAIL"
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        - name: USER_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: bootstrap-secret
+              key: admin-email
+        - name: TENANT_ID
+          value: "default"
+

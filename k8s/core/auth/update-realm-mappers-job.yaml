@@ -1,0 +1,225 @@
+# =============================================================================
+# Job para actualizar protocolMappers del cliente nekazari-frontend
+# =============================================================================
+# Este job actualiza SOLO los protocolMappers del cliente, sin tocar usuarios
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-update-mappers
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-update-mappers
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: update-mappers
+        image: docker.io/library/debian:bullseye-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          # Install curl and jq
+          apt-get update && apt-get install -y curl jq && rm -rf /var/lib/apt/lists/*
+          
+          echo "Waiting for Keycloak to be ready..."
+          until curl -f -s http://keycloak-service:8080/auth/realms/master > /dev/null; do
+            echo "Keycloak not ready yet, waiting..."
+            sleep 10
+          done
+          
+          echo "Keycloak is ready, getting admin token..."
+          
+          # Use admin password from environment variable
+          ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+          
+          if [ -z "$KEYCLOAK_ADMIN" ] || [ -z "$ADMIN_PASSWORD" ]; then
+            echo "ERROR: KEYCLOAK_ADMIN or KEYCLOAK_ADMIN_PASSWORD not set"
+            exit 1
+          fi
+          
+          echo "Attempting to get admin token for user: ${KEYCLOAK_ADMIN}"
+          
+          # Get admin token
+          TOKEN_RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=${KEYCLOAK_ADMIN}" \
+            -d "password=${ADMIN_PASSWORD}" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" \
+            http://keycloak-service:8080/auth/realms/master/protocol/openid-connect/token)
+          
+          echo "Token response (first 200 chars): ${TOKEN_RESPONSE:0:200}"
+          
+          ADMIN_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+          
+          if [ "$ADMIN_TOKEN" = "null" ] || [ -z "$ADMIN_TOKEN" ]; then
+            echo "ERROR: Failed to get admin token"
+            echo "Full response: $TOKEN_RESPONSE"
+            exit 1
+          fi
+          
+          echo "✅ Admin token obtained successfully"
+          
+          echo "Admin token obtained, updating client mappers..."
+          
+          # Get client ID for nekazari-frontend
+          CLIENT_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/clients?clientId=nekazari-frontend" | \
+            jq -r '.[0].id // empty')
+          
+          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ]; then
+            echo "ERROR: Client nekazari-frontend not found"
+            exit 1
+          fi
+          
+          echo "Client ID: $CLIENT_ID"
+          
+          # Get current client configuration
+          CLIENT_CONFIG=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}")
+          
+          # Get current mappers
+          CURRENT_MAPPERS=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/protocol-mappers/models")
+          
+          echo "Current mappers:"
+          echo "$CURRENT_MAPPERS" | jq -r '.[] | "  - \(.name): \(.protocolMapper)"'
+          
+          # Check if realm-roles mapper exists
+          HAS_REALM_ROLES_MAPPER=$(echo "$CURRENT_MAPPERS" | jq -r '.[] | select(.name == "realm-roles") | .id // empty')
+          
+          if [ -z "$HAS_REALM_ROLES_MAPPER" ]; then
+            echo "Creating realm-roles mapper..."
+            
+            # Create realm-roles mapper
+            curl -s -X POST \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "name": "realm-roles",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                "config": {
+                  "multivalued": "true",
+                  "userinfo.token.claim": "true",
+                  "id.token.claim": "true",
+                  "access.token.claim": "true",
+                  "claim.name": "realm_access.roles",
+                  "jsonType.label": "String"
+                }
+              }' \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/protocol-mappers/models"
+            
+            echo "✅ Realm-roles mapper created"
+          else
+            echo "✅ Realm-roles mapper already exists"
+          fi
+          
+          # Ensure 'basic' client scope is assigned (contains 'sub' claim mapper)
+          # In Keycloak 21+, the 'sub' claim is included via the 'basic' client scope
+          echo "Checking for 'basic' client scope..."
+          BASIC_SCOPE_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/client-scopes" | \
+            jq -r '.[] | select(.name == "basic") | .id // empty')
+          
+          if [ -n "$BASIC_SCOPE_ID" ]; then
+            echo "Found 'basic' client scope: $BASIC_SCOPE_ID"
+            
+            # Get current default client scopes
+            CURRENT_DEFAULT_SCOPES=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/default-client-scopes" | \
+              jq -r '.[] | .id')
+            
+            # Check if basic scope is already assigned
+            SCOPE_ASSIGNED=$(echo "$CURRENT_DEFAULT_SCOPES" | grep -q "$BASIC_SCOPE_ID" && echo "yes" || echo "no")
+            
+            if [ "$SCOPE_ASSIGNED" = "no" ]; then
+              echo "Assigning 'basic' client scope to nekazari-frontend..."
+              curl -s -X PUT \
+                -H "Authorization: Bearer $ADMIN_TOKEN" \
+                -H "Content-Type: application/json" \
+                "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/default-client-scopes/${BASIC_SCOPE_ID}"
+              
+              echo "✅ 'basic' client scope assigned to nekazari-frontend"
+              echo "   This ensures the 'sub' claim is included in access tokens"
+            else
+              echo "✅ 'basic' client scope already assigned"
+            fi
+          else
+            echo "⚠️  'basic' client scope not found - this may indicate a Keycloak configuration issue"
+          fi
+          
+          # Check if tenant-id Client Scope exists and assign it to client
+          echo "Checking for tenant-id Client Scope..."
+          TENANT_ID_SCOPE_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/client-scopes" | \
+            jq -r '.[] | select(.name == "tenant-id") | .id // empty')
+          
+          if [ -n "$TENANT_ID_SCOPE_ID" ]; then
+            echo "Found tenant-id Client Scope: $TENANT_ID_SCOPE_ID"
+            
+            # Get current default client scopes
+            CURRENT_DEFAULT_SCOPES=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/default-client-scopes" | \
+              jq -r '.[] | .id')
+            
+            # Check if tenant-id scope is already assigned
+            SCOPE_ASSIGNED=$(echo "$CURRENT_DEFAULT_SCOPES" | grep -q "$TENANT_ID_SCOPE_ID" && echo "yes" || echo "no")
+            
+            if [ "$SCOPE_ASSIGNED" = "no" ]; then
+              echo "Assigning tenant-id Client Scope to nekazari-frontend..."
+              curl -s -X PUT \
+                -H "Authorization: Bearer $ADMIN_TOKEN" \
+                -H "Content-Type: application/json" \
+                "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/default-client-scopes/${TENANT_ID_SCOPE_ID}"
+              
+              echo "✅ Tenant-id Client Scope assigned to nekazari-frontend"
+            else
+              echo "✅ Tenant-id Client Scope already assigned"
+            fi
+          else
+            echo "⚠️  tenant-id Client Scope not found - mapper may not work"
+          fi
+          
+          # Verify mappers
+          echo ""
+          echo "Updated mappers:"
+          curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/clients/${CLIENT_ID}/protocol-mappers/models" | \
+            jq -r '.[] | "  - \(.name): \(.protocolMapper) -> \(.config."claim.name" // "N/A")"'
+          
+          echo ""
+          echo "✅ Mapper update completed successfully!"
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+      initContainers:
+      - name: wait-for-keycloak
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for Keycloak to be available..."
+          until curl -f -s http://keycloak-service:8080/auth/realms/master > /dev/null; do
+            echo "Keycloak not ready yet, waiting..."
+            sleep 5
+          done
+          echo "Keycloak is available!"
+

@@ -1,0 +1,12 @@
+{
+    "olive_tree": {
+        "url": "https://assets.nekazari.com/defaults/olive_tree.glb",
+        "type": "model/gltf-binary",
+        "category": "vegetation"
+    },
+    "tractor": {
+        "url": "https://assets.nekazari.com/defaults/tractor.glb",
+        "type": "model/gltf-binary",
+        "category": "fleet"
+    }
+}

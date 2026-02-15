@@ -1,0 +1,173 @@
+# =============================================================================
+# Risk Worker Deployment
+# =============================================================================
+# Evaluates batch risks (agronomic, energy) on a schedule
+# Real-time risks are handled via webhook/event-driven flow
+# Can run as Deployment (continuous) or CronJob (scheduled)
+
+---
+# Option 1: CronJob (Recommended for batch evaluation)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: risk-evaluation-batch
+  namespace: nekazari
+  labels:
+    app: risk-worker
+    component: batch-evaluation
+spec:
+  # Schedule: Every hour at minute 0
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: risk-worker
+            component: batch-evaluation
+        spec:
+          serviceAccountName: risk-worker-sa
+          imagePullSecrets:
+          - name: ghcr-secret
+          restartPolicy: OnFailure
+          containers:
+          - name: risk-worker
+            image: ghcr.io/k8-benetis/nekazari-public/risk-worker:latest
+            imagePullPolicy: IfNotPresent
+            env:
+            # PostgreSQL Configuration
+            - name: POSTGRES_HOST
+              value: "postgresql-service"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: "nekazari"
+            - name: POSTGRES_USER
+              value: "nekazari"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: password
+            # Orion-LD Configuration
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
+            # Redis Configuration (for event streaming)
+            - name: REDIS_URL
+              value: "redis://redis-service:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+                  optional: true
+            # Worker Configuration
+            - name: WORKER_MODE
+              value: "batch"
+            - name: LOG_LEVEL
+              value: "INFO"
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "200m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          restartPolicy: OnFailure
+
+---
+# ServiceAccount for Risk Worker
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: risk-worker-sa
+  namespace: nekazari
+  labels:
+    app: risk-worker
+
+---
+# Option 2: Deployment (Alternative - continuous worker)
+# Uncomment if you prefer a continuously running worker instead of CronJob
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: risk-worker
+#   namespace: nekazari
+#   labels:
+#     app: risk-worker
+#     component: batch-evaluation
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: risk-worker
+#   template:
+#     metadata:
+#       labels:
+#         app: risk-worker
+#         component: batch-evaluation
+#     spec:
+#       serviceAccountName: risk-worker-sa
+#       containers:
+#       - name: risk-worker
+#         image: nekazari/risk-worker:latest
+#         imagePullPolicy: Never
+#         env:
+#         - name: POSTGRES_HOST
+#           value: "postgresql-service"
+#         - name: POSTGRES_PORT
+#           value: "5432"
+#         - name: POSTGRES_DB
+#           value: "nekazari"
+#         - name: POSTGRES_USER
+#           value: "nekazari"
+#         - name: POSTGRES_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: postgresql-secret
+#               key: password
+#         - name: ORION_URL
+#           value: "http://orion-ld-service:1026"
+#         - name: REDIS_URL
+#           value: "redis://redis-service:6379"
+#         - name: REDIS_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: redis-secret
+#               key: password
+#               optional: true
+#         - name: WORKER_MODE
+#           value: "continuous"
+#         - name: WORKER_INTERVAL_SECONDS
+#           value: "3600"  # 1 hour
+#         - name: LOG_LEVEL
+#           value: "INFO"
+#         resources:
+#           requests:
+#             memory: "256Mi"
+#             cpu: "200m"
+#           limits:
+#             memory: "512Mi"
+#             cpu: "500m"
+#         livenessProbe:
+#           exec:
+#             command:
+#               - pgrep
+#               - -f
+#               - "risk_processor.py"
+#           initialDelaySeconds: 60
+#           periodSeconds: 30
+#           timeoutSeconds: 10
+#         readinessProbe:
+#           exec:
+#             command:
+#               - pgrep
+#               - -f
+#               - "risk_processor.py"
+#           initialDelaySeconds: 30
+#           periodSeconds: 10
+#           timeoutSeconds: 5
+

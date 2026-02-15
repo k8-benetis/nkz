@@ -1,0 +1,264 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-webhook-scripts
+  namespace: nekazari-webhook
+  labels:
+    app: tenant-webhook
+    component: scripts
+data:
+  create-tenant.sh: |
+    #!/bin/bash
+    # =============================================================================
+    # Tenant Bootstrap Script - Automated Tenant Creation
+    # =============================================================================
+    # This script creates a complete tenant environment with proper network policies
+    # Usage: ./create-tenant.sh <tenant-id> [namespace]
+
+    set -euo pipefail
+
+    TENANT_ID="${1:-}"
+    NAMESPACE="${2:-nekazari-${TENANT_ID}}"
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+
+    log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+    log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+    log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+    log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+    if [[ -z "${TENANT_ID}" ]]; then
+        log_error "Tenant ID is required"; echo "Usage: $0 <tenant-id> [namespace]"; exit 1; fi
+    if [[ ! "${TENANT_ID}" =~ ^[a-z0-9-]+$ ]]; then
+        log_error "Tenant ID must contain only lowercase letters, numbers, and hyphens"; exit 1; fi
+
+    log_info "Creating tenant: ${TENANT_ID} in namespace: ${NAMESPACE}"
+    command -v kubectl >/dev/null || { log_error "kubectl not found"; exit 1; }
+    kubectl cluster-info >/dev/null || { log_error "Cannot connect to cluster"; exit 1; }
+
+    log_info "Creating namespace: ${NAMESPACE}"
+    kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+    kubectl label namespace "${NAMESPACE}" tenant-id="${TENANT_ID}" --overwrite
+
+    # Default deny NetworkPolicy
+    cat <<EOF | kubectl apply -f -
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-all
+      namespace: ${NAMESPACE}
+      labels:
+        tenant-id: ${TENANT_ID}
+        policy-type: security
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress, Egress]
+    EOF
+
+    # Essential services access
+    cat <<EOF | kubectl apply -f -
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: essential-services-access
+      namespace: ${NAMESPACE}
+      labels:
+        tenant-id: ${TENANT_ID}
+        policy-type: infrastructure
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress, Egress]
+      ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+      egress:
+      - to: []
+        ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    EOF
+
+    # Secrets (placeholder example)
+    log_info "Creating tenant-specific secrets"
+    TENANT_DB_PASSWORD=$(openssl rand -base64 16)
+    TENANT_DB_URL="postgresql://${TENANT_ID}:${TENANT_DB_PASSWORD}@timescaledb:5432/${TENANT_ID}"
+    kubectl create secret generic "${TENANT_ID}-secrets" --namespace="${NAMESPACE}" \
+      --from-literal=tenant-id="${TENANT_ID}" \
+      --from-literal=database-url="${TENANT_DB_URL}" \
+      --from-literal=database-password="${TENANT_DB_PASSWORD}" \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+    # Service Account and RBAC
+    kubectl create serviceaccount "${TENANT_ID}-sa" --namespace="${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+    cat <<EOF | kubectl apply -f -
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      namespace: ${NAMESPACE}
+      name: ${TENANT_ID}-role
+    rules:
+    - apiGroups: [""]
+      resources: ["pods", "services", "configmaps", "secrets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets"]
+      verbs: ["get", "list", "watch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: ${TENANT_ID}-rolebinding
+      namespace: ${NAMESPACE}
+    subjects:
+    - kind: ServiceAccount
+      name: ${TENANT_ID}-sa
+      namespace: ${NAMESPACE}
+    roleRef:
+      kind: Role
+      name: ${TENANT_ID}-role
+      apiGroup: rbac.authorization.k8s.io
+    EOF
+
+    # Minimal app placeholder (frontend)
+    cat <<EOF | kubectl apply -f -
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${TENANT_ID}-frontend
+      namespace: ${NAMESPACE}
+      labels:
+        app: ${TENANT_ID}-frontend
+        tenant-id: ${TENANT_ID}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: ${TENANT_ID}-frontend
+          tenant-id: ${TENANT_ID}
+      template:
+        metadata:
+          labels:
+            app: ${TENANT_ID}-frontend
+            tenant-id: ${TENANT_ID}
+        spec:
+          serviceAccountName: ${TENANT_ID}-sa
+          containers:
+          - name: frontend
+            image: nginx:alpine
+            ports:
+            - containerPort: 80
+            env:
+            - name: TENANT_ID
+              value: ${TENANT_ID}
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${TENANT_ID}-frontend-service
+      namespace: ${NAMESPACE}
+      labels:
+        tenant-id: ${TENANT_ID}
+    spec:
+      selector:
+        app: ${TENANT_ID}-frontend
+        tenant-id: ${TENANT_ID}
+      ports:
+      - port: 80
+        targetPort: 80
+    EOF
+
+    log_success "Tenant ${TENANT_ID} created successfully!"
+
+    # Auto-create QL subscriptions (idempotent)
+    ENABLE_QL_SUBSCRIPTIONS="${ENABLE_QL_SUBSCRIPTIONS:-true}"
+    if [ "${ENABLE_QL_SUBSCRIPTIONS}" = "true" ]; then
+      # QuantumLeap: ELIMINADO - No se usa actualmente
+      # Se eliminó porque no se estaba utilizando y consumía recursos innecesarios
+      # Si en el futuro se necesita historización automática de FIWARE con miles de tenants,
+      # se puede implementar QuantumLeap con TimescaleDB (más simple) o CrateDB (escalado horizontal)
+      # if [ -x "/app/scripts/setup-quantumleap-subscriptions.sh" ]; then
+      #   "/app/scripts/setup-quantumleap-subscriptions.sh" "${TENANT_ID}" || echo "QL subscriptions step failed"
+      # fi
+    fi
+  create-tenant-ros2.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    TENANT_ID="${1:-}"
+    NAMESPACE="nekazari-${TENANT_ID}"
+    [ -z "${TENANT_ID}" ] && { echo "Usage: $0 <tenant-id>"; exit 1; }
+    command -v kubectl >/dev/null || { echo "kubectl not found"; exit 1; }
+    kubectl get namespace "${NAMESPACE}" >/dev/null || { echo "Namespace ${NAMESPACE} missing"; exit 1; }
+    echo "(placeholder) Create ROS2 resources for ${TENANT_ID} in ${NAMESPACE}"
+  setup-quantumleap-subscriptions.sh: |
+    #!/bin/bash
+    set -eo pipefail
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    ORION_URL="${ORION_URL:-http://orion-ld-service:1026}"
+    QUANTUMLEAP_NOTIFY_URL="${QUANTUMLEAP_NOTIFY_URL:-http://quantumleap-service.nekazari.svc.cluster.local:8668/v2/notify}"
+    CONTEXT_URL="${CONTEXT_URL:-https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld}"
+    TENANT="${1:-}"
+    [ -z "${TENANT}" ] && { echo "Uso: $0 <tenant_id>"; exit 1; }
+    curl -sf "${ORION_URL}/version" >/dev/null || { echo "Orion-LD no accesible"; exit 1; }
+    create_subscription(){
+      local entity_type=$1
+      local watched_attrs=$2
+      local description=$3
+      local context_url="${CONTEXT_URL}"
+      # Idempotencia por nombre
+      local existing_id=""
+      local list_response
+      list_response=$(curl -s -X GET "${ORION_URL}/ngsi-ld/v1/subscriptions?limit=1000" -H "Fiware-Service: ${TENANT}" -H "Accept: application/json" || true)
+      if command -v jq >/dev/null 2>&1; then
+        existing_id=$(echo "${list_response}" | jq -r --arg n "QuantumLeap subscription for ${entity_type}" '.[] | select(.name == $n) | .id' 2>/dev/null | head -n1)
+      fi
+      if [ -n "${existing_id}" ] && [ "${existing_id}" != "null" ]; then
+        echo "  ${entity_type}: ya existe (${existing_id}), saltando"; return 0; fi
+      local tmp=$(mktemp)
+      cat >"${tmp}" <<EOF
+    {
+      "type": "Subscription",
+      "name": "QuantumLeap subscription for ${entity_type}",
+      "description": "${description}",
+      "entities": [{"type": "${entity_type}", "idPattern": ".*"}],
+      "watchedAttributes": ${watched_attrs},
+      "notification": {"endpoint": {"uri": "${QUANTUMLEAP_NOTIFY_URL}", "accept": "application/json"}, "format": "normalized", "attributes": ${watched_attrs}},
+      "throttling": 0
+    }
+    EOF
+      local payload=$(jq -c '.' "${tmp}" 2>/dev/null); rm -f "${tmp}"
+      [ -z "${payload}" ] && { echo "  ${entity_type}: error JSON"; return 1; }
+      local resp=$(curl -s -w "\n%{http_code}" -X POST "${ORION_URL}/ngsi-ld/v1/subscriptions" \
+        -H "Content-Type: application/json" \
+        -H "Link: <${context_url}>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"" \
+        -H "Fiware-Service: ${TENANT}" -d "${payload}")
+      local code=$(echo "${resp}" | tail -n1)
+      if [ "${code}" = "201" ] || [ "${code}" = "200" ]; then
+        echo "  ${entity_type}: creada"; return 0; else echo "  ${entity_type}: fallo (${code})"; return 1; fi
+    }
+    declare -A ENTITY_CONFIGS=(
+      ["AgriculturalRobot"]='["location","batteryLevel","status","speed","heading","currentTask","payload","tankLevel","sprayRate","operatingHours","diagnostics","observedAt"]|Robots agrícolas'
+      ["AgriSensor"]='["moisture","soilPh","soilSalinity","soilTemperature","temperature","humidity","pressure","windSpeed","windDirection","rainfall","solarRadiation","parRadiation","leafTemperature","dendrometerReading","soilNutrients","observedAt"]|Sensores agrícolas'
+    )
+    sorted_keys=$(printf '%s\n' "${!ENTITY_CONFIGS[@]}" | sort)
+    while IFS= read -r entity_type; do
+      [ -z "${entity_type}" ] && continue
+      config_value="${ENTITY_CONFIGS[$entity_type]}"
+      IFS='|' read -r watched_attrs description <<< "${config_value}" || continue
+      create_subscription "${entity_type}" "${watched_attrs}" "${description}" || true
+      sleep 0.2
+    done <<< "${sorted_keys}"

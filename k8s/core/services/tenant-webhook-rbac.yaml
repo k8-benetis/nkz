@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-webhook-sa
+  namespace: nekazari
+  labels:
+    app: tenant-webhook
+    app.kubernetes.io/managed-by: tenant-webhook
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tenant-webhook-api-key-writer
+  labels:
+    app: tenant-webhook
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["secrets", "services", "configmaps", "serviceaccounts", "pods"]
+  verbs: ["get", "list", "create", "patch", "update", "delete", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "create", "patch", "update", "delete", "watch"]
+- apiGroups: ["apps"]
+  resources: ["replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies", "ingresses"]
+  verbs: ["get", "list", "create", "patch", "update", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "patch", "update", "delete", "watch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "create", "patch", "update", "delete", "escalate", "bind"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-webhook-api-key-writer-binding
+  labels:
+    app: tenant-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tenant-webhook-api-key-writer
+subjects:
+- kind: ServiceAccount
+  name: tenant-webhook-sa
+  namespace: nekazari
+

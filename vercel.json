@@ -1,0 +1,106 @@
+{
+  "framework": "vite",
+  "buildCommand": "pnpm --filter @nekazari/sdk run build && pnpm --filter @nekazari/ui-kit run build && pnpm --filter nekazari-frontend run build",
+  "outputDirectory": "apps/host/dist",
+  "installCommand": "pnpm install --no-frozen-lockfile --shamefully-hoist",
+  "rewrites": [
+    {
+      "source": "/ngsi-ld/(.*)",
+      "destination": "https://nkz.robotika.cloud/ngsi-ld/$1"
+    },
+    {
+      "source": "/api/admin/(.*)",
+      "destination": "https://nkz.robotika.cloud/api/admin/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "https://nkz.robotika.cloud/api/$1"
+    },
+    {
+      "source": "/sdm/(.*)",
+      "destination": "https://nkz.robotika.cloud/sdm/$1"
+    },
+    {
+      "source": "/grafana/(.*)",
+      "destination": "https://nkz.robotika.cloud/grafana/$1"
+    },
+    {
+      "source": "/n8n/(.*)",
+      "destination": "https://nkz.robotika.cloud/n8n/$1"
+    },
+    {
+      "source": "/entity-manager/(.*)",
+      "destination": "https://nkz.robotika.cloud/entity-manager/$1"
+    },
+    {
+      "source": "/ros2-bridge/(.*)",
+      "destination": "https://nkz.robotika.cloud/ros2-bridge/$1"
+    },
+    {
+      "source": "/ros2-fiware-bridge-service/(.*)",
+      "destination": "https://nkz.robotika.cloud/ros2-fiware-bridge-service/$1"
+    },
+    {
+      "source": "/webhook/(.*)",
+      "destination": "https://nkz.robotika.cloud/webhook/$1"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "https://nkz.robotika.cloud/forgot-password"
+    },
+    {
+      "source": "/auth/(.*)",
+      "destination": "https://auth.robotika.cloud/auth/$1"
+    },
+    {
+      "source": "/auth",
+      "destination": "https://auth.robotika.cloud/auth"
+    },
+    {
+      "source": "/realms/(.*)",
+      "destination": "https://auth.robotika.cloud/realms/$1"
+    },
+    {
+      "source": "/realms",
+      "destination": "https://auth.robotika.cloud/realms"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ]
+}
+
+

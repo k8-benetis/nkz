@@ -1,0 +1,127 @@
+# =============================================================================
+# Prometheus Configuration ConfigMap
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: nekazari
+data:
+  prometheus.yml: |
+    # =============================================================================
+    # Prometheus Configuration for Nekazari Platform
+    # =============================================================================
+
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        monitor: 'nekazari-monitor'
+        environment: 'production'
+
+    # Rule files
+    rule_files:
+      - '/etc/prometheus/alerts-ndvi.yml'
+
+    # Scrape configurations
+    scrape_configs:
+      # Prometheus self-monitoring
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+            labels:
+              service: 'prometheus'
+
+      # Node Exporter - System metrics (CPU, RAM, Disk, Network)
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['node-exporter:9100']
+            labels:
+              service: 'node-exporter'
+              instance: 'nekazari-server'
+
+      # cAdvisor - Docker container metrics
+      - job_name: 'cadvisor'
+        static_configs:
+          - targets: ['cadvisor:8080']
+            labels:
+              service: 'cadvisor'
+
+      # MongoDB Exporter
+      - job_name: 'mongodb'
+        static_configs:
+          - targets: ['mongodb-exporter:9216']
+            labels:
+              service: 'mongodb'
+
+      # PostgreSQL Exporter
+      - job_name: 'postgresql'
+        static_configs:
+          - targets: ['postgres-exporter:9187']
+            labels:
+              service: 'postgresql'
+
+      # Nekazari Services (if they expose /metrics endpoints)
+      - job_name: 'nekazari-services'
+        static_configs:
+          - targets: 
+              - 'activation-codes-api:5000'
+              - 'api-gateway:5000'
+              - 'entity-manager:5000'
+            labels:
+              group: 'nekazari-api-gateway'
+
+      # FIWARE Orion-LD
+      - job_name: 'orion-ld'
+        static_configs:
+          - targets: ['orion-ld:1026']
+            labels:
+              service: 'orion-ld'
+
+      # Mosquitto MQTT
+      - job_name: 'mosquitto'
+        static_configs:
+          - targets: ['mosquitto:1883']
+            labels:
+              service: 'mosquitto'
+
+      # NDVI worker metrics
+      - job_name: 'ndvi-worker'
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['ndvi-worker-metrics:9105']
+            labels:
+              service: 'ndvi-worker'
+              group: 'ndvi-pipeline'
+  alerts-ndvi.yml: |
+    groups:
+      - name: ndvi.rules
+        rules:
+          - alert: NdviWorkerDown
+            expr: up{job="ndvi-worker"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "NDVI worker sin métricas"
+              description: "El exportador de métricas del NDVI worker no responde desde hace más de 2 minutos."
+
+          - alert: NdviJobFailures
+            expr: increase(ndvi_jobs_total{status="failed"}[10m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Fallos en trabajos NDVI"
+              description: "Se detectaron trabajos NDVI fallidos en los últimos 10 minutos."
+
+          - alert: EntityManagerHighLatency
+            expr: histogram_quantile(0.95, rate(entity_manager_request_latency_seconds_bucket[5m])) > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Latencia elevada en entity-manager"
+              description: "El percentil 95 de latencia supera 1s durante los últimos 5 minutos."
+

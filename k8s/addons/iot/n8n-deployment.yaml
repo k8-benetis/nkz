@@ -1,0 +1,172 @@
+# =============================================================================
+# n8n Deployment - Workflow Automation for Risk Notifications
+# =============================================================================
+# n8n is used to automate risk notification workflows
+# Requires: n8n-pvc.yaml, n8n-secret (create from secrets-template.yaml)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: nekazari
+  labels:
+    app: n8n
+    component: workflow-automation
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Required for PVC with ReadWriteOnce
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+        component: workflow-automation
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: n8n
+        image: n8nio/n8n:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - name: http
+          containerPort: 5678
+        env:
+        # Basic Authentication
+        - name: N8N_BASIC_AUTH_ACTIVE
+          value: "true"
+        - name: N8N_BASIC_AUTH_USER
+          valueFrom:
+            secretKeyRef:
+              name: n8n-secret
+              key: username
+        - name: N8N_BASIC_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-secret
+              key: password
+        # Host Configuration
+        - name: N8N_HOST
+          value: "n8n.nekazari.robotika.cloud"
+        - name: N8N_PROTOCOL
+          value: "https"
+        - name: N8N_PORT
+          value: "5678"
+        - name: WEBHOOK_URL
+          value: "https://n8n.nekazari.robotika.cloud/"
+        - name: GENERIC_TIMEZONE
+          value: "Europe/Madrid"
+        # Database Configuration (PostgreSQL)
+        - name: DB_TYPE
+          value: "postgresdb"
+        - name: DB_POSTGRESDB_HOST
+          value: "postgresql-service"
+        - name: DB_POSTGRESDB_PORT
+          value: "5432"
+        - name: DB_POSTGRESDB_DATABASE
+          value: "nekazari"
+        - name: DB_POSTGRESDB_USER
+          value: "postgres"
+        - name: DB_POSTGRESDB_SSL_MODE
+          value: "disable"
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        # Metrics and Logging
+        - name: N8N_METRICS
+          value: "true"
+        - name: N8N_LOG_LEVEL
+          value: "info"
+        # Execution Data Pruning
+        - name: EXECUTIONS_DATA_PRUNE
+          value: "true"
+        - name: EXECUTIONS_DATA_MAX_AGE
+          value: "168"  # 7 days
+        volumeMounts:
+        - name: n8n-workflows
+          mountPath: /home/node/.n8n
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5678
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 5678
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: n8n-workflows
+        persistentVolumeClaim:
+          claimName: n8n-workflows-pvc
+      restartPolicy: Always
+
+---
+# Service for n8n
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-service
+  namespace: nekazari
+  labels:
+    app: n8n
+spec:
+  selector:
+    app: n8n
+  ports:
+  - name: http
+    port: 5678
+    targetPort: 5678
+    protocol: TCP
+
+---
+# Ingress for n8n (subdomain)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n-ingress
+  namespace: nekazari
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - n8n.nekazari.robotika.cloud
+    secretName: n8n-tls
+  rules:
+  - host: n8n.nekazari.robotika.cloud
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: n8n-service
+            port:
+              number: 5678
+

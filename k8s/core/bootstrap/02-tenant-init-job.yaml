@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-bootstrap-script
+  namespace: nekazari
+data:
+  bootstrap.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "Bootstrapping Platform Admin Tenant..."
+    
+    # 1. DB: Create Tenant
+    export PGPASSWORD=$POSTGRES_PASSWORD
+    psql -h postgresql-service -U postgres -d nekazari -c "
+      INSERT INTO tenants (tenant_id, tenant_name, plan_type, status, max_users, max_robots, max_sensors) 
+      VALUES ('platformadmin', 'Platform Admin Tenant', 'enterprise', 'active', 999, 999, 999) 
+      ON CONFLICT (tenant_id) DO NOTHING;
+    "
+    
+    # 2. DB: Create Farmer/User (requires uuid-ossp enabled by db-init-job)
+    # ADMIN_EMAIL comes from bootstrap-secret (never hardcode emails in public repos)
+    psql -h postgresql-service -U postgres -d nekazari -c "
+      INSERT INTO farmers (tenant_id, username, email, password_hash, first_name, last_name, is_active, is_verified)
+      VALUES ('platformadmin', '$ADMIN_EMAIL', '$ADMIN_EMAIL', 'managed_by_keycloak', 'Admin', 'Nekazari', true, true)
+      ON CONFLICT (email) DO NOTHING;
+    "
+
+    # Get Farmer ID
+    FARMER_ID=$(psql -h postgresql-service -U postgres -d nekazari -t -c "SELECT id FROM farmers WHERE email = '$ADMIN_EMAIL'" | xargs)
+
+    # Create User linked to Farmer
+    psql -h postgresql-service -U postgres -d nekazari -c "
+      INSERT INTO users (tenant_id, farmer_id, username, email, password_hash, role, is_active)
+      VALUES ('platformadmin', '$FARMER_ID', '$ADMIN_EMAIL', '$ADMIN_EMAIL', 'managed_by_keycloak', 'PlatformAdmin', true)
+      ON CONFLICT (email) DO NOTHING;
+    "
+    
+    echo "Database records ensured."
+    
+    # 3. Keycloak: Create Group and User
+    # Note: This requires kcadm.sh or curl. Using curl here for broader compatibility if image doesn't have kcadm.
+    # Assuming we are in a container with curl and jq installed, or using a keycloak image.
+    # For simplicity in this example, we'll assume this runs in a container with Keycloak tools or we use API.
+    
+    echo "Keycloak bootstrap would go here (using API or kcadm.sh)"
+    # In a real GitOps setup, Keycloak resources should be managed by Keycloak Operator or Terraform.
+    # For this script, we'll skip the imperative Keycloak part as it's complex to script robustly without kcadm.
+    
+    echo "Bootstrap complete."
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tenant-bootstrap-job
+  namespace: nekazari
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  template:
+    spec:
+      containers:
+      - name: bootstrap
+        image: postgres:14-alpine # Using postgres image to have psql
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: bootstrap-secret
+              key: admin-email
+        command: ["/bin/bash", "/scripts/bootstrap.sh"]
+        volumeMounts:
+        - name: script-volume
+          mountPath: /scripts
+      volumes:
+      - name: script-volume
+        configMap:
+          name: tenant-bootstrap-script
+          defaultMode: 0755
+      restartPolicy: OnFailure

@@ -1,0 +1,119 @@
+# =============================================================================
+# Keycloak Realm Frontend URL Update Job
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-update-frontend-url
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-update-frontend-url
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: update-frontend-url
+        image: debian:bullseye-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          echo "Installing curl and jq..."
+          apt-get update -qq && apt-get install -y -qq curl jq > /dev/null
+          
+          echo "Waiting for Keycloak to be ready..."
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+            if curl -f -s http://keycloak-service:8080/auth/realms/master > /dev/null 2>&1; then
+              echo "Keycloak is ready"
+              break
+            fi
+            echo "Waiting for Keycloak... ($attempt/30)"
+            sleep 2
+          done
+          
+          echo "Getting Keycloak admin token..."
+          
+          echo "Admin user: ${KEYCLOAK_ADMIN}"
+          echo "Checking if KEYCLOAK_ADMIN is set: $([ -n \"${KEYCLOAK_ADMIN}\" ] && echo 'yes' || echo 'no')"
+          
+          # Try to get token with retries
+          ADMIN_TOKEN=""
+          for attempt in 1 2 3 4 5; do
+            TOKEN_RESPONSE=$(curl -s -X POST \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "username=${KEYCLOAK_ADMIN}" \
+              -d "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+              -d "grant_type=password" \
+              -d "client_id=admin-cli" \
+              http://keycloak-service:8080/auth/realms/master/protocol/openid-connect/token)
+            
+            ADMIN_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+            
+            if [ -n "$ADMIN_TOKEN" ] && [ "$ADMIN_TOKEN" != "null" ] && [ "$ADMIN_TOKEN" != "" ]; then
+              echo "Admin token obtained successfully"
+              break
+            fi
+            
+            if [ "$attempt" -lt 5 ]; then
+              echo "Failed to get token, retrying... ($attempt/5)"
+              echo "Response: $TOKEN_RESPONSE"
+              sleep 3
+            else
+              echo "ERROR: Failed to get admin token after 5 attempts"
+              echo "Last response: $TOKEN_RESPONSE"
+              exit 1
+            fi
+          done
+          
+          if [ -z "$ADMIN_TOKEN" ] || [ "$ADMIN_TOKEN" = "null" ] || [ "$ADMIN_TOKEN" = "" ]; then
+            echo "ERROR: Admin token is empty"
+            exit 1
+          fi
+          
+          echo "Admin token obtained, updating realm frontendUrl..."
+          
+          # Get current realm config
+          REALM_CONFIG=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari)
+          
+          # Update frontendUrl in the config
+          UPDATED_CONFIG=$(echo "$REALM_CONFIG" | jq '.attributes.frontendUrl = "https://auth.robotika.cloud/auth" | .attributes.adminUrl = "https://auth.robotika.cloud/auth/admin"')
+          
+          # Update the realm and capture HTTP status
+          HTTP_CODE=$(curl -s -o /tmp/update_response.json -w "%{http_code}" -X PUT \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$UPDATED_CONFIG" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari)
+          
+          if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
+            echo ""
+            echo "Realm frontendUrl updated successfully! (HTTP $HTTP_CODE)"
+          else
+            echo ""
+            echo "Error updating realm (HTTP $HTTP_CODE)"
+            if [ -f /tmp/update_response.json ]; then
+              echo "Response: $(cat /tmp/update_response.json)"
+            fi
+            exit 1
+          fi
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+

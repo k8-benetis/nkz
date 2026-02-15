@@ -1,0 +1,47 @@
+name: Publish SDK to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (patch, minor, major, or specific version)'
+        required: true
+        default: 'patch'
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/sdk/**'
+      - '.github/workflows/publish-sdk.yml'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: |
+          cd packages/sdk
+          npm ci
+
+      - name: Build SDK
+        run: |
+          cd packages/sdk
+          npm run build
+
+      - name: Publish to npm
+        run: |
+          cd packages/sdk
+          npm publish --access=public --provenance
+

@@ -1,0 +1,196 @@
+{
+  "id": null,
+  "uid": "nekazari-system",
+  "title": "Nekazari - Sistema Overview",
+    "tags": ["nekazari", "system"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+        "type": "gauge",
+        "title": "CPU Usage",
+        "targets": [{
+          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "refId": "A"
+        }],
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"]},
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 70, "color": "yellow"},
+                {"value": 85, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+        "type": "gauge",
+        "title": "Memory Usage",
+        "targets": [{
+          "expr": "100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 75, "color": "yellow"},
+                {"value": 90, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "type": "gauge",
+        "title": "Disk Usage",
+        "targets": [{
+          "expr": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/\"} * 100) / node_filesystem_size_bytes{mountpoint=\"/\"})",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 80, "color": "yellow"},
+                {"value": 90, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "type": "stat",
+        "title": "Uptime",
+        "targets": [{
+          "expr": "node_time_seconds - node_boot_time_seconds",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"value": 0, "color": "blue"}]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+        "type": "timeseries",
+        "title": "CPU Usage Over Time",
+        "targets": [{
+          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "CPU %",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+        "type": "timeseries",
+        "title": "Memory Usage Over Time",
+        "targets": [{
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "legendFormat": "Used Memory",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+        "type": "timeseries",
+        "title": "Network I/O",
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total[5m])",
+            "legendFormat": "Received - {{device}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_network_transmit_bytes_total[5m])",
+            "legendFormat": "Transmitted - {{device}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "Bps"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+        "type": "timeseries",
+        "title": "Disk I/O",
+        "targets": [
+          {
+            "expr": "rate(node_disk_read_bytes_total[5m])",
+            "legendFormat": "Read - {{device}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_disk_written_bytes_total[5m])",
+            "legendFormat": "Write - {{device}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "Bps"
+          }
+        }
+      }
+    ]
+}

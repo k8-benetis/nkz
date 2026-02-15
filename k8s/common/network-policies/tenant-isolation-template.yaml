@@ -1,0 +1,44 @@
+# =============================================================================
+# Tenant Isolation Network Policy Template - Multi-Tenant Security
+# =============================================================================
+# This template can be used for future tenant isolation
+# Currently commented out as tenant isolation is handled at application level
+# Uncomment and customize when implementing multi-tenant network isolation
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation-template
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: tenant-isolation
+spec:
+  # This policy would apply to pods with specific tenant labels
+  # podSelector:
+  #   matchLabels:
+  #     tenant-id: "tenant1"
+  # 
+  # policyTypes:
+  # - Ingress
+  # - Egress
+  # 
+  # # Allow ingress only from same tenant
+  # ingress:
+  # - from:
+  #   - podSelector:
+  #       matchLabels:
+  #         tenant-id: "tenant1"
+  # 
+  # # Allow egress only to same tenant
+  # egress:
+  # - to:
+  #   - podSelector:
+  #       matchLabels:
+  #         tenant-id: "tenant1"
+  
+  # Placeholder - no actual policy applied
+  podSelector:
+    matchLabels:
+      app: placeholder
+  policyTypes: []

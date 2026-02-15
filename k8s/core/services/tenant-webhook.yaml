@@ -1,0 +1,202 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nekazari-webhook
+  labels:
+    name: nekazari-webhook
+    app: tenant-webhook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-webhook-sa
+  namespace: nekazari-webhook
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tenant-webhook-role
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "pods", "services", "configmaps", "secrets", "serviceaccounts"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies", "ingresses"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-webhook-binding
+subjects:
+- kind: ServiceAccount
+  name: tenant-webhook-sa
+  namespace: nekazari-webhook
+roleRef:
+  kind: ClusterRole
+  name: tenant-webhook-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-webhook
+  namespace: nekazari-webhook
+  labels:
+    app: tenant-webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tenant-webhook
+  template:
+    metadata:
+      labels:
+        app: tenant-webhook
+    spec:
+      serviceAccountName: tenant-webhook-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+      - name: init-scripts-permissions
+        image: alpine:3.19
+        command: ["/bin/sh","-c"]
+        args:
+        - |
+          set -eu
+          chmod +x /app/scripts/*.sh || true
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+        - name: webhook-scripts
+          mountPath: /app/scripts
+      containers:
+      - name: tenant-webhook
+        image: nekazari/tenant-webhook:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: KEYCLOAK_URL
+          value: "https://nekazari.robotika.cloud/keycloak"
+        - name: KEYCLOAK_REALM
+          value: "nekazari"
+        - name: KEYCLOAK_CLIENT_ID
+          value: "tenant-webhook"
+        - name: KEYCLOAK_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: tenant-webhook-secrets
+              key: KEYCLOAK_CLIENT_SECRET
+        - name: WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: tenant-webhook-secrets
+              key: WEBHOOK_SECRET
+        - name: CREATE_TENANT_SCRIPT
+          value: "/app/scripts/create-tenant.sh"
+        - name: CREATE_ROS2_SCRIPT
+          value: "/app/scripts/create-tenant-ros2.sh"
+        - name: PORT
+          value: "8080"
+        - name: DEBUG
+          value: "false"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: webhook-scripts
+          mountPath: /app/scripts
+      volumes:
+      - name: webhook-scripts
+        configMap:
+          name: tenant-webhook-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-webhook-service
+  namespace: nekazari-webhook
+  labels:
+    app: tenant-webhook
+spec:
+  selector:
+    app: tenant-webhook
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+# Ingress eliminado - el webhook está siendo manejado por el Ingress principal en nekazari/nekazari-ingress
+# con el path /webhook que ya está configurado allí
+#
+# Este Ingress causaba problemas porque intentaba usar el Secret nekazari-tls
+# que está en el namespace nekazari, no en nekazari-webhook
+#
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: tenant-webhook-ingress
+#   namespace: nekazari-webhook
+#   annotations:
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#   - hosts:
+#     - nekazari.robotika.cloud
+#     secretName: nekazari-tls
+#   rules:
+#   - host: nekazari.robotika.cloud
+#     http:
+#       paths:
+#       - path: /webhook
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: tenant-webhook-service
+#             port:
+#               number: 8080

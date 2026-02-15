@@ -1,0 +1,486 @@
+# =============================================================================
+# Mosquitto MQTT Broker - Deployment para Kubernetes
+# =============================================================================
+# Broker MQTT con ACLs por tenant y autenticación integrada con Keycloak
+# =============================================================================
+
+---
+# =============================================================================
+# ConfigMap - Configuración principal de Mosquitto
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: mqtt-broker
+data:
+  mosquitto.conf: |
+    # =============================================================================
+    # Mosquitto Configuration - Nekazari Platform
+    # =============================================================================
+    
+    # Listener Configuration
+    listener 1883 0.0.0.0
+    protocol mqtt
+    
+    # WebSocket listener (sin SSL, SSL lo maneja Traefik)
+    listener 9001 0.0.0.0
+    protocol websockets
+    
+    # Authentication
+    allow_anonymous false
+    password_file /mosquitto/config/passwords
+    
+    # ACL (Access Control List)
+    acl_file /mosquitto/config/acl.conf
+    
+    # Persistence
+    persistence true
+    persistence_location /mosquitto/data/
+    persistence_file mosquitto.db
+    
+    # Logging
+    log_dest stdout
+    log_type error
+    log_type warning
+    log_type notice
+    log_type information
+    log_timestamp true
+    log_timestamp_format %Y-%m-%dT%H:%M:%S
+    
+    # Connection settings
+    max_connections 1000
+    max_queued_messages 1000
+    max_inflight_messages 20
+    max_keepalive 300
+    
+    # Message size
+    message_size_limit 10485760
+    
+    # Queue settings
+    queue_qos0_messages true
+    
+    # Security
+    allow_duplicate_messages false
+    
+    # Performance
+    autosave_interval 300
+    autosave_on_changes false
+    
+    # Websockets
+    websockets_log_level 255
+
+  # Archivo de passwords inicial (se actualiza dinámicamente)
+  passwords: |
+    # Passwords en formato: username:password_hash
+    # Generar con: mosquitto_passwd -c passwords username
+    # Este archivo se actualiza dinámicamente via ConfigMap
+
+  # ACL base - se complementa con ACLs dinámicas por tenant
+  acl.conf: |
+    # =============================================================================
+    # Access Control List - Nekazari Platform
+    # =============================================================================
+    # Formato:
+    #   user <username>
+    #   topic read/write/readwrite <topic-pattern>
+    #
+    # Patrones:
+    #   # = wildcard multi-level
+    #   + = wildcard single-level
+    # =============================================================================
+    
+    # Admin user (acceso completo)
+    user admin
+    topic readwrite #
+    
+    # Platform services (acceso completo)
+    user platform-service
+    topic readwrite #
+    
+    # Orion Context Broker (puede publicar notificaciones)
+    user orion-ld
+    topic write +/+/notifications/#
+    topic write +/+/commands/#
+    
+    # ROS2 Bridge (bidireccional)
+    user ros2-bridge
+    topic readwrite +/+/ros2/#
+    topic readwrite +/+/data/#
+    topic readwrite +/+/commands/#
+    
+    # =============================================================================
+    # ACLs por Tenant (se añaden dinámicamente)
+    # =============================================================================
+    # Patrón: <tenant_id>/<device_id>/<topic>
+    #
+    # Ejemplos:
+    # user farm_001_device_manager
+    # topic write farm_001/+/cmd/#
+    # topic read farm_001/+/data/#
+    # topic read farm_001/+/status/#
+    #
+    # user farm_001_viewer
+    # topic read farm_001/+/data/#
+    # topic read farm_001/+/status/#
+
+---
+# =============================================================================
+# ConfigMap - ACLs Dinámicas por Tenant
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-tenant-acls
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: tenant-acls
+data:
+  # Este ConfigMap se actualiza dinámicamente cuando se crean tenants
+  # Cada tenant tiene sus propias ACLs basadas en roles
+  
+  tenant-template.conf: |
+    # Template para ACLs de tenant
+    # Variables: ${TENANT_ID}, ${USER}, ${ROLE}
+    
+    # TenantAdmin - Acceso completo a su tenant
+    user ${TENANT_ID}_admin
+    topic readwrite ${TENANT_ID}/#
+    
+    # DeviceManager - Control de dispositivos
+    user ${TENANT_ID}_device_manager
+    topic write ${TENANT_ID}/+/cmd/#
+    topic read ${TENANT_ID}/+/data/#
+    topic read ${TENANT_ID}/+/status/#
+    topic read ${TENANT_ID}/+/camera/#
+    
+    # DashboardViewer - Solo lectura
+    user ${TENANT_ID}_viewer
+    topic read ${TENANT_ID}/+/data/#
+    topic read ${TENANT_ID}/+/status/#
+    topic read ${TENANT_ID}/+/camera/#
+
+---
+# =============================================================================
+# Secret - Credenciales de Mosquitto
+# =============================================================================
+# MOVIDO a k8s/core/secrets/mosquitto-secret-template.yaml
+# Crear manualmente:
+#   kubectl create secret generic mosquitto-credentials \
+#     --from-literal=admin-username=admin \
+#     --from-literal=admin-password=$(openssl rand -base64 24) \
+#     --from-literal=platform-username=platform-service \
+#     --from-literal=platform-password=$(openssl rand -base64 24) \
+#     --from-literal=orion-username=orion-ld \
+#     --from-literal=orion-password=$(openssl rand -base64 24) \
+#     --from-literal=ros2-username=ros2-bridge \
+#     --from-literal=ros2-password=$(openssl rand -base64 24) \
+#     -n nekazari
+# =============================================================================
+
+---
+# =============================================================================
+# PersistentVolumeClaim - Datos de Mosquitto
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mosquitto-data-pvc
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path  # O tu StorageClass
+
+---
+# =============================================================================
+# PersistentVolumeClaim - Configuración de Mosquitto
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mosquitto-config-pvc
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path
+
+---
+# =============================================================================
+# Deployment de Mosquitto
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: mqtt-broker
+    layer: apis
+spec:
+  replicas: 1  # Mosquitto no soporta múltiples replicas con persistencia
+  selector:
+    matchLabels:
+      app: mosquitto
+  
+  strategy:
+    type: Recreate  # No RollingUpdate porque usa persistencia
+  
+  template:
+    metadata:
+      labels:
+        app: mosquitto
+        component: mqtt-broker
+        layer: apis
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9234"
+        prometheus.io/path: "/metrics"
+    
+    spec:
+      serviceAccountName: mosquitto-sa
+      
+      # Security Context a nivel de Pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1883
+        runAsGroup: 1883
+        fsGroup: 1883
+        seccompProfile:
+          type: RuntimeDefault
+      
+      # Init Container para preparar configuración (sin runAsUser: 0)
+      initContainers:
+      - name: init-config
+        image: eclipse-mosquitto:2.0
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          
+          echo "Inicializando configuración de Mosquitto..."
+          
+          # Copiar configuración base
+          cp /tmp/config/mosquitto.conf /mosquitto/config/mosquitto.conf
+          cp /tmp/config/acl.conf /mosquitto/config/acl.conf
+          
+          # Crear archivo de passwords
+          touch /mosquitto/config/passwords
+          chmod 600 /mosquitto/config/passwords
+          
+          # Crear directorios necesarios
+          mkdir -p /mosquitto/data
+          mkdir -p /mosquitto/log
+          
+          echo "Configuración inicializada correctamente"
+        volumeMounts:
+        - name: config-template
+          mountPath: /tmp/config
+        - name: config-storage
+          mountPath: /mosquitto/config
+        - name: data-storage
+          mountPath: /mosquitto/data
+      
+      containers:
+      # Mosquitto Broker
+      - name: mosquitto
+        image: eclipse-mosquitto:2.0
+        imagePullPolicy: IfNotPresent
+        
+        # Security Context a nivel de contenedor
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1883
+          runAsGroup: 1883
+          readOnlyRootFilesystem: false  # Mosquitto necesita escribir
+          capabilities:
+            drop:
+            - ALL
+        
+        ports:
+        - name: mqtt
+          containerPort: 1883
+          protocol: TCP
+        - name: websocket
+          containerPort: 9001
+          protocol: TCP
+        
+        env:
+        - name: TZ
+          value: "Europe/Madrid"
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        livenessProbe:
+          tcpSocket:
+            port: mqtt
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          tcpSocket:
+            port: mqtt
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        volumeMounts:
+        - name: config-storage
+          mountPath: /mosquitto/config
+        - name: data-storage
+          mountPath: /mosquitto/data
+        - name: log
+          mountPath: /mosquitto/log
+        - name: tmp
+          mountPath: /tmp
+      
+      # Mosquitto Exporter (métricas para Prometheus)
+      - name: mosquitto-exporter
+        image: sapcc/mosquitto-exporter:latest
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 65534  # nobody
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        ports:
+        - name: metrics
+          containerPort: 9234
+          protocol: TCP
+        
+        env:
+        - name: BROKER_ENDPOINT
+          value: "tcp://localhost:1883"
+        
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+      
+      volumes:
+      - name: config-template
+        configMap:
+          name: mosquitto-config
+      - name: config-storage
+        persistentVolumeClaim:
+          claimName: mosquitto-config-pvc
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: mosquitto-data-pvc
+      - name: log
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+
+---
+# =============================================================================
+# Service - Mosquitto
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto-service
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: mqtt-broker
+spec:
+  type: ClusterIP
+  selector:
+    app: mosquitto
+  ports:
+  - name: mqtt
+    port: 1883
+    targetPort: mqtt
+    protocol: TCP
+  - name: websocket
+    port: 9001
+    targetPort: websocket
+    protocol: TCP
+  - name: metrics
+    port: 9234
+    targetPort: metrics
+    protocol: TCP
+
+---
+
+
+---
+# =============================================================================
+# ServiceAccount para Mosquitto
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mosquitto-sa
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: mqtt-broker
+
+---
+# =============================================================================
+# Role para Mosquitto
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mosquitto-role
+  namespace: nekazari
+rules:
+# Solo lectura de ConfigMaps y Secrets
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mosquitto-binding
+  namespace: nekazari
+subjects:
+- kind: ServiceAccount
+  name: mosquitto-sa
+  namespace: nekazari
+roleRef:
+  kind: Role
+  name: mosquitto-role
+  apiGroup: rbac.authorization.k8s.io

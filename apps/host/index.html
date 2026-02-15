@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Model Viewer for 3D Previews -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+  <meta name="description" content="Nekazari - Plataforma Agrícola Inteligente basada en FIWARE" />
+  <title>Nekazari</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Runtime Configuration -->
+  <script src="/config.js"></script>
+  <script>
+    // Fallback if config.js fails to load or for local dev. Keys must match what getConfig() reads (VITE_* and API_URL).
+    if (!window.__ENV__) {
+      window.__ENV__ = {};
+    }
+    var e = window.__ENV__;
+    if (!e.VITE_KEYCLOAK_URL) e.VITE_KEYCLOAK_URL = e.KEYCLOAK_URL || 'https://auth.robotika.cloud/auth';
+    if (!e.VITE_KEYCLOAK_REALM) e.VITE_KEYCLOAK_REALM = e.KEYCLOAK_REALM || 'nekazari';
+    if (!e.VITE_KEYCLOAK_CLIENT_ID) e.VITE_KEYCLOAK_CLIENT_ID = e.KEYCLOAK_CLIENT_ID || 'nekazari-frontend';
+    if (!e.VITE_API_URL) e.VITE_API_URL = e.API_URL || 'https://nkz.robotika.cloud';
+    if (!e.VITE_TITILER_URL) e.VITE_TITILER_URL = e.TITILER_URL || 'https://nkz.robotika.cloud/titiler';
+  </script>
+</head>
+<body>
+  <div id="root">
+    <div style="padding: 20px; font-family: sans-serif; text-align: center;">
+      <h1>Cargando Nekazari...</h1>
+    </div>
+  </div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

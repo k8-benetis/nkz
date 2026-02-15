@@ -1,0 +1,16 @@
+{
+  "name": "nekazari-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "validate:i18n": "./scripts/validate-i18n-json.sh"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}

@@ -1,0 +1,8 @@
+Flask==3.1.2
+Flask-CORS==6.0.1
+requests==2.31.0
+gunicorn==23.0.0
+PyJWT==2.8.0
+cryptography>=41.0.0
+python-dotenv==1.0.0
+pymongo==4.6.0

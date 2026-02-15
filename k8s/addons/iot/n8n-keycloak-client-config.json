@@ -1,0 +1,60 @@
+{
+  "clientId": "n8n-client",
+  "name": "n8n Workflow Automation",
+  "description": "OAuth2 client for n8n workflow automation with Keycloak SSO",
+  "enabled": true,
+  "publicClient": false,
+  "clientAuthenticatorType": "client-secret",
+  "secret": "CHANGE_ME_GENERATE_SECURE_SECRET",
+  "redirectUris": [
+    "https://n8n.nekazari.robotika.cloud/oauth2/callback"
+  ],
+  "webOrigins": [
+    "https://n8n.nekazari.robotika.cloud"
+  ],
+  "protocol": "openid-connect",
+  "attributes": {
+    "access.token.lifespan": "3600",
+    "refresh.token.max.reuse": "0",
+    "pkce.code.challenge.method": "S256"
+  },
+  "authenticationFlowBindingOverrides": {},
+  "fullScopeAllowed": true,
+  "nodeReRegistrationTimeout": -1,
+  "defaultClientScopes": [
+    "web-origins",
+    "role_list",
+    "profile",
+    "roles",
+    "email"
+  ],
+  "optionalClientScopes": [
+    "address",
+    "phone",
+    "offline_access",
+    "microprofile-jwt"
+  ],
+  "access": {
+    "view": true,
+    "configure": true,
+    "manage": true
+  },
+  "protocolMappers": [
+    {
+      "name": "roles-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-realm-role-mapper",
+      "consentRequired": false,
+      "config": {
+        "claim.name": "roles",
+        "jsonType.label": "String",
+        "multivalued": "true",
+        "access.token.claim": "true",
+        "id.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    }
+  ]
+}
+
+

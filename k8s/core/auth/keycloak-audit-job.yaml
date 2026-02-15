@@ -1,0 +1,141 @@
+# =============================================================================
+# Keycloak Multi-Tenant Architecture Audit Job
+# =============================================================================
+# This Job performs a read-only audit of Keycloak configuration to validate
+# multi-tenant architecture compliance with industry standards.
+#
+# The audit:
+# - Inspects protocol mappers (group membership, group attributes, user attributes)
+# - Lists realm roles and identifies PlatformAdmin
+# - Creates temporary sandbox resources for token testing
+# - Decodes and analyzes JWT tokens
+# - Cleans up all temporary resources
+#
+# Usage:
+#   kubectl apply -f k8s/keycloak/keycloak-audit-job.yaml
+#   kubectl logs -f job/keycloak-audit -n nekazari
+#   kubectl exec -it job/keycloak-audit -n nekazari -- cat /tmp/keycloak-audit-report.json
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-audit
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: audit
+    purpose: architecture-validation
+spec:
+  # Prevent multiple concurrent runs
+  parallelism: 1
+  completions: 1
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  template:
+    metadata:
+      labels:
+        app: keycloak-audit
+        component: audit
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: audit
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          
+          # Install jq
+          apk add --no-cache jq >/dev/null 2>&1
+          
+          # Copy audit script from ConfigMap
+          cp /scripts/keycloak-audit.sh /tmp/keycloak-audit.sh
+          chmod +x /tmp/keycloak-audit.sh
+          
+          # Execute audit
+          /tmp/keycloak-audit.sh
+          
+          # Keep container alive to retrieve report
+          echo "Audit completed. Report available at /tmp/keycloak-audit-report.json"
+          echo "Sleeping for 300 seconds to allow log/report retrieval..."
+          sleep 300
+        env:
+        - name: KEYCLOAK_URL
+          value: "http://keycloak-service:8080/auth"
+        - name: REALM
+          value: "nekazari"
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        volumeMounts:
+        - name: audit-scripts
+          mountPath: /scripts
+          readOnly: true
+        - name: audit-report
+          mountPath: /tmp
+      volumes:
+      - name: audit-scripts
+        configMap:
+          name: keycloak-audit-scripts
+          defaultMode: 0755
+      - name: audit-report
+        emptyDir: {}
+      initContainers:
+      - name: wait-for-keycloak
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for Keycloak to be ready..."
+          for i in $(seq 1 60); do
+            if curl -f -s http://keycloak-service:8080/auth/realms/master >/dev/null 2>&1; then
+              echo "✓ Keycloak is ready"
+              exit 0
+            fi
+            echo "Waiting for Keycloak... ($i/60)"
+            sleep 5
+          done
+          echo "ERROR: Keycloak not available after 5 minutes"
+          exit 1
+---
+# =============================================================================
+# ConfigMap with Audit Script
+# =============================================================================
+# NOTE: This ConfigMap should be created from the actual script file:
+#
+#   kubectl create configmap keycloak-audit-scripts \
+#     --from-file=keycloak-audit.sh=scripts/keycloak-audit.sh \
+#     -n nekazari \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+# Or use Kustomize/kubectl to manage it as part of GitOps.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-audit-scripts
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: audit
+data:
+  keycloak-audit.sh: |
+    # Placeholder - replace with actual script content
+    # See documentation in KEYCLOAK_AUDIT_RESPONSE.md
+    echo "ERROR: Script not loaded. Create ConfigMap from scripts/keycloak-audit.sh"
+    exit 1
+
+
+
+
+

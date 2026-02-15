@@ -1,0 +1,28 @@
+# =============================================================================
+# Grafana Datasource - TimescaleDB (PostgreSQL)
+# =============================================================================
+# Datasource para consultar datos históricos de telemetría desde TimescaleDB
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    access: proxy
+    url: postgresql-service:5432
+    database: nekazari
+    user: timescale
+    secureJsonData:
+      password: ${TIMESCALE_PASSWORD}
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500  # PostgreSQL 15
+      timescaledb: true
+      maxOpenConns: 100
+      maxIdleConns: 100
+      connMaxLifetime: 14400
+    isDefault: false
+    editable: true
+    version: 1
+

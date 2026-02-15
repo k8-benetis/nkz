@@ -1,0 +1,501 @@
+# =============================================================================
+# Bootstrap Tenant and Admin User Job
+# =============================================================================
+# Este Job se ejecuta al inicio y crea un tenant de prueba y usuario admin
+# si no existen, para poder acceder a la plataforma después de pérdida de datos
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: bootstrap-tenant-and-admin
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: bootstrap
+spec:
+  template:
+    metadata:
+      labels:
+        app: bootstrap-tenant-admin
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: bootstrap
+        image: postgres:13-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Instalar curl y jq
+          apk add --no-cache curl jq >/dev/null 2>&1
+          
+          # Variables desde secrets/env
+          KEYCLOAK_URL="http://keycloak-service:8080/auth"
+          REALM="nekazari"
+          ADMIN_USER="${KEYCLOAK_ADMIN}"
+          ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD}"
+          
+          # Bootstrap user configuration (from Secret, with fallback to ConfigMap for email)
+          # Password MUST come from Secret (no fallback for security)
+          BOOTSTRAP_EMAIL="${BOOTSTRAP_ADMIN_EMAIL:-${BOOTSTRAP_ADMIN_EMAIL_FALLBACK:-admin@nekazari.local}}"
+          BOOTSTRAP_TENANT_ID="${BOOTSTRAP_TENANT_ID:-bootstrap}"
+          
+          # Validate that password is set (from Secret)
+          if [ -z "${BOOTSTRAP_ADMIN_PASSWORD}" ]; then
+            echo "ERROR: BOOTSTRAP_ADMIN_PASSWORD must be set from bootstrap-secret"
+            echo "Create the secret using: kubectl create secret generic bootstrap-secret --from-literal=admin-password='YourPassword' -n nekazari"
+            exit 1
+          fi
+          BOOTSTRAP_PASSWORD="${BOOTSTRAP_ADMIN_PASSWORD}"
+          
+          echo "=========================================="
+          echo "Bootstrap Tenant and Admin User"
+          echo "=========================================="
+          echo "Email: ${BOOTSTRAP_EMAIL}"
+          echo "Tenant: ${BOOTSTRAP_TENANT_ID}"
+          echo "=========================================="
+          
+          # Esperar a que Keycloak esté listo
+          echo "Esperando a que Keycloak esté listo..."
+          for i in $(seq 1 30); do
+            if curl -f -s "${KEYCLOAK_URL}/realms/master" >/dev/null 2>&1; then
+              echo "Keycloak está listo"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "ERROR: Keycloak no está disponible después de 5 minutos"
+              exit 1
+            fi
+            echo "Esperando... ($i/30)"
+            sleep 10
+          done
+          
+          # Esperar a que PostgreSQL esté listo
+          echo "Esperando a que PostgreSQL esté listo..."
+          for i in $(seq 1 30); do
+            if nc -z postgresql-service 5432 >/dev/null 2>&1; then
+              echo "PostgreSQL está listo"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "ERROR: PostgreSQL no está disponible después de 5 minutos"
+              exit 1
+            fi
+            echo "Esperando... ($i/30)"
+            sleep 10
+          done
+          
+          # Obtener token admin
+          echo "Obteniendo token admin..."
+          TOKEN_RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "username=${ADMIN_USER}" \
+            --data-urlencode "password=${ADMIN_PASS}" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" \
+            "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token")
+          
+          TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "ERROR: No se pudo obtener token admin"
+            echo "Response: $TOKEN_RESPONSE"
+            exit 1
+          fi
+          
+          echo "✓ Token obtenido"
+          
+          # Crear tenant en PostgreSQL
+          echo "Creando tenant en PostgreSQL..."
+          export PGPASSWORD="${POSTGRES_PASSWORD}"
+          if [ -z "${POSTGRES_PASSWORD}" ]; then
+            echo "ERROR: POSTGRES_PASSWORD not set"
+            exit 1
+          fi
+          psql -h postgresql-service -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-nekazari}" -c "INSERT INTO tenants (tenant_id, tenant_name, plan_type, status, max_users, max_robots, max_sensors, metadata) VALUES ('${BOOTSTRAP_TENANT_ID}', 'Bootstrap Tenant', 'enterprise', 'active', 100, 100, 1000, '{\"primary_email\": \"${BOOTSTRAP_EMAIL}\", \"activation_source\": \"bootstrap\"}'::jsonb) ON CONFLICT (tenant_id) DO UPDATE SET status = 'active', metadata = COALESCE(tenants.metadata, '{}'::jsonb) || '{\"primary_email\": \"${BOOTSTRAP_EMAIL}\", \"activation_source\": \"bootstrap\"}'::jsonb;" 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✓ Tenant creado/actualizado en PostgreSQL"
+          else
+            echo "⚠️  Error creando tenant en PostgreSQL (puede que ya exista)"
+          fi
+          
+          # Verificar si el usuario existe en Keycloak
+          echo "Verificando usuario en Keycloak..."
+          USER_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/users?email=${BOOTSTRAP_EMAIL}&exact=true")
+          
+          USER_ID=$(echo "$USER_RESPONSE" | jq -r '.[0].id // empty')
+          
+          if [ -z "$USER_ID" ]; then
+            echo "Usuario no existe, creándolo..."
+            
+            # Crear usuario
+            CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"username\": \"${BOOTSTRAP_EMAIL}\",
+                \"email\": \"${BOOTSTRAP_EMAIL}\",
+                \"enabled\": true,
+                \"emailVerified\": true,
+                \"firstName\": \"Bootstrap\",
+                \"lastName\": \"Admin\",
+                \"attributes\": {
+                  \"tenant_id\": [\"${BOOTSTRAP_TENANT_ID}\"]
+                },
+                \"credentials\": [{
+                  \"type\": \"password\",
+                  \"value\": \"${BOOTSTRAP_PASSWORD}\",
+                  \"temporary\": false
+                }]
+              }" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/users")
+            
+            HTTP_CODE=$(echo "$CREATE_RESPONSE" | tail -1)
+            
+            if [ "$HTTP_CODE" = "201" ]; then
+              echo "✓ Usuario creado"
+              # Obtener ID del usuario recién creado
+              USER_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/users?email=${BOOTSTRAP_EMAIL}&exact=true")
+              USER_ID=$(echo "$USER_RESPONSE" | jq -r '.[0].id // empty')
+            elif [ "$HTTP_CODE" = "409" ]; then
+              echo "Usuario ya existe (409), obteniendo ID..."
+              USER_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/users?email=${BOOTSTRAP_EMAIL}&exact=true")
+              USER_ID=$(echo "$USER_RESPONSE" | jq -r '.[0].id // empty')
+            else
+              echo "ERROR: Fallo al crear usuario (HTTP $HTTP_CODE)"
+              echo "$CREATE_RESPONSE"
+              exit 1
+            fi
+          else
+            echo "Usuario ya existe, actualizando..."
+            
+            # Actualizar atributos del usuario
+            curl -s -X PUT \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"attributes\": {
+                  \"tenant_id\": [\"${BOOTSTRAP_TENANT_ID}\"]
+                }
+              }" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}" >/dev/null
+            
+            echo "✓ Usuario actualizado"
+          fi
+          
+          # Primero, crear/verificar grupo "platform" para PlatformAdmin
+          echo "Creando grupo 'platform' para PlatformAdmin..."
+          PLATFORM_GROUP_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/groups?search=platform")
+          
+          PLATFORM_GROUP_ID=$(echo "$PLATFORM_GROUP_RESPONSE" | jq -r '.[] | select(.name == "platform") | .id // empty')
+          
+          if [ -z "$PLATFORM_GROUP_ID" ]; then
+            echo "Grupo 'platform' no existe, creándolo..."
+            PLATFORM_GROUP_CREATE_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"name\": \"platform\",
+                \"path\": \"/platform\",
+                \"attributes\": {
+                  \"tenant_id\": [\"platform\"],
+                  \"tenant_type\": [\"system\"],
+                  \"plan_type\": [\"system\"]
+                }
+              }" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/groups")
+            
+            PLATFORM_GROUP_ID=$(echo "$PLATFORM_GROUP_CREATE_RESPONSE" | jq -r '.id // empty')
+            if [ -n "$PLATFORM_GROUP_ID" ]; then
+              echo "✓ Grupo 'platform' creado"
+            else
+              echo "⚠️  Error creando grupo 'platform'"
+            fi
+          else
+            echo "✓ Grupo 'platform' ya existe"
+            # Actualizar atributos por si acaso
+            curl -s -X PUT \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"name\": \"platform\",
+                \"path\": \"/platform\",
+                \"attributes\": {
+                  \"tenant_id\": [\"platform\"],
+                  \"tenant_type\": [\"system\"],
+                  \"plan_type\": [\"system\"]
+                }
+              }" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/groups/${PLATFORM_GROUP_ID}" >/dev/null
+          fi
+          
+          # Crear/verificar grupo del tenant bootstrap (para datos de tenant, no para PlatformAdmin)
+          echo "Creando grupo del tenant '${BOOTSTRAP_TENANT_ID}'..."
+          GROUP_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/groups?search=${BOOTSTRAP_TENANT_ID}")
+          
+          GROUP_ID=$(echo "$GROUP_RESPONSE" | jq -r '.[] | select(.name == "'"${BOOTSTRAP_TENANT_ID}"'") | .id // empty')
+          
+          if [ -z "$GROUP_ID" ]; then
+            echo "Grupo '${BOOTSTRAP_TENANT_ID}' no existe, creándolo..."
+            GROUP_CREATE_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"name\": \"${BOOTSTRAP_TENANT_ID}\",
+                \"path\": \"/${BOOTSTRAP_TENANT_ID}\",
+                \"attributes\": {
+                  \"tenant_id\": [\"${BOOTSTRAP_TENANT_ID}\"],
+                  \"tenant_type\": [\"premium\"],
+                  \"plan_type\": [\"enterprise\"]
+                }
+              }" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/groups")
+            
+            GROUP_ID=$(echo "$GROUP_CREATE_RESPONSE" | jq -r '.id // empty')
+            if [ -n "$GROUP_ID" ]; then
+              echo "✓ Grupo '${BOOTSTRAP_TENANT_ID}' creado"
+            fi
+          else
+            echo "✓ Grupo '${BOOTSTRAP_TENANT_ID}' ya existe"
+          fi
+          
+          # Asignar usuario al grupo "platform" (para PlatformAdmin)
+          # NO asignar al grupo bootstrap - PlatformAdmin usa tenant "platform"
+          if [ -n "$PLATFORM_GROUP_ID" ] && [ -n "$USER_ID" ]; then
+            # Verificar si ya está en el grupo
+            USER_GROUPS=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}/groups")
+            
+            IN_PLATFORM=$(echo "$USER_GROUPS" | jq -r ".[] | select(.id == \"${PLATFORM_GROUP_ID}\") | .id // empty")
+            
+            if [ -z "$IN_PLATFORM" ]; then
+              curl -s -X PUT \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}/groups/${PLATFORM_GROUP_ID}" >/dev/null
+              echo "✓ Usuario asignado al grupo 'platform'"
+            else
+              echo "✓ Usuario ya está en el grupo 'platform'"
+            fi
+            
+            # REMOVER del grupo bootstrap si estaba ahí (PlatformAdmin no debe estar en grupos de tenant normales)
+            if [ -n "$GROUP_ID" ]; then
+              IN_BOOTSTRAP=$(echo "$USER_GROUPS" | jq -r ".[] | select(.id == \"${GROUP_ID}\") | .id // empty")
+              if [ -n "$IN_BOOTSTRAP" ]; then
+                echo "Removiendo usuario del grupo '${BOOTSTRAP_TENANT_ID}' (PlatformAdmin debe estar solo en 'platform')..."
+                curl -s -X DELETE \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}/groups/${GROUP_ID}" >/dev/null
+                echo "✓ Usuario removido del grupo '${BOOTSTRAP_TENANT_ID}'"
+              fi
+            fi
+          fi
+          
+          # Asignar todos los roles necesarios
+          # Asignar todos los roles necesarios
+          ROLES_TO_ASSIGN="PlatformAdmin TenantAdmin TechnicalConsultant Farmer"
+          
+          for ROLE_NAME in $ROLES_TO_ASSIGN; do
+            echo "Verificando/creando rol ${ROLE_NAME}..."
+            ROLE_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/${ROLE_NAME}")
+            
+            ROLE_ID=$(echo "$ROLE_RESPONSE" | jq -r '.id // empty')
+            
+            # Si el rol no existe, crearlo
+            if [ -z "$ROLE_ID" ] || [ "$ROLE_ID" = "null" ]; then
+              echo "  Rol ${ROLE_NAME} no existe, creándolo..."
+              CREATE_ROLE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"name\": \"${ROLE_NAME}\",
+                  \"description\": \"${ROLE_NAME} role\"
+                }" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/roles")
+              
+              HTTP_CODE=$(echo "$CREATE_ROLE_RESPONSE" | tail -1)
+              if [ "$HTTP_CODE" = "201" ]; then
+                echo "  ✓ Rol ${ROLE_NAME} creado"
+                # Obtener el ID del rol recién creado
+                ROLE_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/${ROLE_NAME}")
+                ROLE_ID=$(echo "$ROLE_RESPONSE" | jq -r '.id // empty')
+              else
+                echo "  ⚠️  Error creando rol ${ROLE_NAME} (HTTP $HTTP_CODE)"
+              fi
+            fi
+            
+            # Asignar el rol al usuario
+            if [ -n "$ROLE_ID" ] && [ "$ROLE_ID" != "null" ]; then
+              curl -s -X POST \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "[{
+                  \"id\": \"${ROLE_ID}\",
+                  \"name\": \"${ROLE_NAME}\"
+                }]" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}/role-mappings/realm" >/dev/null
+              
+              echo "  ✓ Rol ${ROLE_NAME} asignado al usuario"
+            else
+              echo "  ⚠️  No se pudo asignar rol ${ROLE_NAME} (ID no disponible)"
+            fi
+          done
+          
+          # Verificar y crear/actualizar mapper de tenant_id
+          echo "Verificando y configurando mapper de tenant_id en cliente nekazari-frontend..."
+          CLIENT_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+            "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=nekazari-frontend")
+          
+          CLIENT_ID=$(echo "$CLIENT_RESPONSE" | jq -r '.[0].id // empty')
+          
+          if [ -n "$CLIENT_ID" ]; then
+            echo "Cliente encontrado, ID: ${CLIENT_ID}"
+            
+            # Verificar si el mapper ya existe
+            MAPPERS_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+              "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_ID}/protocol-mappers/models")
+            
+            TENANT_MAPPER_ID=$(echo "$MAPPERS_RESPONSE" | jq -r '.[] | select(.name == "tenant-id-mapper") | .id // empty')
+            TENANT_MAPPER_CONFIG=$(echo "$MAPPERS_RESPONSE" | jq -r '.[] | select(.name == "tenant-id-mapper") | .config."claim.name" // empty')
+            
+            # Si el mapper existe pero no tiene config correcta, eliminarlo y recrearlo
+            if [ -n "$TENANT_MAPPER_ID" ]; then
+              if [ -z "$TENANT_MAPPER_CONFIG" ] || [ "$TENANT_MAPPER_CONFIG" != "tenant_id" ]; then
+                echo "Mapper existe pero config incorrecta, eliminando y recreando..."
+                curl -s -X DELETE -H "Authorization: Bearer ${TOKEN}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_ID}/protocol-mappers/models/${TENANT_MAPPER_ID}" > /dev/null
+                TENANT_MAPPER_ID=""
+              else
+                echo "✓ Mapper de tenant_id ya existe y está correctamente configurado"
+              fi
+            fi
+            
+            # Crear mapper si no existe o fue eliminado
+            if [ -z "$TENANT_MAPPER_ID" ]; then
+              echo "Creando mapper de tenant_id..."
+              
+              CREATE_MAPPER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "name": "tenant-id-mapper",
+                  "protocol": "openid-connect",
+                  "protocolMapper": "oidc-usermodel-attribute-mapper",
+                  "consentRequired": false,
+                  "config": {
+                    "userinfo.token.claim": "true",
+                    "user.attribute": "tenant_id",
+                    "id.token.claim": "true",
+                    "access.token.claim": "true",
+                    "claim.name": "tenant_id",
+                    "jsonType.label": "String",
+                    "multivalued": "false"
+                  }
+                }' \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_ID}/protocol-mappers/models")
+              
+              HTTP_CODE=$(echo "$CREATE_MAPPER_RESPONSE" | tail -1)
+              
+              if [ "$HTTP_CODE" = "201" ]; then
+                echo "✓ Mapper de tenant_id creado exitosamente"
+              else
+                echo "⚠️  Error creando mapper (HTTP $HTTP_CODE)"
+                echo "Response: $(echo "$CREATE_MAPPER_RESPONSE" | head -5)"
+              fi
+            fi
+          else
+            echo "⚠️  Cliente nekazari-frontend no encontrado"
+            echo "El cliente debe crearse antes de poder configurar el mapper"
+            echo "Ejecuta el realm-import-job para crear el cliente"
+          fi
+          
+          echo "=========================================="
+          echo "✅ Bootstrap completado exitosamente"
+          echo "=========================================="
+          echo "Email: ${BOOTSTRAP_EMAIL}"
+          echo "Tenant: platform (grupo especial para PlatformAdmin)"
+          echo "Contraseña: ${BOOTSTRAP_PASSWORD}"
+          echo "Rol: PlatformAdmin"
+          echo ""
+          echo "NOTA: El usuario está en el grupo 'platform'"
+          echo "      (NO en el grupo '${BOOTSTRAP_TENANT_ID}')"
+          echo "      Esto es correcto: PlatformAdmin usa tenant='platform'"
+          echo "=========================================="
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        # Bootstrap admin email (from Secret, with fallback to ConfigMap)
+        - name: BOOTSTRAP_ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: bootstrap-secret
+              key: admin-email
+              optional: true
+        - name: BOOTSTRAP_ADMIN_EMAIL_FALLBACK
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: BOOTSTRAP_ADMIN_EMAIL
+              optional: true
+        # Bootstrap tenant ID (from ConfigMap, default: bootstrap)
+        - name: BOOTSTRAP_TENANT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: BOOTSTRAP_TENANT_ID
+              optional: true
+        # Bootstrap admin password (MUST come from Secret - no default for security)
+        - name: BOOTSTRAP_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bootstrap-secret
+              key: admin-password
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: POSTGRES_USER
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: POSTGRES_DB
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      initContainers:
+      - name: wait-for-services
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Esperando a que Keycloak y PostgreSQL estén listos..."
+          until curl -f -s http://keycloak-service:8080/auth/realms/master >/dev/null 2>&1; do
+            echo "Keycloak no está listo, esperando..."
+            sleep 5
+          done
+          until nc -z postgresql-service 5432 >/dev/null 2>&1; do
+            echo "PostgreSQL no está listo, esperando..."
+            sleep 5
+          done
+          echo "✓ Servicios listos"
+

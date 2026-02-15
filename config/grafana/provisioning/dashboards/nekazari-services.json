@@ -1,0 +1,161 @@
+{
+  "id": null,
+  "uid": "nekazari-services",
+  "title": "Nekazari - Services Status",
+    "tags": ["nekazari", "services"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+        "type": "stat",
+        "title": "Orion-LD Status",
+        "targets": [{
+          "expr": "up{job=\"orion-ld\"}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+        "type": "stat",
+        "title": "Auth API Status",
+        "targets": [{
+          "expr": "up{job=\"nekazari-services\", instance=~\".*auth.*\"}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+        "type": "stat",
+        "title": "Entity Manager Status",
+        "targets": [{
+          "expr": "up{job=\"nekazari-services\", instance=~\".*entity.*\"}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+        "type": "stat",
+        "title": "MongoDB Status",
+        "targets": [{
+          "expr": "up{job=\"mongodb\"}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+        "type": "stat",
+        "title": "PostgreSQL Status",
+        "targets": [{
+          "expr": "up{job=\"postgresql\"}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+        "type": "stat",
+        "title": "MQTT Status",
+        "targets": [{
+          "expr": "up{job=\"mosquitto\"}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "type": "timeseries",
+        "title": "Container CPU Usage",
+        "targets": [{
+          "expr": "rate(container_cpu_usage_seconds_total{name=~\"nekazari.*|fiware.*\"}[5m]) * 100",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "type": "timeseries",
+        "title": "Container Memory Usage",
+        "targets": [{
+          "expr": "container_memory_usage_bytes{name=~\"nekazari.*|fiware.*\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "bytes"
+          }
+        }
+      }
+    ]
+}

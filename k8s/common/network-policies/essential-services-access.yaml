@@ -1,0 +1,71 @@
+# =============================================================================
+# Essential Services Network Policy - Core Infrastructure Access
+# =============================================================================
+# This policy allows essential communication for core infrastructure services
+# DNS, Ingress Controller, and monitoring access
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: essential-services-access
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: infrastructure
+spec:
+  podSelector: {} # Applies to all pods
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Allow ingress from Traefik ingress controller (K3s default)
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: traefik
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 5000
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 8080
+  
+  # Allow egress to DNS (explicit and specific)
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow egress to monitoring (Prometheus, Grafana)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9090
+  - to:
+    - podSelector:
+        matchLabels:
+          app: grafana
+    ports:
+    - protocol: TCP
+      port: 3000

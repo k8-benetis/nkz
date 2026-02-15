@@ -1,0 +1,301 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nekazari-config
+  namespace: nekazari
+  labels:
+    app: nekazari
+    layer: config
+data:
+  # Database configuration
+  POSTGRES_DB: "nekazari"
+  POSTGRES_USER: "postgres"
+  
+  # Application configuration
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRY: "24h"
+  
+  # Service URLs
+  POSTGRESQL_URL: "postgresql://postgresql-service:5432"
+  KEYCLOAK_URL: "http://keycloak-service:8080"
+  ORION_LD_URL: "http://orion-ld-service:1026"
+  
+  # API Configuration
+  API_VALIDATOR_URL: "http://api-validator-service:5000"
+  API_GATEWAY_URL: "http://api-gateway-service:5000"
+  ENTITY_MANAGER_URL: "http://entity-manager-service:5000"
+  SDM_INTEGRATION_URL: "http://sdm-integration-service:5000"
+  
+  # Monitoring
+  PROMETHEUS_URL: "http://prometheus-service:9090"
+  GRAFANA_URL: "http://grafana-service:3000"
+  
+  # Production domain (configured via PRODUCTION_DOMAIN env var or .env)
+  # These values are placeholders - should be set from environment variables
+  PRODUCTION_DOMAIN: "nekazari.robotika.cloud"
+  KEYCLOAK_PUBLIC_URL: "https://nekazari.robotika.cloud/auth"
+  KEYCLOAK_HOSTNAME: "auth.robotika.cloud"  # Keycloak hostname (without protocol)
+  CONTEXT_URL: "http://api-gateway-service:5000/ngsi-ld-context.json"
+  
+  # Frontend configuration
+  REACT_APP_API_BASE_URL: "https://nekazari.robotika.cloud"
+  REACT_APP_KEYCLOAK_URL: "https://nekazari.robotika.cloud"
+  REACT_APP_GRAFANA_URL: "https://nekazari.robotika.cloud/grafana"
+  
+  # Bootstrap configuration (usuario admin de emergencia)
+  # NOTE: Email should be set in bootstrap-secret for production
+  # This is a fallback value - Secret takes precedence
+  BOOTSTRAP_ADMIN_EMAIL: "admin@nekazari.local"
+  # Bootstrap tenant ID (can be customized)
+  BOOTSTRAP_TENANT_ID: "bootstrap"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-init-scripts
+  namespace: nekazari
+  labels:
+    app: postgresql
+    layer: database
+data:
+  01-init-databases.sql: |
+    -- Create separate databases for each service
+    CREATE DATABASE keycloak;
+    CREATE DATABASE api_validator_db;
+    CREATE DATABASE farmer_auth_db;
+    CREATE DATABASE activation_codes_db;
+    CREATE DATABASE fiware_history;
+    
+    -- Grant permissions to postgres user
+    GRANT ALL PRIVILEGES ON DATABASE keycloak TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE api_validator_db TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE farmer_auth_db TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE activation_codes_db TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE fiware_history TO postgres;
+    
+    -- Create TimescaleDB extension in fiware_history
+    \c fiware_history;
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+    
+    -- Create TimescaleDB extension in main database
+    \c nekazari;
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+    
+    -- Database structure will be created by migrations
+    -- No initial tables here to avoid conflicts
+    
+    -- =============================================================================
+    -- Activation Codes Table (required for tenant-webhook service)
+    -- =============================================================================
+    -- This ensures activation_codes table exists even if migrations haven't run yet
+    -- It's idempotent and safe to run multiple times
+    
+    -- Create plan types enum if not exists
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'plan_type') THEN
+            CREATE TYPE plan_type AS ENUM ('basic', 'premium', 'enterprise');
+        END IF;
+    END $$;
+    
+    -- Create code status enum if not exists
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'code_status') THEN
+            CREATE TYPE code_status AS ENUM ('pending', 'active', 'expired', 'revoked');
+        END IF;
+    END $$;
+    
+    -- Create activation_codes table if not exists
+    -- Note: farmer_activations table is created separately if farmers table exists
+    CREATE TABLE IF NOT EXISTS activation_codes (
+        id SERIAL PRIMARY KEY,
+        code TEXT UNIQUE NOT NULL,
+        email TEXT NOT NULL,
+        plan plan_type NOT NULL DEFAULT 'basic',
+        status code_status NOT NULL DEFAULT 'pending',
+        max_users INTEGER DEFAULT 1,
+        max_robots INTEGER DEFAULT 3,
+        max_sensors INTEGER DEFAULT 10,
+        used_count INTEGER DEFAULT 0,
+        activated_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
+        duration_days INTEGER DEFAULT 30,
+        generated_by TEXT,
+        order_id TEXT,
+        notes TEXT,
+        last_notification_days INTEGER[],
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create indexes if not exists
+    CREATE INDEX IF NOT EXISTS idx_activation_codes_code ON activation_codes(code);
+    CREATE INDEX IF NOT EXISTS idx_activation_codes_email ON activation_codes(email);
+    CREATE INDEX IF NOT EXISTS idx_activation_codes_status ON activation_codes(status);
+    CREATE INDEX IF NOT EXISTS idx_activation_codes_expires ON activation_codes(expires_at);
+    
+    -- Create function to generate unique activation code
+    CREATE OR REPLACE FUNCTION generate_activation_code()
+    RETURNS TEXT AS $$
+    DECLARE
+        new_code TEXT;
+        code_exists BOOLEAN;
+    BEGIN
+        LOOP
+            new_code := 'NEK-' || 
+                        upper(substring(md5(random()::text) from 1 for 4)) || '-' ||
+                        upper(substring(md5(random()::text) from 1 for 4)) || '-' ||
+                        upper(substring(md5(random()::text) from 1 for 4));
+            SELECT EXISTS(SELECT 1 FROM activation_codes WHERE code = new_code) INTO code_exists;
+            EXIT WHEN NOT code_exists;
+        END LOOP;
+        RETURN new_code;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    -- Create function to auto-update updated_at
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    -- Create trigger for activation_codes
+    DROP TRIGGER IF EXISTS update_activation_codes_updated_at ON activation_codes;
+    CREATE TRIGGER update_activation_codes_updated_at
+        BEFORE UPDATE ON activation_codes
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    
+    -- Grant permissions to postgres user (used by tenant-webhook service)
+    GRANT ALL PRIVILEGES ON TABLE activation_codes TO postgres;
+    GRANT USAGE, SELECT ON SEQUENCE activation_codes_id_seq TO postgres;
+    
+    -- Grant permissions to timescale user if exists
+    DO $$
+    BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'timescale') THEN
+            GRANT SELECT, INSERT, UPDATE, DELETE ON activation_codes TO timescale;
+            IF EXISTS (SELECT 1 FROM pg_sequences WHERE schemaname = 'public' AND sequencename = 'activation_codes_id_seq') THEN
+                GRANT USAGE, SELECT ON SEQUENCE activation_codes_id_seq TO timescale;
+            END IF;
+        END IF;
+    END $$;
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nekazari
+  labels:
+    app: nginx
+    layer: reverse-proxy
+data:
+  default.conf: |
+    upstream nekazari_frontend {
+        server frontend-service:80;
+    }
+    
+    upstream nekazari_keycloak {
+        server keycloak-service:8080;
+    }
+    
+    upstream nekazari_grafana {
+        server grafana-service:3000;
+    }
+    
+    upstream nekazari_prometheus {
+        server prometheus-service:9090;
+    }
+    
+    server {
+        listen 80;
+        server_name nekazari.robotika.cloud;
+        
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        
+        # Frontend
+        location / {
+            proxy_pass http://nekazari_frontend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Keycloak
+        location /auth/ {
+            proxy_pass http://nekazari_keycloak/auth/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        location /keycloak/ {
+            proxy_pass http://nekazari_keycloak/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        location /admin/ {
+            proxy_pass http://nekazari_keycloak/admin/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Grafana
+        location /grafana/ {
+            proxy_pass http://nekazari_grafana/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Prometheus
+        location /prometheus/ {
+            proxy_pass http://nekazari_prometheus/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # Health check
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+    }
+
+---
+# =============================================================================
+# ROS2 Configuration
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ros2-config
+  namespace: nekazari
+  labels:
+    app: ros2-fiware-bridge
+    component: ros2
+data:
+  # ROS2 Domain ID (0-232, default: 0)
+  # Different domain IDs allow multiple ROS2 networks to coexist
+  ROS_DOMAIN_ID: "0"
