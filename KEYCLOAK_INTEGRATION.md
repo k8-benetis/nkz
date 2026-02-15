@@ -94,18 +94,18 @@ kubectl apply -f k8s/k3s-optimized/frontend-deployment.yaml
 
 | Usuario | Contraseña | Rol | Tenant |
 |---------|------------|-----|--------|
-| `admin` | `[CONTRASEÑA_GENERADA_POR_DEPLOY]!` | PlatformAdmin | platform |
-| `farmer1` | `Farmer123!` | Farmer | tenant1 |
+| `admin` | *(generated during deploy)* | PlatformAdmin | platform |
+| `farmer1` | *(set during user creation)* | Farmer | tenant1 |
 
 ## 🔧 Gestión de Usuarios
 
 ### Crear Nuevos Usuarios
 ```bash
 # Administrador de tenant
-./scripts/manage-keycloak-users.sh create-tenant-admin tenant2 admin2 admin2@tenant2.com admin123
+./scripts/manage-keycloak-users.sh create-tenant-admin tenant2 admin2 admin2@tenant2.com <your-password>
 
 # Agricultor
-./scripts/manage-keycloak-users.sh create-farmer tenant2 farmer2 farmer2@tenant2.com farmer123 John Doe
+./scripts/manage-keycloak-users.sh create-farmer tenant2 farmer2 farmer2@tenant2.com <your-password> John Doe
 
 # Gestor de dispositivos
 ./scripts/manage-keycloak-users.sh create-device-manager tenant2 devmgr2 devmgr2@tenant2.com devmgr123 Jane Smith
