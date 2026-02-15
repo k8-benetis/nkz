@@ -1,0 +1,68 @@
+# =============================================================================
+# Application Services Network Policy - Inter-Service Communication
+# =============================================================================
+# This policy allows communication between application services
+# Frontend, APIs, Database, and Keycloak access
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: application-services-access
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: application
+spec:
+  podSelector: {} # Applies to all pods
+  policyTypes:
+  - Egress
+  
+  # Allow egress to API Gateway
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  # Allow egress to Database
+  - to:
+    - podSelector:
+        matchLabels:
+          app: timescaledb
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow egress to Keycloak
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8443
+  
+  # Allow egress to Orion-LD (if deployed)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Allow egress to MQTT Broker
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mosquitto
+    ports:
+    - protocol: TCP
+      port: 1883
+    - protocol: TCP
+      port: 8883

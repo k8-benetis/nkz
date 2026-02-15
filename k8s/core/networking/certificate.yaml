@@ -1,0 +1,21 @@
+# =============================================================================
+# Certificate Resource para cert-manager
+# =============================================================================
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nekazari-tls
+  namespace: nekazari
+spec:
+  secretName: nekazari-tls
+  duration: 2160h # 90 días
+  renewBefore: 360h # 15 días antes de expirar
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: nekazari.robotika.cloud
+  dnsNames:
+    - nekazari.robotika.cloud
+    - nkz.robotika.cloud
+

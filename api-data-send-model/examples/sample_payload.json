@@ -1,0 +1,26 @@
+{
+  "measurements": [
+    {
+      "type": "soilMoisture",
+      "value": 31.2,
+      "unit": "P1",
+      "observedAt": "2025-11-10T09:30:00Z"
+    },
+    {
+      "type": "soilTemperature",
+      "value": 18.7,
+      "unit": "CEL",
+      "observedAt": "2025-11-10T09:30:00Z"
+    }
+  ],
+  "metadata": {
+    "name": "Sensor de Suelo Estación 01",
+    "stationId": "station-01",
+    "parcelId": "urn:ngsi-ld:AgriParcel:tenant-id:parcel-1",
+    "location": {
+      "coordinates": [-2.0282189797672325, 42.571493924308626]
+    }
+  },
+  "observedAt": "2025-11-10T09:30:00Z"
+}
+

@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geoserver
+  namespace: nekazari
+  labels:
+    app: geoserver
+    layer: gis
+    module: premium  # Optional premium module
+spec:
+  replicas: 0  # Disabled by default - enable for premium tenants
+  selector:
+    matchLabels:
+      app: geoserver
+  template:
+    metadata:
+      labels:
+        app: geoserver
+        layer: gis
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: geoserver
+        image: kartoza/geoserver:2.24.0
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: GEOSERVER_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: geoserver-secret
+              key: admin-username
+        - name: GEOSERVER_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: geoserver-secret
+              key: admin-password
+        - name: GEOSERVER_DATA_DIR
+          value: /var/local/geoserver
+        - name: ENABLE_JSONP
+          value: "true"
+        - name: MAX_FILTER_RULES
+          value: "20"
+        volumeMounts:
+        - name: geoserver-data
+          mountPath: /var/local/geoserver
+        resources:
+          requests:
+            memory: "1.5Gi"
+            cpu: "200m"
+          limits:
+            memory: "2Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /geoserver/web/
+            port: 8080
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /geoserver/web/
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          timeoutSeconds: 15
+      volumes:
+      - name: geoserver-data
+        persistentVolumeClaim:
+          claimName: geoserver-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geoserver-service
+  namespace: nekazari
+  labels:
+    app: geoserver
+spec:
+  selector:
+    app: geoserver
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: geoserver-pvc
+  namespace: nekazari
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+

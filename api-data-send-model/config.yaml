@@ -1,0 +1,136 @@
+endpoint:
+  base_url: "https://nekazari.robotika.cloud"
+  path: "/ngsi-ld/v1/entities"
+  timeout: 30
+
+auth:
+  api_key: "REPLACE_WITH_API_KEY"
+  tenant: "tenant-id"
+
+device:
+  id: "logger-01"
+  profile: "generic_v1"
+
+queue:
+  enabled: true
+  db_path: "queue.db"
+  retry_interval: 60       # seconds between retry attempts
+  max_batch_size: 50
+
+payload:
+  builder: "sdm_agri_sensor"
+  meta:
+    parcelId: "urn:ngsi-ld:AgriParcel:tenant-id:parcel-1"
+
+input:
+  format: "json"            # json | csv | custom
+  watch_path: null          # optional directory to tail for new files
+  poll_interval: 30         # seconds between directory scans
+# Sensor Ingestion Service Configuration
+
+# Directorios
+data_dir: "/home/g/datos"
+processed_dir: "/home/g/datos/procesados"
+log_dir: "/home/g/datos/logs"
+
+# FIWARE Orion-LD
+orion:
+  url: "https://nekazari.robotika.cloud/ngsi-ld/v1"
+  # Para desarrollo local, usar:
+  # url: "http://localhost:1026/ngsi-ld/v1"
+  context: "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+  tenant: "agrivolt"  # Fiware-Service header
+  service_path: "/sensors"  # Fiware-ServicePath header
+
+# Autenticación (IMPORTANTE para seguridad)
+auth:
+  enabled: true
+  # Opción 1: API Key (más simple)
+  api_key: "CHANGE_THIS_TO_YOUR_SECRET_API_KEY"
+  
+  # Opción 2: JWT Token (más seguro, requiere login)
+  # username: "agrivolt@nekazari.com"
+  # password: "secure_password"
+  # token_url: "https://nekazari.robotika.cloud/auth/login"
+
+# TimescaleDB (opcional, para escritura directa)
+timescaledb:
+  enabled: false  # De momento, Orion-LD se encarga
+  host: "nekazari.robotika.cloud"
+  port: 5432
+  database: "fiware_history"
+  user: "timescale"
+  password: ""  # Leer de variable de entorno
+
+# Ubicaciones de las estaciones
+stations:
+  BP_Vaso:
+    name: "Estación Vaso"
+    lat: 42.571493924308626
+    lon: -2.0282189797672325
+    alt: 0  # Será calculado del DEM
+    
+  BP_Espaldera:
+    name: "Estación Espaldera"
+    lat: 42.572258383750075
+    lon: -2.0269655747398496
+    alt: 0
+    
+  Ambiental:
+    name: "Estación Ambiental"
+    lat: 42.57183955872723
+    lon: -2.0279484209727756
+    alt: 0
+    
+  Control_Espaldera:
+    name: "Estación Control Espaldera"
+    lat: 42.572258383750075  # Misma que BP_Espaldera
+    lon: -2.0269655747398496
+    alt: 0
+    
+  Control_Vaso:
+    name: "Estación Control Vaso"
+    lat: 42.571493924308626  # Misma que BP_Vaso
+    lon: -2.0282189797672325
+    alt: 0
+    
+  Prod:
+    name: "Estación Producción"
+    lat: 42.57183955872723  # Misma que Ambiental
+    lon: -2.0279484209727756
+    alt: 0
+    
+  Estado_Baterias:
+    name: "Sistema de Baterías"
+    lat: 42.57183955872723  # Misma que Ambiental
+    lon: -2.0279484209727756
+    alt: 0
+    
+  Estado:
+    name: "Estado del Sistema"
+    lat: 42.57183955872723  # Misma que Ambiental
+    lon: -2.0279484209727756
+    alt: 0
+
+# Configuración del watcher
+watcher:
+  pattern: "datos_*.csv"  # Solo archivos instantáneos
+  check_interval: 10  # segundos
+  process_existing: true  # IMPORTANTE: Procesar archivos antiguos no enviados
+  max_files_per_batch: 50  # Máximo de archivos a procesar en cada batch
+
+# Configuración de publicación
+publishing:
+  batch_size: 100  # Lecturas por batch
+  retry_attempts: 3
+  retry_delay: 5  # segundos
+  
+# Sistema de tracking de archivos procesados
+tracking:
+  enabled: true  # Mantener registro de archivos procesados
+  db_file: "/home/g/datos/.processed_files.db"  # Base de datos SQLite
+  
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -1,0 +1,21 @@
+# Mosquitto ACL Configuration for Nekazari Platform
+# This file controls access permissions for MQTT topics
+
+# Admin user has full access
+user admin
+topic readwrite #
+
+# Tenant-specific access patterns
+# Each tenant gets access to their own topics
+user tenant_%c
+topic readwrite tenant/%c/#
+topic readwrite sensors/%c/#
+topic readwrite robots/%c/#
+topic readwrite livestock/%c/#
+
+# System monitoring access
+user monitoring
+topic read system/#
+topic read $SYS/#
+
+# Default deny all other access

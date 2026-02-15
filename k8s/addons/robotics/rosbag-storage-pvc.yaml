@@ -1,0 +1,23 @@
+# =============================================================================
+# Rosbag Storage PVC - Para almacenamiento persistente de rosbags
+# =============================================================================
+# Este PVC se usa cuando ENABLE_ROSBAG=true en ros2-fiware-bridge
+# Descomentar en ros2-fiware-bridge-deployment.yaml cuando se habilite rosbag
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rosbag-storage-pvc
+  namespace: nekazari
+  labels:
+    app: ros2-fiware-bridge
+    component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi  # Ajustar según necesidades (50GB para múltiples robots)
+  storageClassName: local-path
+

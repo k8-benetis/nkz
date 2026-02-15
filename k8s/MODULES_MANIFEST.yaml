@@ -1,0 +1,365 @@
+# =============================================================================
+# Nekazari Platform - Modules Manifest
+# =============================================================================
+# This file documents all available modules and their deployment requirements
+# Used for reference and automation tooling
+# =============================================================================
+
+version: "1.0.0"
+updated: "2025-12-17"
+
+# =============================================================================
+# CORE PLATFORM
+# =============================================================================
+# These components are ALWAYS required for the platform to operate
+# Deploy in order: infrastructure → auth → fiware → services → frontend → networking
+
+core:
+  infrastructure:
+    description: "Databases, caches, and persistent storage"
+    required: true
+    components:
+      - name: postgresql
+        files:
+          - postgresql-deployment.yaml
+          - postgresql-service.yaml
+          - postgresql-storage.yaml
+          - postgresql-hostpath-pv.yaml
+          - postgresql-backup-cronjob.yaml
+        dependencies: []
+
+      - name: mongodb
+        files:
+          - mongodb-deployment.yaml
+          - mongodb-hostpath-pv.yaml
+          - mongodb-backup-cronjob.yaml
+        dependencies: []
+
+      - name: redis
+        files:
+          - redis-deployment.yaml
+        dependencies: []
+
+  auth:
+    description: "Authentication and authorization (Keycloak)"
+    required: true
+    components:
+      - name: keycloak
+        files:
+          - keycloak-deployment.yaml
+          - keycloak-ingress.yaml
+          - keycloak-rbac.yaml
+          - keycloak-secrets.yaml
+        dependencies:
+          - postgresql
+
+  fiware:
+    description: "FIWARE Context Broker and IoT Agent"
+    required: true
+    components:
+      - name: orion-ld
+        files:
+          - orion-ld-deployment.yaml
+        dependencies:
+          - mongodb
+
+      - name: iot-agent-json
+        files:
+          - iot-agent-json-deployment.yaml
+        dependencies:
+          - mongodb
+          - orion-ld
+
+  services:
+    description: "Core backend microservices"
+    required: true
+    components:
+      - name: api-gateway
+        files:
+          - services-deployments.yaml
+        dependencies:
+          - keycloak
+          - orion-ld
+
+      - name: entity-manager
+        files:
+          - services-deployments.yaml
+        dependencies:
+          - postgresql
+          - orion-ld
+          - keycloak
+          - redis
+
+      - name: sensor-ingestor
+        files:
+          - sensor-ingestor-deployment.yaml
+        dependencies:
+          - postgresql
+          - orion-ld
+
+      - name: tenant-user-api
+        files:
+          - tenant-user-api-deployment.yaml
+        dependencies:
+          - postgresql
+          - keycloak
+
+      - name: tenant-webhook
+        files:
+          - tenant-webhook-deployment.yaml
+          - tenant-webhook-rbac.yaml
+        dependencies:
+          - postgresql
+          - keycloak
+
+      - name: email-service
+        files:
+          - email-service-deployment.yaml
+        dependencies: []
+
+      - name: sdm-integration
+        files:
+          - sdm-integration-deployment.yaml
+        dependencies: []
+
+  frontend:
+    description: "Frontend host and module federation server"
+    required: true
+    components:
+      - name: frontend-host
+        files:
+          - frontend-host-deployment.yaml
+        dependencies:
+          - api-gateway
+
+      - name: modules-server
+        files:
+          - modules-server-deployment.yaml
+        dependencies: []
+
+  networking:
+    description: "Ingress, certificates, and CORS configuration"
+    required: true
+    components:
+      - name: ingress
+        files:
+          - ingress.yaml
+          - cors-middleware.yaml
+        dependencies: []
+
+      - name: certificates
+        files:
+          - cluster-issuer.yaml
+          - letsencrypt-issuer.yaml
+          - certificate.yaml
+          - certificate-auth.yaml
+          - certificate-nkz.yaml
+        dependencies: []
+
+# =============================================================================
+# ADDONS (Optional Modules)
+# =============================================================================
+# These modules extend platform functionality
+# Can be deployed independently based on tenant requirements
+
+addons:
+  # ---------------------------------------------------------------------------
+  # Analytics Modules
+  # ---------------------------------------------------------------------------
+  # NOTE: NDVI is now handled by external vegetation module
+  # ndvi: DEPRECATED - See https://github.com/k8-benetis/nekazari-module-vegetation
+
+  risk:
+    id: "risk"
+    name: "Risk Assessment"
+    description: "Agricultural risk analysis and alerting"
+    category: analytics
+    plan_required: premium
+    pricing_tier: ADDON_PAID
+    path: addons/analytics/risk/
+    files:
+      - risk-api-deployment.yaml
+      - risk-orchestrator-deployment.yaml
+      - risk-worker-deployment.yaml
+    dependencies:
+      - postgresql
+      - redis
+      - weather # Recommended
+    external_services: []
+
+  # ---------------------------------------------------------------------------
+  # Weather Module
+  # ---------------------------------------------------------------------------
+  weather:
+    id: "weather"
+    name: "Weather Integration"
+    description: "Historical and forecast weather data from AEMET and OpenMeteo"
+    category: weather
+    plan_required: basic
+    pricing_tier: ADDON_FREE
+    path: addons/weather/
+    files:
+      - weather-worker-deployment.yaml
+    dependencies:
+      - postgresql
+      - orion-ld
+    external_services:
+      - AEMET (Spanish meteorological agency)
+      - OpenMeteo (global weather API)
+    secrets_required: []
+
+  # ---------------------------------------------------------------------------
+  # Robotics Modules
+  # ---------------------------------------------------------------------------
+  ros2_bridge:
+    id: "ros2-bridge"
+    name: "ROS2 Integration"
+    description: "Bridge between ROS2 robots and FIWARE"
+    category: robotics
+    plan_required: enterprise
+    pricing_tier: ENTERPRISE
+    path: addons/robotics/
+    files:
+      - ros2-fiware-bridge-deployment.yaml
+      - rosbag-storage-pvc.yaml
+    dependencies:
+      - orion-ld
+    external_services:
+      - ROS2 network (via VPN)
+    notes: "Requires WireGuard VPN for robot connectivity"
+
+  isobus:
+    id: "isobus"
+    name: "ISOBUS Bridge"
+    description: "Integration with ISOBUS-compatible agricultural machinery"
+    category: robotics
+    plan_required: enterprise
+    pricing_tier: ENTERPRISE
+    path: addons/robotics/
+    files:
+      - isobus-bridge-deployment.yaml
+    dependencies:
+      - orion-ld
+    external_services: []
+
+  # ---------------------------------------------------------------------------
+  # Visualization Modules
+  # ---------------------------------------------------------------------------
+  geoserver:
+    id: "geoserver"
+    name: "GeoServer"
+    description: "OGC-compliant WMS/WFS server for geospatial data"
+    category: visualization
+    plan_required: premium
+    pricing_tier: ADDON_PAID
+    path: addons/visualization/
+    files:
+      - geoserver-deployment.yaml
+    dependencies:
+      - postgresql
+    external_services: []
+    notes: "Required for NDVI layer serving"
+
+  # ---------------------------------------------------------------------------
+  # Simulation Module - ARCHIVED
+  # ---------------------------------------------------------------------------
+  # simulation: ARCHIVED - Mock implementation removed, may be replaced by
+  #             external intelligence module in the future
+
+  # ---------------------------------------------------------------------------
+  # IoT Automation Modules
+  # ---------------------------------------------------------------------------
+  n8n:
+    id: "n8n"
+    name: "n8n Workflow Automation"
+    description: "Visual workflow automation for IoT and notifications"
+    category: iot
+    plan_required: premium
+    pricing_tier: ADDON_PAID
+    path: addons/iot/
+    files:
+      - n8n-deployment.yaml
+      - n8n-pvc.yaml
+    dependencies:
+      - postgresql
+    external_services: []
+    secrets_required:
+      - n8n-secret
+
+  mqtt_credentials:
+    id: "mqtt-credentials"
+    name: "MQTT Credentials Manager"
+    description: "Automatic MQTT credential provisioning for IoT devices"
+    category: iot
+    plan_required: premium
+    pricing_tier: ADDON_FREE
+    path: addons/iot/
+    files:
+      - mqtt-credentials-manager-deployment.yaml
+    dependencies:
+      - mosquitto (core IoT Agent)
+    external_services: []
+    notes: "Automatically creates MQTT users when sensors are registered"
+
+# =============================================================================
+# MONITORING
+# =============================================================================
+# Observability stack (recommended for production)
+
+monitoring:
+  prometheus:
+    name: "Prometheus"
+    description: "Metrics collection and alerting"
+    files:
+      - monitoring-deployments.yaml
+      - prometheus-ingress.yaml
+    dependencies: []
+
+  grafana:
+    name: "Grafana"
+    description: "Metrics visualization and dashboards"
+    files:
+      - monitoring-deployments.yaml
+    dependencies:
+      - prometheus
+
+  alertmanager:
+    name: "Alertmanager"
+    description: "Alert routing and notification"
+    files:
+      - alertmanager-config.yaml
+    dependencies:
+      - prometheus
+
+# =============================================================================
+# DEPRECATED
+# =============================================================================
+# Legacy components kept for reference
+
+deprecated:
+  # All items in this section have been REMOVED from the codebase
+  # Kept here for historical reference only
+
+  api_validator:
+    name: "API Validator"
+    description: "Legacy API key validation proxy (functionality merged into api-gateway)"
+    status: DELETED
+    reason: "Redundant with api-gateway authentication"
+
+  ndvi_service:
+    name: "NDVI Service"
+    description: "Internal NDVI processing service"
+    status: DELETED
+    reason: "Replaced by external vegetation module"
+
+  simulation_service:
+    name: "Simulation Service"
+    description: "Mock simulation service"
+    status: DELETED
+    reason: "Only contained mock implementation, archived"
+
+  ros2_web_bridge:
+    name: "ROS2 Web Bridge"
+    description: "Websocket bridge for ROS2 (empty stub)"
+    status: DELETED
+    reason: "Never implemented, only Dockerfile existed"

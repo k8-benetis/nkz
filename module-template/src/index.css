@@ -1,0 +1,19 @@
+/* Module Template - Custom Styles
+   ============================================================================
+   
+   IMPORTANT: Do NOT include @tailwind directives (@tailwind base, components, 
+   utilities) in module CSS files!
+   
+   The host application already includes Tailwind CSS. Including them here 
+   would reset global styles and break the host's layout, sidebar, and 
+   overall page structure.
+   
+   Instead, use scoped class names for your module-specific styles, or 
+   rely on Tailwind utility classes in your JSX components.
+   ============================================================================
+*/
+
+/* Example: Module specific styles */
+.module-container {
+  /* Your custom styles here */
+}

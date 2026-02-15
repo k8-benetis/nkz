@@ -1,0 +1,45 @@
+# =============================================================================
+# PersistentVolume con HostPath para PostgreSQL
+# =============================================================================
+# Este PV usa HostPath en lugar de local-path para mayor persistencia
+# Política Retain para evitar pérdida de datos
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgresql-hostpath-pv
+  labels:
+    app: postgresql
+    layer: database
+    type: hostpath
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain  # CRÍTICO: No borrar datos al eliminar PVC
+  storageClassName: hostpath-postgresql
+  hostPath:
+    path: /var/lib/nekazari/postgres
+    type: DirectoryOrCreate  # Crea el directorio si no existe
+
+---
+# =============================================================================
+# PersistentVolumeClaim que usa el PV HostPath
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgresql-storage
+  namespace: nekazari
+  labels:
+    app: postgresql
+    layer: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: hostpath-postgresql
+  volumeName: postgresql-hostpath-pv  # Vincula explícitamente al PV
+

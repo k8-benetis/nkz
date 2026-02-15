@@ -1,0 +1,144 @@
+# =============================================================================
+# Frontend Static Nginx Configuration
+# =============================================================================
+# ConfigMap for Nginx proxy that serves frontend from MinIO.
+# Handles SPA routing, cache control, and GZIP compression.
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: frontend-nginx-config
+    namespace: nekazari
+    labels:
+        app: frontend-static
+        component: frontend
+data:
+    default.conf: |
+        server {
+            listen 80;
+            server_name _;
+
+            # GZIP compression for faster loading
+            gzip on;
+            gzip_vary on;
+            gzip_proxied any;
+            gzip_comp_level 6;
+            gzip_types text/plain text/css text/xml application/json application/javascript 
+                       application/xml application/xml+rss text/javascript application/x-javascript;
+
+            # Health check endpoint
+            location /health {
+                access_log off;
+                return 200 'ok';
+                add_header Content-Type text/plain;
+            }
+
+            # 3D Assets (GLB/GLTF models) from assets-3d bucket
+            # These are uploaded via GlobalAssetManager and need CORS for model-viewer
+            location /assets/assets-3d/ {
+                proxy_pass http://minio-service:9000/assets-3d/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+                
+                # CORS headers for model-viewer and Cesium
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "*" always;
+                
+                # Cache for 1 day (models don't change often)
+                add_header Cache-Control "public, max-age=86400";
+            }
+
+            # Frontend build assets with hash in filename → Cache forever (immutable)
+            location /assets/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/assets/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+                
+                # Aggressive caching - assets have content hash, so they're immutable
+                add_header Cache-Control "public, max-age=31536000, immutable";
+            }
+
+            # Cesium assets (large, also cacheable)
+            location /cesium/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/cesium/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+                
+                add_header Cache-Control "public, max-age=86400";
+            }
+
+            # =================================================================
+            # Module Federation - Federated Micro-frontends
+            # =================================================================
+            # Serves external module bundles (remoteEntry.js) from MinIO.
+            # These are third-party or external modules loaded via Module Federation.
+            # CORS is critical for cross-origin module loading.
+            location /modules/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/modules/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+                
+                # CORS headers - CRITICAL for Module Federation
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range" always;
+                
+                # Handle preflight requests
+                if ($request_method = 'OPTIONS') {
+                    add_header Access-Control-Allow-Origin "*" always;
+                    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                    add_header Access-Control-Max-Age 1728000;
+                    add_header Content-Type "text/plain; charset=utf-8";
+                    add_header Content-Length 0;
+                    return 204;
+                }
+                
+                # Cache - remoteEntry.js gets short cache, other assets longer
+                # Browser will use hash in filename for cache busting on updates
+                add_header Cache-Control "public, max-age=3600";
+            }
+
+            # Explicit index.html handler (for SPA fallback)
+            location = /index.html {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/index.html;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+                
+                # Never cache index.html - always get fresh version
+                add_header Cache-Control "no-cache, no-store, must-revalidate";
+                add_header Pragma "no-cache";
+                add_header Expires "0";
+
+                # CRITICAL: Inject Runtime Configuration (window.__ENV__)
+                # This fixes the Keycloak URL without rebuilding the static assets in MinIO
+                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth", VITE_API_URL: "https://nkz.robotika.cloud/api", VITE_KEYCLOAK_REALM: "nekazari", VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend" };</script></head>';
+                sub_filter_once on;
+            }
+
+            # All other requests → Proxy to MinIO with SPA fallback
+            location / {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+                
+                # CRITICAL: Intercept MinIO 404 errors to handle SPA routing
+                # Without this, F5 on /ndvi returns MinIO's 404 XML instead of index.html
+                proxy_intercept_errors on;
+                error_page 404 = /index.html;
+                
+                # Don't cache dynamic routes
+                add_header Cache-Control "no-cache, no-store, must-revalidate";
+
+                # CRITICAL: Inject Runtime Configuration (for SPA deep links)
+                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth", VITE_API_URL: "https://nkz.robotika.cloud/api", VITE_KEYCLOAK_REALM: "nekazari", VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend" };</script></head>';
+                sub_filter_once on;
+            }
+        }

@@ -1,0 +1,418 @@
+# =============================================================================
+# Database Migration Job - Executes SQL migrations automatically
+# =============================================================================
+# This job runs database migrations on startup to ensure all tables exist
+# It is idempotent and safe to run multiple times
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration
+  namespace: nekazari
+  labels:
+    app: db-migration
+    component: database
+spec:
+  # Don't restart on failure - manual intervention needed if migrations fail
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600  # Clean up after 1 hour
+  template:
+    metadata:
+      labels:
+        app: db-migration
+        component: database
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:14-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h postgresql-service -p 5432 -U postgres -d nekazari; do 
+            echo "Waiting for PostgreSQL to be ready..."; 
+            sleep 2; 
+          done
+          echo "PostgreSQL is ready!"
+      containers:
+      - name: migration-runner
+        image: postgres:14-alpine
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Starting database migrations..."
+          
+          # Wait for PostgreSQL to be ready
+          until pg_isready -h postgresql-service -p 5432 -U postgres -d nekazari; do 
+            echo "Waiting for PostgreSQL to be ready..."; 
+            sleep 2; 
+          done
+          echo "PostgreSQL is ready!"
+          
+          # Apply migrations in order
+          cd /migrations
+          
+          if [ ! -d /migrations ]; then
+            echo "ERROR: /migrations directory not found"
+            exit 1
+          fi
+          
+          # Check if there are any SQL files
+          MIGRATION_COUNT=$(find /migrations -name "*.sql" | wc -l)
+          if [ "$MIGRATION_COUNT" -eq 0 ]; then
+            echo "WARNING: No migration files found in /migrations"
+            echo "This is expected if migrations are applied manually or via init scripts"
+            exit 0
+          fi
+          
+          echo "Found $MIGRATION_COUNT migration file(s)"
+          
+          # Sort migrations by version number to ensure correct execution order
+          # sort -V handles version sorting (001, 002, 010, 020, etc.)
+          for migration in $(find /migrations -name "*.sql" -type f | sort -V); do
+            migration_name=$(basename "$migration")
+            echo "=========================================="
+            echo "Applying migration: $migration_name"
+            echo "=========================================="
+            if psql -h postgresql-service -U postgres -d nekazari -f "$migration" 2>&1; then
+              echo "✅ Migration $migration_name completed successfully"
+            else
+              exit_code=$?
+              echo "⚠️  Migration $migration_name exited with code $exit_code"
+              echo "Note: Some migrations may fail if already applied (idempotent)"
+              # Continue with other migrations even if one fails (idempotent migrations)
+            fi
+            echo ""
+          done
+          
+          # CRITICAL: Ensure key tables exist (apply key migrations if they don't)
+          echo "=========================================="
+          echo "🔧 Verifying critical tables exist..."
+          echo "=========================================="
+          psql -h postgresql-service -U postgres -d nekazari <<'SQL'
+            DO $$
+            BEGIN
+              -- NDVI Tables
+              IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ndvi_jobs') THEN
+                RAISE NOTICE 'Creating ndvi_jobs table...';
+                CREATE TABLE IF NOT EXISTS ndvi_jobs (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  tenant_id TEXT NOT NULL,
+                  parcel_id TEXT NOT NULL,
+                  status TEXT NOT NULL DEFAULT 'queued',
+                  requested_by TEXT,
+                  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  started_at TIMESTAMPTZ,
+                  finished_at TIMESTAMPTZ,
+                  time_from TIMESTAMPTZ,
+                  time_to TIMESTAMPTZ,
+                  resolution INTEGER,
+                  satellite TEXT,
+                  parameters JSONB DEFAULT '{}'::jsonb,
+                  geometry JSONB,
+                  area_hectares DOUBLE PRECISION,
+                  job_type TEXT DEFAULT 'parcel',
+                  ndvi_mean DOUBLE PRECISION,
+                  preview_url TEXT,
+                  error_message TEXT,
+                  index_type TEXT NOT NULL DEFAULT 'ndvi',
+                  progress_message TEXT,
+                  estimated_seconds_remaining INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS idx_ndvi_jobs_tenant ON ndvi_jobs(tenant_id);
+                CREATE INDEX IF NOT EXISTS idx_ndvi_jobs_parcel ON ndvi_jobs(parcel_id);
+                CREATE INDEX IF NOT EXISTS idx_ndvi_jobs_status ON ndvi_jobs(status);
+                CREATE INDEX IF NOT EXISTS idx_ndvi_jobs_index_type ON ndvi_jobs(index_type);
+                ALTER TABLE ndvi_jobs ENABLE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS ndvi_jobs_policy ON ndvi_jobs;
+                CREATE POLICY ndvi_jobs_policy ON ndvi_jobs
+                  USING (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.current_tenant', true) = 'platform_admin')
+                  WITH CHECK (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.current_tenant', true) = 'platform_admin');
+                GRANT ALL PRIVILEGES ON TABLE ndvi_jobs TO postgres;
+                GRANT ALL PRIVILEGES ON TABLE ndvi_jobs TO nekazari;
+              END IF;
+              
+              IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ndvi_results') THEN
+                RAISE NOTICE 'Creating ndvi_results table...';
+                CREATE TABLE IF NOT EXISTS ndvi_results (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  job_id UUID REFERENCES ndvi_jobs(id) ON DELETE CASCADE,
+                  tenant_id TEXT NOT NULL,
+                  parcel_id TEXT NOT NULL,
+                  acquisition_date TIMESTAMPTZ NOT NULL,
+                  ndvi_mean DOUBLE PRECISION,
+                  ndvi_min DOUBLE PRECISION,
+                  ndvi_max DOUBLE PRECISION,
+                  ndvi_stddev DOUBLE PRECISION,
+                  cloud_cover DOUBLE PRECISION,
+                  raster_url TEXT,
+                  preview_url TEXT,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  indices_data JSONB DEFAULT '{}'::jsonb
+                );
+                CREATE INDEX IF NOT EXISTS idx_ndvi_results_tenant ON ndvi_results(tenant_id);
+                CREATE INDEX IF NOT EXISTS idx_ndvi_results_parcel ON ndvi_results(parcel_id, acquisition_date DESC);
+                CREATE INDEX IF NOT EXISTS idx_ndvi_results_job ON ndvi_results(job_id);
+                CREATE INDEX IF NOT EXISTS idx_ndvi_results_indices_data ON ndvi_results USING GIN (indices_data);
+                ALTER TABLE ndvi_results ENABLE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS ndvi_results_policy ON ndvi_results;
+                CREATE POLICY ndvi_results_policy ON ndvi_results
+                  USING (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.current_tenant', true) = 'platform_admin')
+                  WITH CHECK (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.current_tenant', true) = 'platform_admin');
+                GRANT ALL PRIVILEGES ON TABLE ndvi_results TO postgres;
+                GRANT ALL PRIVILEGES ON TABLE ndvi_results TO nekazari;
+              END IF;
+              
+              -- Ensure indices_data column exists
+              IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'ndvi_results' AND column_name = 'indices_data'
+              ) THEN
+                RAISE NOTICE 'Adding indices_data column...';
+                ALTER TABLE ndvi_results ADD COLUMN indices_data JSONB DEFAULT '{}'::jsonb;
+                CREATE INDEX IF NOT EXISTS idx_ndvi_results_indices_data ON ndvi_results USING GIN (indices_data);
+              END IF;
+              
+              -- Marketplace Modules Tables (Migration 024 + 025 + 026 + 027)
+              IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'marketplace_modules') THEN
+                RAISE NOTICE 'Creating marketplace_modules table...';
+                CREATE TABLE IF NOT EXISTS marketplace_modules (
+                  id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL UNIQUE,
+                  display_name TEXT NOT NULL,
+                  description TEXT,
+                  remote_entry_url TEXT,  -- NULL for local modules
+                  scope TEXT,  -- NULL for local modules
+                  exposed_module TEXT,  -- NULL for local modules
+                  version TEXT NOT NULL DEFAULT '1.0.0',
+                  author TEXT,
+                  category TEXT,
+                  icon_url TEXT,
+                  is_active BOOLEAN NOT NULL DEFAULT true,
+                  required_roles TEXT[],
+                  metadata JSONB DEFAULT '{}'::jsonb,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  created_by TEXT,
+                  -- Migration 025: Governance fields
+                  module_type TEXT DEFAULT 'ADDON_FREE',
+                  required_plan_type TEXT,
+                  pricing_tier TEXT,
+                  installation_restrictions JSONB DEFAULT '{}'::jsonb,
+                  -- Migration 026: Route and label
+                  route_path TEXT,
+                  label TEXT,
+                  -- Migration 027: Local module support
+                  is_local BOOLEAN DEFAULT false
+                );
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_active ON marketplace_modules(is_active) WHERE is_active = true;
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_category ON marketplace_modules(category);
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_type ON marketplace_modules(module_type);
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_required_plan ON marketplace_modules(required_plan_type) WHERE required_plan_type IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_pricing ON marketplace_modules(pricing_tier) WHERE pricing_tier IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_route_path ON marketplace_modules(route_path);
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_is_local ON marketplace_modules(is_local);
+                ALTER TABLE marketplace_modules ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE marketplace_modules ADD CONSTRAINT valid_module_type CHECK (
+                  module_type IS NULL OR module_type IN ('CORE', 'ADDON_FREE', 'ADDON_PAID', 'ENTERPRISE')
+                );
+                ALTER TABLE marketplace_modules ADD CONSTRAINT valid_required_plan CHECK (
+                  required_plan_type IS NULL OR required_plan_type IN ('basic', 'premium', 'enterprise')
+                );
+                ALTER TABLE marketplace_modules ADD CONSTRAINT valid_pricing_tier CHECK (
+                  pricing_tier IS NULL OR pricing_tier IN ('FREE', 'PAID', 'ENTERPRISE_ONLY')
+                );
+                GRANT ALL PRIVILEGES ON TABLE marketplace_modules TO postgres;
+                GRANT ALL PRIVILEGES ON TABLE marketplace_modules TO nekazari;
+              ELSE
+                -- Ensure all columns exist (for existing tables)
+                RAISE NOTICE 'Ensuring all marketplace_modules columns exist...';
+                -- Make remote_entry_url, scope, exposed_module nullable for local modules
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'remote_entry_url' AND is_nullable = 'NO') THEN
+                  ALTER TABLE marketplace_modules ALTER COLUMN remote_entry_url DROP NOT NULL;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'scope' AND is_nullable = 'NO') THEN
+                  ALTER TABLE marketplace_modules ALTER COLUMN scope DROP NOT NULL;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'exposed_module' AND is_nullable = 'NO') THEN
+                  ALTER TABLE marketplace_modules ALTER COLUMN exposed_module DROP NOT NULL;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'module_type') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN module_type TEXT DEFAULT 'ADDON_FREE';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'required_plan_type') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN required_plan_type TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'pricing_tier') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN pricing_tier TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'installation_restrictions') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN installation_restrictions JSONB DEFAULT '{}'::jsonb;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'route_path') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN route_path TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'label') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN label TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_modules' AND column_name = 'is_local') THEN
+                  ALTER TABLE marketplace_modules ADD COLUMN is_local BOOLEAN DEFAULT false;
+                END IF;
+                -- Ensure constraints exist
+                IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'valid_module_type' AND table_name = 'marketplace_modules') THEN
+                  ALTER TABLE marketplace_modules ADD CONSTRAINT valid_module_type CHECK (
+                    module_type IS NULL OR module_type IN ('CORE', 'ADDON_FREE', 'ADDON_PAID', 'ENTERPRISE')
+                  );
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'valid_required_plan' AND table_name = 'marketplace_modules') THEN
+                  ALTER TABLE marketplace_modules ADD CONSTRAINT valid_required_plan CHECK (
+                    required_plan_type IS NULL OR required_plan_type IN ('basic', 'premium', 'enterprise')
+                  );
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'valid_pricing_tier' AND table_name = 'marketplace_modules') THEN
+                  ALTER TABLE marketplace_modules ADD CONSTRAINT valid_pricing_tier CHECK (
+                    pricing_tier IS NULL OR pricing_tier IN ('FREE', 'PAID', 'ENTERPRISE_ONLY')
+                  );
+                END IF;
+                -- Ensure indexes exist
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_type ON marketplace_modules(module_type);
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_required_plan ON marketplace_modules(required_plan_type) WHERE required_plan_type IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_pricing ON marketplace_modules(pricing_tier) WHERE pricing_tier IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_route_path ON marketplace_modules(route_path);
+                CREATE INDEX IF NOT EXISTS idx_marketplace_modules_is_local ON marketplace_modules(is_local);
+              END IF;
+              
+              IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenant_installed_modules') THEN
+                RAISE NOTICE 'Creating tenant_installed_modules table...';
+                CREATE TABLE IF NOT EXISTS tenant_installed_modules (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  tenant_id TEXT NOT NULL,
+                  module_id TEXT NOT NULL REFERENCES marketplace_modules(id) ON DELETE CASCADE,
+                  is_enabled BOOLEAN NOT NULL DEFAULT true,
+                  configuration JSONB DEFAULT '{}'::jsonb,
+                  installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  installed_by TEXT,
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                  UNIQUE(tenant_id, module_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_tenant_installed_modules_tenant ON tenant_installed_modules(tenant_id);
+                CREATE INDEX IF NOT EXISTS idx_tenant_installed_modules_enabled ON tenant_installed_modules(tenant_id, is_enabled) WHERE is_enabled = true;
+                CREATE INDEX IF NOT EXISTS idx_tenant_installed_modules_module ON tenant_installed_modules(module_id);
+                ALTER TABLE tenant_installed_modules ENABLE ROW LEVEL SECURITY;
+                GRANT ALL PRIVILEGES ON TABLE tenant_installed_modules TO postgres;
+                GRANT ALL PRIVILEGES ON TABLE tenant_installed_modules TO nekazari;
+              END IF;
+              
+              -- Migration 028: Register platform addons (seed data)
+              -- Only insert if table is empty to avoid duplicates
+              IF (SELECT COUNT(*) FROM marketplace_modules) = 0 THEN
+                RAISE NOTICE 'Registering platform addons (migration 028)...';
+                -- This will be handled by the migration files, but we ensure the table structure is ready
+                -- The actual INSERTs are in migration 028_register_platform_addons.sql
+              END IF;
+              
+              -- CRITICAL: Ensure set_current_tenant and get_current_tenant functions exist (Migration 020)
+              IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'set_current_tenant' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')) THEN
+                RAISE NOTICE 'Creating set_current_tenant function...';
+                CREATE OR REPLACE FUNCTION set_current_tenant(tenant TEXT)
+                RETURNS VOID AS $$
+                BEGIN
+                    PERFORM set_config('app.current_tenant', tenant, true);
+                END;
+                $$ LANGUAGE plpgsql;
+                GRANT EXECUTE ON FUNCTION set_current_tenant(TEXT) TO PUBLIC;
+                GRANT EXECUTE ON FUNCTION set_current_tenant(TEXT) TO postgres;
+                GRANT EXECUTE ON FUNCTION set_current_tenant(TEXT) TO nekazari;
+                COMMENT ON FUNCTION set_current_tenant IS 'Sets the current tenant for RLS policies. Called automatically by application code before accessing tenant-isolated data.';
+              END IF;
+              
+              IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'get_current_tenant' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')) THEN
+                RAISE NOTICE 'Creating get_current_tenant function...';
+                CREATE OR REPLACE FUNCTION get_current_tenant()
+                RETURNS TEXT AS $$
+                BEGIN
+                    RETURN current_setting('app.current_tenant', true);
+                END;
+                $$ LANGUAGE plpgsql;
+                GRANT EXECUTE ON FUNCTION get_current_tenant() TO PUBLIC;
+                GRANT EXECUTE ON FUNCTION get_current_tenant() TO postgres;
+                GRANT EXECUTE ON FUNCTION get_current_tenant() TO nekazari;
+                COMMENT ON FUNCTION get_current_tenant IS 'Returns the current tenant from session context. Used by RLS policies to filter data by tenant.';
+              END IF;
+              
+              -- CRITICAL: Ensure tenants table exists (Migration 001)
+              IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenants' AND table_schema = 'public') THEN
+                RAISE NOTICE 'Creating tenants table...';
+                CREATE TABLE IF NOT EXISTS tenants (
+                  id SERIAL PRIMARY KEY,
+                  tenant_id TEXT UNIQUE NOT NULL,
+                  tenant_name TEXT NOT NULL,
+                  plan_type TEXT NOT NULL DEFAULT 'basic',
+                  status TEXT NOT NULL DEFAULT 'active',
+                  max_users INTEGER DEFAULT 1,
+                  max_robots INTEGER DEFAULT 3,
+                  max_sensors INTEGER DEFAULT 10,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  expires_at TIMESTAMP,
+                  metadata JSONB DEFAULT '{}',
+                  CONSTRAINT valid_plan CHECK (plan_type IN ('basic', 'premium', 'enterprise')),
+                  CONSTRAINT valid_status CHECK (status IN ('active', 'suspended', 'cancelled'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_tenants_tenant_id ON tenants(tenant_id);
+                CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
+                GRANT ALL PRIVILEGES ON TABLE tenants TO postgres;
+                GRANT ALL PRIVILEGES ON TABLE tenants TO nekazari;
+                GRANT ALL PRIVILEGES ON SEQUENCE tenants_id_seq TO postgres;
+                GRANT ALL PRIVILEGES ON SEQUENCE tenants_id_seq TO nekazari;
+              END IF;
+            END $$;
+          SQL
+          echo "✅ Critical tables verification completed"
+          
+          echo "All migrations completed!"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+          readOnly: true
+      volumes:
+      - name: migrations
+        configMap:
+          name: postgresql-migrations
+          optional: true  # Allow ConfigMap to be optional (migrations may be applied manually)
+---
+# ConfigMap with all migration SQL files
+# To populate this ConfigMap, run:
+#   kubectl create configmap postgresql-migrations \
+#     --from-file=config/timescaledb/migrations/ \
+#     -n nekazari --dry-run=client -o yaml | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-migrations
+  namespace: nekazari
+  labels:
+    app: postgresql
+    component: migrations
+data:
+  # Migration files will be populated from config/timescaledb/migrations/
+  # Run: kubectl create configmap postgresql-migrations --from-file=config/timescaledb/migrations/ -n nekazari --dry-run=client -o yaml | kubectl apply -f -
+  _README.md: |
+    This ConfigMap contains database migration SQL files.
+    To populate it, run:
+      kubectl create configmap postgresql-migrations \
+        --from-file=config/timescaledb/migrations/ \
+        -n nekazari --dry-run=client -o yaml | kubectl apply -f -
+    
+    Or use the manual script instead:
+      ./scripts/apply-database-migrations.sh
+

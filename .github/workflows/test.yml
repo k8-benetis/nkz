@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  frontend-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/host
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+
+  backend-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements-test.txt
+          pip install -r api-gateway/requirements.txt
+          pip install -r common/requirements.txt 2>/dev/null || true
+
+      - name: Run pytest
+        run: pytest tests/ -v --tb=short

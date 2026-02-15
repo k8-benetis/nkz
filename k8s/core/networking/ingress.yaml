@@ -1,0 +1,304 @@
+# Ingress para Nekazari - Traefik (K3s default)
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nekazari-ingress
+  namespace: nekazari
+  annotations:
+    # SSL/TLS Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # CORS: Allow OPTIONS to pass through to backend (Flask will handle CORS)
+    traefik.ingress.kubernetes.io/router.middlewares: nekazari-nekazari-cors@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    # Frontend (nekazari.robotika.cloud)
+    - hosts:
+        - nekazari.robotika.cloud
+      secretName: nekazari-tls
+    # Backend API (nkz.robotika.cloud)
+    - hosts:
+        - nkz.robotika.cloud
+      secretName: nkz-tls
+
+  rules:
+    # 1. AUTHENTICATION (auth.robotika.cloud)
+
+    # 2. BACKEND API (nkz.robotika.cloud)
+    - host: nkz.robotika.cloud
+      http:
+        paths:
+          # Module Federation API (must be before /api to take precedence)
+          - path: /api/modules
+            pathType: Prefix
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          # Global Asset Manager API (entity-manager) - must be before /api
+          - path: /api/assets
+            pathType: Prefix
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          # Core API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
+          - path: /ngsi-ld
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
+
+          # Tenant & User Management
+          - path: /api/tenant/users
+            pathType: Prefix
+            backend:
+              service:
+                name: tenant-user-api-service
+                port:
+                  number: 5000
+          - path: /api/tenant/services
+            pathType: Prefix
+            backend:
+              service:
+                name: tenant-webhook-service
+                port:
+                  number: 8080
+          - path: /webhook
+            pathType: Prefix
+            backend:
+              service:
+                name: tenant-webhook-service
+                port:
+                  number: 8080
+          # - path: /api/admin
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: tenant-webhook-service
+          #       port:
+          #         number: 8080
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: tenant-webhook-service
+                port:
+                  number: 8080
+          - path: /forgot-password
+            pathType: Exact
+            backend:
+              service:
+                name: tenant-webhook-service
+                port:
+                  number: 8080
+
+          # IoT Data Ingestion - FIWARE IoT Agent HTTP Endpoint
+          - path: /iot/http
+            pathType: Prefix
+            backend:
+              service:
+                name: iot-agent-json-service
+                port:
+                  number: 7896
+
+          # Connectivity Module API
+          - path: /api/connectivity
+            pathType: Prefix
+            backend:
+              service:
+                name: connectivity-api-service
+                port:
+                  number: 8000
+
+          # Services
+          - path: /sdm
+            pathType: Prefix
+            backend:
+              service:
+                name: sdm-integration-service
+                port:
+                  number: 5000
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana-service
+                port:
+                  number: 3000
+          - path: /n8n
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n-service
+                port:
+                  number: 5678
+          - path: /titiler
+            pathType: Prefix
+            backend:
+              service:
+                name: titiler-service
+                port:
+                  number: 8000
+          - path: /entity-manager
+            pathType: Prefix
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          # NDVI/Vegetation endpoints (served by entity-manager)
+          - path: /ndvi
+            pathType: Prefix
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          # External module API endpoints
+          # TODO: Make this dynamic - modules should register their API routes via ConfigMap/Service
+          # For now, vegetation-prime uses /api/vegetation - this should be configurable per module
+          # NOTE: This is a temporary hardcoded route. The ideal solution is:
+          # 1. Modules register their API routes in marketplace_modules.metadata.api_routes
+          # 2. A dynamic ingress controller reads this and creates routes automatically
+          # 3. Or use a service mesh (Istio/Linkerd) for dynamic routing
+          - path: /api/vegetation
+            pathType: Prefix
+            backend:
+              service:
+                name: vegetation-prime-api-service
+                port:
+                  number: 8000
+          # Intelligence Module API (external module)
+          - path: /api/intelligence
+            pathType: Prefix
+            backend:
+              service:
+                name: intelligence-api-service
+                port:
+                  number: 8000
+          # Catastro Spain Module API
+          - path: /api/cadastral-api
+            pathType: Prefix
+            backend:
+              service:
+                name: catastro-spain-api-service
+                port:
+                  number: 5000
+          # LiDAR Module API (external module)
+          - path: /api/lidar
+            pathType: Prefix
+            backend:
+              service:
+                name: lidar-api-service
+                port:
+                  number: 80
+          # - path: /ros2-fiware-bridge-service
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: ros2-fiware-bridge-service
+          #       port:
+          #         number: 5000
+          # - path: /ros2-bridge
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: ros2-web-bridge-service
+          #       port:
+          #         number: 9090
+          # - path: /api/v1/telemetry/isobus
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: isobus-bridge-service
+          #       port:
+          #         number: 5000
+          - path: /api/gis
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
+          - path: /api/v1/simulation
+            pathType: Prefix
+            backend:
+              service:
+                name: simulation-service
+                port:
+                  number: 5000
+          - path: /api/risks
+            pathType: Prefix
+            backend:
+              service:
+                name: risk-api-service
+                port:
+                  number: 5000
+
+    # 3. FRONTEND (nekazari.robotika.cloud)
+    - host: nekazari.robotika.cloud
+      http:
+        paths:
+          # =================================================================
+          # API routes for federated modules (same-origin requests from frontend)
+          # =================================================================
+          # LiDAR Module API
+          - path: /api/lidar
+            pathType: Prefix
+            backend:
+              service:
+                name: lidar-api-service
+                port:
+                  number: 80
+          # NGSI-LD Context Broker (for entity geometry lookups)
+          - path: /ngsi-ld
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
+          # Vegetation Module API (same-origin for frontend; per EXTERNAL_MODULE_INSTALLATION)
+          - path: /api/vegetation
+            pathType: Prefix
+            backend:
+              service:
+                name: vegetation-prime-api-service
+                port:
+                  number: 8000
+          # =================================================================
+          # Module Federation - All modules served from MinIO via frontend-static
+          # =================================================================
+          # All federated modules are stored in MinIO and served through nginx.
+          # This centralizes module serving and eliminates per-module deployments.
+          - path: /modules
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-static-service
+                port:
+                  number: 80
+          # Frontend Static (servido desde MinIO via nginx)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-static-service
+                port:
+                  number: 80

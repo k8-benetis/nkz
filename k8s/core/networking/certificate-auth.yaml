@@ -1,0 +1,20 @@
+# =============================================================================
+# Certificate Resource para auth.robotika.cloud
+# =============================================================================
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: auth-tls
+  namespace: nekazari
+spec:
+  secretName: auth-tls
+  duration: 2160h # 90 días
+  renewBefore: 360h # 15 días antes de expirar
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: auth.robotika.cloud
+  dnsNames:
+    - auth.robotika.cloud
+

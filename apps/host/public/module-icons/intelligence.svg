@@ -1,0 +1,37 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#brainGradient)" opacity="0.1"/>
+  
+  <!-- Brain Shape -->
+  <path d="M 64 20 C 50 20, 38 28, 34 40 C 28 38, 22 40, 20 46 C 18 50, 20 54, 24 56 C 22 60, 22 64, 24 68 C 20 70, 18 74, 20 78 C 22 82, 26 84, 30 84 C 28 88, 30 92, 34 92 C 38 94, 42 94, 46 92 C 48 96, 52 98, 56 98 C 58 102, 62 104, 66 104 C 70 104, 74 102, 76 98 C 80 98, 84 96, 86 92 C 90 94, 94 94, 98 92 C 102 92, 104 88, 102 84 C 106 84, 110 82, 108 78 C 110 74, 108 70, 104 68 C 106 64, 106 60, 104 56 C 108 54, 110 50, 108 46 C 106 40, 100 38, 94 40 C 90 28, 78 20, 64 20 Z" 
+        fill="url(#brainGradient)" 
+        stroke="#8B5CF6" 
+        stroke-width="2" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  
+  <!-- Neural Network Nodes -->
+  <circle cx="50" cy="45" r="3" fill="#6366F1"/>
+  <circle cx="78" cy="45" r="3" fill="#6366F1"/>
+  <circle cx="42" cy="64" r="3" fill="#6366F1"/>
+  <circle cx="86" cy="64" r="3" fill="#6366F1"/>
+  <circle cx="50" cy="83" r="3" fill="#6366F1"/>
+  <circle cx="78" cy="83" r="3" fill="#6366F1"/>
+  <circle cx="64" cy="55" r="4" fill="#8B5CF6"/>
+  <circle cx="64" cy="73" r="4" fill="#8B5CF6"/>
+  
+  <!-- Connection Lines -->
+  <line x1="50" y1="45" x2="64" y2="55" stroke="#6366F1" stroke-width="1.5" opacity="0.5"/>
+  <line x1="78" y1="45" x2="64" y2="55" stroke="#6366F1" stroke-width="1.5" opacity="0.5"/>
+  <line x1="64" y1="55" x2="64" y2="73" stroke="#8B5CF6" stroke-width="1.5" opacity="0.5"/>
+  <line x1="64" y1="73" x2="50" y2="83" stroke="#6366F1" stroke-width="1.5" opacity="0.5"/>
+  <line x1="64" y1="73" x2="78" y2="83" stroke="#6366F1" stroke-width="1.5" opacity="0.5"/>
+</svg>
+

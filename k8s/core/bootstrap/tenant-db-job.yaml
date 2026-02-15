@@ -1,0 +1,98 @@
+# =============================================================================
+# Tenant Database Provisioning Job
+# =============================================================================
+# This job creates database schema and user for a tenant
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tenant-db-provision-{{ .Values.tenantId }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    tenant-id: {{ .Values.tenantId }}
+    app: tenant-db-provision
+spec:
+  template:
+    metadata:
+      labels:
+        tenant-id: {{ .Values.tenantId }}
+        app: tenant-db-provision
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: db-provision
+        image: postgres:15-alpine
+        env:
+        - name: PGHOST
+          value: "timescaledb-service"
+        - name: PGPORT
+          value: "5432"
+        - name: PGUSER
+          value: "postgres"
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: TENANT_ID
+          value: "{{ .Values.tenantId }}"
+        - name: TENANT_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: "{{ .Values.tenantId }}-secrets"
+              key: database-password
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          
+          echo "Creating database and user for tenant: $TENANT_ID"
+          
+          # Create database
+          psql -c "CREATE DATABASE \"$TENANT_ID\";" || echo "Database $TENANT_ID may already exist"
+          
+          # Create user
+          psql -c "CREATE USER \"$TENANT_ID\" WITH PASSWORD '$TENANT_DB_PASSWORD';" || echo "User $TENANT_ID may already exist"
+          
+          # Grant privileges
+          psql -c "GRANT ALL PRIVILEGES ON DATABASE \"$TENANT_ID\" TO \"$TENANT_ID\";"
+          
+          # Connect to tenant database and create basic schema
+          PGPASSWORD="$TENANT_DB_PASSWORD" psql -h timescaledb-service -U "$TENANT_ID" -d "$TENANT_ID" -c "
+            CREATE TABLE IF NOT EXISTS farmers (
+              id SERIAL PRIMARY KEY,
+              email VARCHAR(255) UNIQUE NOT NULL,
+              name VARCHAR(255) NOT NULL,
+              password_hash VARCHAR(255) NOT NULL,
+              role VARCHAR(50) DEFAULT 'farmer',
+              tenant_id VARCHAR(100) DEFAULT '$TENANT_ID',
+              created_at TIMESTAMP DEFAULT NOW(),
+              updated_at TIMESTAMP DEFAULT NOW()
+            );
+            
+            CREATE TABLE IF NOT EXISTS devices (
+              id SERIAL PRIMARY KEY,
+              device_id VARCHAR(255) UNIQUE NOT NULL,
+              name VARCHAR(255) NOT NULL,
+              type VARCHAR(100) NOT NULL,
+              status VARCHAR(50) DEFAULT 'active',
+              tenant_id VARCHAR(100) DEFAULT '$TENANT_ID',
+              created_at TIMESTAMP DEFAULT NOW(),
+              updated_at TIMESTAMP DEFAULT NOW()
+            );
+            
+            CREATE TABLE IF NOT EXISTS sensor_data (
+              id SERIAL PRIMARY KEY,
+              device_id VARCHAR(255) NOT NULL,
+              sensor_type VARCHAR(100) NOT NULL,
+              value DECIMAL(10,4) NOT NULL,
+              unit VARCHAR(50),
+              timestamp TIMESTAMP DEFAULT NOW(),
+              tenant_id VARCHAR(100) DEFAULT '$TENANT_ID'
+            );
+          "
+          
+          echo "Database provisioning completed for tenant: $TENANT_ID"
+          
+      backoffLimit: 3

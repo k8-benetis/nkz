@@ -1,0 +1,92 @@
+# =============================================================================
+# RBAC - Tenant Webhook Service Account
+# =============================================================================
+# ServiceAccount y permisos para tenant-webhook para crear recursos completos
+# de tenants (namespaces, deployments, services, ROS2, VPN, etc.)
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-webhook-sa
+  namespace: nekazari
+  labels:
+    app: tenant-webhook
+    component: tenant-management
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tenant-webhook-role
+  labels:
+    app: tenant-webhook
+    component: tenant-management
+rules:
+# Permisos para crear y gestionar namespaces de tenants
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para crear y gestionar recursos dentro de namespaces de tenants
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "serviceaccounts"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para deployments y replicasets
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para network policies
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para ingresses
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para jobs (database provisioning)
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para roles y rolebindings dentro de namespaces de tenants
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  
+# Permisos para etiquetar namespaces
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["patch", "update"]
+  
+# Permisos para leer información del cluster (necesario para scripts)
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
+  
+# Permisos para eventos (debugging)
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tenant-webhook-binding
+  labels:
+    app: tenant-webhook
+    component: tenant-management
+subjects:
+- kind: ServiceAccount
+  name: tenant-webhook-sa
+  namespace: nekazari
+roleRef:
+  kind: ClusterRole
+  name: tenant-webhook-role
+  apiGroup: rbac.authorization.k8s.io
+

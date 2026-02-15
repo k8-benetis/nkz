@@ -1,0 +1,247 @@
+# =============================================================================
+# CronJob para Backup de PostgreSQL con SFTP a IONOS
+# =============================================================================
+# Este CronJob ejecuta backups cada 6 horas y los sube por SFTP
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup-sftp
+  namespace: nekazari
+  labels:
+    app: postgresql
+    component: backup
+spec:
+  # Ejecutar cada 6 horas: 0 */6 * * *
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # No ejecutar si el anterior aún está corriendo
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: postgresql
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: postgresql-backup
+            image: postgres:14-alpine
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              # Instalar dependencias necesarias
+              apk add --no-cache openssh-client lftp bash
+              
+              # Variables de entorno desde Secret
+              SFTP_HOST="${SFTP_HOST}"
+              SFTP_USER="${SFTP_USER}"
+              SFTP_PASSWORD="${SFTP_PASSWORD}"
+              REMOTE_DIR="${REMOTE_DIR:-/backups_nkz}"
+              
+              # Variables de PostgreSQL
+              PG_HOST="${PG_HOST:-postgresql-service}"
+              PG_PORT="${PG_PORT:-5432}"
+              PG_USER="${PG_USER:-postgres}"
+              PG_PASSWORD="${PG_PASSWORD}"
+              
+              # Nombre del backup con timestamp
+              BACKUP_FILE="backup-nkz-$(date +%Y%m%d-%H%M%S).sql.gz"
+              BACKUP_PATH="/tmp/${BACKUP_FILE}"
+              
+              echo "=========================================="
+              echo "Iniciando backup de PostgreSQL"
+              echo "Fecha: $(date)"
+              echo "Archivo: ${BACKUP_FILE}"
+              echo "=========================================="
+              
+              # Verificar que las variables críticas estén definidas
+              if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASSWORD" ]; then
+                echo "ERROR: Variables SFTP no configuradas"
+                exit 1
+              fi
+              
+              if [ -z "$PG_PASSWORD" ]; then
+                echo "ERROR: Contraseña de PostgreSQL no configurada"
+                exit 1
+              fi
+              
+              # Exportar contraseña de PostgreSQL para pg_dump
+              export PGPASSWORD="${PG_PASSWORD}"
+              
+              # Realizar backup de todas las bases de datos
+              echo "Realizando dump de todas las bases de datos..."
+              
+              # Esperar a que PostgreSQL esté listo (máximo 60 segundos)
+              echo "Esperando a que PostgreSQL esté listo..."
+              for i in $(seq 1 30); do
+                # Usar PGPASSWORD para autenticación en pg_isready
+                export PGPASSWORD="${PG_PASSWORD}"
+                if pg_isready -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" >/dev/null 2>&1; then
+                  echo "PostgreSQL está listo"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "ERROR: PostgreSQL no está disponible después de 60 segundos"
+                  exit 1
+                fi
+                echo "Esperando... ($i/30)"
+                sleep 2
+              done
+              
+              # Obtener lista de bases de datos (excluyendo template y postgres)
+              DATABASES=$(psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d postgres -t -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres';")
+              
+              if [ -z "$DATABASES" ]; then
+                echo "ERROR: No se encontraron bases de datos para hacer backup"
+                exit 1
+              fi
+              
+              echo "Bases de datos encontradas:"
+              echo "$DATABASES"
+              
+              # Crear backup combinado de todas las bases de datos
+              echo "Creando backup comprimido..."
+              # Usar pg_dumpall con timeout y reintentos
+              pg_dumpall -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" --no-password 2>&1 | gzip > "${BACKUP_PATH}" || {
+                echo "ERROR: pg_dumpall falló, intentando método alternativo..."
+                # Método alternativo: backup individual de cada base de datos
+                BACKUP_TEMP="/tmp/backup-temp.sql"
+                > "${BACKUP_TEMP}"
+                for db in $(echo "$DATABASES" | tr '\n' ' '); do
+                  echo "Backing up database: $db"
+                  pg_dump -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d "$db" --no-password >> "${BACKUP_TEMP}" 2>&1 || {
+                    echo "WARNING: Failed to backup database $db"
+                  }
+                done
+                gzip -c "${BACKUP_TEMP}" > "${BACKUP_PATH}"
+                rm -f "${BACKUP_TEMP}"
+              }
+              
+              if [ ! -f "${BACKUP_PATH}" ] || [ ! -s "${BACKUP_PATH}" ]; then
+                echo "ERROR: El backup no se creó correctamente o está vacío"
+                exit 1
+              fi
+              
+              BACKUP_SIZE=$(du -h "${BACKUP_PATH}" | cut -f1)
+              echo "Backup creado: ${BACKUP_SIZE}"
+              
+              # Subir por SFTP usando lftp (más robusto para autenticación por contraseña)
+              echo "Subiendo backup a SFTP..."
+              echo "Host: ${SFTP_HOST}"
+              echo "Usuario: ${SFTP_USER}"
+              echo "Directorio remoto: ${REMOTE_DIR}"
+              
+              # Crear script lftp temporal
+              LFTP_SCRIPT="/tmp/lftp_upload.txt"
+              echo "set sftp:auto-confirm yes" > "${LFTP_SCRIPT}"
+              echo "cd ${REMOTE_DIR}" >> "${LFTP_SCRIPT}"
+              echo "put ${BACKUP_PATH} -o ${BACKUP_FILE}" >> "${LFTP_SCRIPT}"
+              echo "ls -lh ${BACKUP_FILE}" >> "${LFTP_SCRIPT}"
+              echo "quit" >> "${LFTP_SCRIPT}"
+              
+              # Intentar subir con lftp
+              lftp -u "${SFTP_USER},${SFTP_PASSWORD}" sftp://${SFTP_HOST} -f "${LFTP_SCRIPT}"
+              LFTP_EXIT=$?
+              
+              if [ $LFTP_EXIT -eq 0 ]; then
+                echo "✅ Backup subido exitosamente a SFTP con lftp"
+              else
+                echo "❌ ERROR: Fallo al subir backup con lftp, intentando método alternativo..."
+                # Método alternativo con sftp directo
+                apk add --no-cache sshpass
+                SFTP_FALLBACK_SCRIPT="/tmp/sftp_fallback.txt"
+                echo "cd ${REMOTE_DIR}" > "${SFTP_FALLBACK_SCRIPT}"
+                echo "put ${BACKUP_PATH} ${BACKUP_FILE}" >> "${SFTP_FALLBACK_SCRIPT}"
+                echo "ls -lh ${BACKUP_FILE}" >> "${SFTP_FALLBACK_SCRIPT}"
+                echo "bye" >> "${SFTP_FALLBACK_SCRIPT}"
+                
+                sshpass -p "${SFTP_PASSWORD}" sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -b "${SFTP_FALLBACK_SCRIPT}" "${SFTP_USER}@${SFTP_HOST}"
+                if [ $? -ne 0 ]; then
+                  echo "❌ ERROR: Ambos métodos de SFTP fallaron"
+                  exit 1
+                fi
+                echo "✅ Backup subido exitosamente con método alternativo (sshpass/sftp)"
+              fi
+              
+              # Limpieza de backups antiguos en servidor remoto (>7 días)
+              # Nota: La limpieza se hace listando archivos y comparando fechas
+              echo "Limpiando backups antiguos (>7 días) en servidor remoto..."
+              
+              # Crear script para listar y eliminar archivos antiguos
+              CLEANUP_SCRIPT="/tmp/sftp_cleanup.txt"
+              echo "cd ${REMOTE_DIR}" > "${CLEANUP_SCRIPT}"
+              echo "ls -l backup-nkz-*.sql.gz" >> "${CLEANUP_SCRIPT}"
+              echo "bye" >> "${CLEANUP_SCRIPT}"
+              
+              # Obtener lista de archivos remotos usando lftp
+              LIST_SCRIPT="/tmp/lftp_list.txt"
+              echo "cd ${REMOTE_DIR}" > "${LIST_SCRIPT}"
+              echo "ls -l backup-nkz-*.sql.gz" >> "${LIST_SCRIPT}"
+              echo "quit" >> "${LIST_SCRIPT}"
+              REMOTE_FILES=$(lftp -u "${SFTP_USER},${SFTP_PASSWORD}" sftp://${SFTP_HOST} -f "${LIST_SCRIPT}" 2>/dev/null | grep "backup-nkz-" || true)
+              rm -f "${LIST_SCRIPT}"
+              
+              if [ -n "$REMOTE_FILES" ]; then
+                echo "Archivos remotos encontrados (limpieza manual recomendada si hay muchos archivos)"
+                # La limpieza automática requiere procesar fechas, se puede hacer manualmente o con script más complejo
+              else
+                echo "No hay archivos antiguos para limpiar"
+              fi
+              
+              # Limpiar archivos locales
+              rm -f "${BACKUP_PATH}" "${LFTP_SCRIPT}" "${SFTP_FALLBACK_SCRIPT:-/tmp/sftp_fallback.txt}" "${CLEANUP_SCRIPT}"
+              
+              echo "=========================================="
+              echo "Backup completado exitosamente"
+              echo "Fecha: $(date)"
+              echo "=========================================="
+            env:
+            # Credenciales SFTP desde Secret
+            - name: SFTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: host
+            - name: SFTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: user
+            - name: SFTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: password
+            - name: REMOTE_DIR
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: remote_dir
+            # Credenciales PostgreSQL
+            - name: PG_HOST
+              value: "postgresql-service"
+            - name: PG_PORT
+              value: "5432"
+            - name: PG_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: POSTGRES_USER
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: password
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+

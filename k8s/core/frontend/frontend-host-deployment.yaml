@@ -1,0 +1,191 @@
+# =============================================================================
+# Nekazari Frontend Host - Deployment K8s
+# =============================================================================
+# Despliega el frontend principal (Shell/Host) de la plataforma Nekazari.
+# Usa runtime config para inyectar variables de entorno sin rebuild.
+#
+# Uso:
+#   1. Build image: docker build -f apps/host/Dockerfile -t ghcr.io/k8-benetis/nekazari-public/host:latest .
+#   2. Push: docker push ghcr.io/k8-benetis/nekazari-public/host:latest
+#   3. Deploy: kubectl apply -f k8s/k3s-optimized/frontend-host-deployment.yaml
+#   4. Verificar: kubectl get pods -n nekazari -l app=frontend-host
+# =============================================================================
+
+---
+# ConfigMap: Configuración del Frontend
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-host-config
+  namespace: nekazari
+  labels:
+    app: frontend-host
+    component: frontend
+    nekazari.io/profile: core
+data:
+  # URLs del backend (se inyectan en runtime via entrypoint.sh)
+  VITE_API_URL: "https://nkz.robotika.cloud"
+  VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth"
+  VITE_KEYCLOAK_REALM: "nekazari"
+  VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend"
+  VITE_MODULES_CDN_URL: "/modules"
+  
+  # Feature Flags
+  VITE_ENABLE_ROS2: "false"
+  VITE_ENABLE_NDVI: "true"
+  VITE_ENABLE_WEATHER: "true"
+  VITE_ENABLE_RISK: "true"
+  VITE_DEBUG: "false"
+
+---
+# Deployment: Frontend Host
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-host
+  namespace: nekazari
+  labels:
+    app: frontend-host
+    component: frontend
+    nekazari.io/profile: core
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend-host
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: frontend-host
+        component: frontend
+      annotations:
+        # Forzar redeploy cuando cambie el ConfigMap
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: ghcr.io/k8-benetis/nekazari-public/host:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          envFrom:
+            - configMapRef:
+                name: frontend-host-config
+          # Secrets opcionales (Cesium, OpenWeather, etc.)
+          env:
+            - name: VITE_CESIUM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cesium-secret
+                  key: token
+                  optional: true
+            - name: VITE_OPENWEATHER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openweather-secret
+                  key: api-key
+                  optional: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - DAC_OVERRIDE
+                - SETGID
+                - SETUID
+                - NET_BIND_SERVICE
+      imagePullSecrets:
+        - name: ghcr-secret
+      # Spread across nodes for HA
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: frontend-host
+
+---
+# Service: Expone el frontend internamente
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-host-service
+  namespace: nekazari
+  labels:
+    app: frontend-host
+    component: frontend
+    nekazari.io/profile: core
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-host
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+
+---
+# HorizontalPodAutoscaler: Escalado automático (opcional)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-host-hpa
+  namespace: nekazari
+  labels:
+    app: frontend-host
+    component: frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-host
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

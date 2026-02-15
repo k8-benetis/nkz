@@ -1,0 +1,30 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: nekazari-cors
+  namespace: nekazari
+spec:
+  headers:
+    accessControlAllowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "PATCH"
+      - "DELETE"
+      - "OPTIONS"
+    accessControlAllowHeaders:
+      - "Authorization"
+      - "Content-Type"
+      - "Link"
+      - "X-Tenant-ID"
+      - "Ngsild-Tenant"
+      - "Fiware-Service"
+      - "Fiware-ServicePath"
+      - "*"
+    accessControlAllowOriginList:
+      - "https://nekazari.robotika.cloud"
+      - "http://localhost:5173"
+      - "http://localhost:3000"
+      - "https://*.vercel.app"
+    accessControlMaxAge: 100
+    addVaryHeader: true

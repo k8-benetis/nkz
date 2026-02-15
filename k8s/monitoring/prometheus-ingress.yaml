@@ -1,0 +1,50 @@
+# =============================================================================
+# Prometheus Ingress - Separate Ingress with Path Rewrite
+# =============================================================================
+# Prometheus needs path rewrite to work correctly behind nginx-ingress
+# This separate ingress handles the rewrite for /prometheus path
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus-ingress
+  namespace: nekazari
+  annotations:
+    # SSL/TLS Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    
+    # Path rewrite: remove /prometheus prefix before forwarding to Prometheus
+    # Prometheus receives requests at root / but is accessed via /prometheus
+    # The regex /prometheus(/|$)(.*) captures:
+    #   $1 = (/|$) - the slash or end
+    #   $2 = (.*) - everything after /prometheus/
+    # We rewrite to /$2 to remove /prometheus prefix
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    
+    # Proxy configuration
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - nekazari.robotika.cloud
+    secretName: nekazari-tls
+  rules:
+  - host: nekazari.robotika.cloud
+    http:
+      paths:
+      # Prometheus with path rewrite
+      # The regex captures /prometheus(/|$)(.*) and rewrites to /$1
+      - path: /prometheus(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090
+

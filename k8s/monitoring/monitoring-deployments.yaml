@@ -1,0 +1,292 @@
+# =============================================================================
+# Monitoring Stack Deployments - Prometheus + Grafana + Exporters
+# =============================================================================
+
+---
+# Prometheus
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-storage
+  namespace: nekazari
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: nekazari
+  labels:
+    app: prometheus
+    layer: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        layer: monitoring
+    spec:
+      serviceAccountName: prometheus-sa
+      initContainers:
+      - name: fix-permissions
+        image: busybox
+        command: ["sh", "-c", "chown -R 65534:65534 /prometheus"]
+        volumeMounts:
+        - name: storage
+          mountPath: /prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        ports:
+        - containerPort: 9090
+        args:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        - --web.external-url=/prometheus/
+        - --web.route-prefix=/
+        # When using nginx-ingress with path rewrite:
+        # - external-url tells Prometheus how to generate URLs (with /prometheus/ prefix)
+        # - route-prefix tells Prometheus to serve at root / (after rewrite)
+        # The ingress rewrites /prometheus(/|$)(.*) to /$2, so Prometheus receives requests at /
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: storage
+          mountPath: /prometheus
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: storage
+        persistentVolumeClaim:
+          claimName: prometheus-storage
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: nekazari
+spec:
+  selector:
+    app: prometheus
+  ports:
+  - port: 9090
+    targetPort: 9090
+
+---
+# Grafana
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage
+  namespace: nekazari
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: nekazari
+  labels:
+    app: grafana
+    layer: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        layer: monitoring
+    spec:
+      serviceAccountName: grafana-sa
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          value: admin
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: admin-password
+        - name: GF_SERVER_ROOT_URL
+          value: https://nekazari.robotika.cloud/grafana
+        # OAuth configuration for Keycloak SSO
+        - name: GF_AUTH_GENERIC_OAUTH_ENABLED
+          value: "true"
+        - name: GF_AUTH_GENERIC_OAUTH_NAME
+          value: "Keycloak"
+        - name: GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP
+          value: "true"
+        - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+          value: "nekazari-frontend"
+        # Client secret is optional for public clients
+        # For public clients (recommended), do not set GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+        # For confidential clients, uncomment and set the client secret:
+        # - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: keycloak-secret
+        #       key: client-secret
+        #       optional: true
+        - name: GF_AUTH_GENERIC_OAUTH_SCOPES
+          value: "openid profile email"
+        - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
+          value: "https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/auth"
+        - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+          value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/token"
+        - name: GF_AUTH_GENERIC_OAUTH_API_URL
+          value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/userinfo"
+        # PKCE is recommended for public clients (more secure)
+        # Enabling PKCE to match Keycloak's PKCE enforced setting
+        - name: GF_AUTH_GENERIC_OAUTH_USE_PKCE
+          value: "true"
+        - name: GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH
+          value: "contains(roles[*], 'TenantAdmin') && 'Admin' || contains(roles[*], 'DeviceManager') && 'Editor' || 'Viewer'"
+        # Optional: Configure allowed domains for OAuth
+        # Leave empty to allow all domains, or specify comma-separated list
+        # - name: GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS
+        #   value: "nekazari.robotika.cloud,allotarra.eu"
+        volumeMounts:
+        - name: storage
+          mountPath: /var/lib/grafana
+        - name: config
+          mountPath: /etc/grafana/grafana.ini
+          subPath: grafana.ini
+        - name: datasources
+          mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+          subPath: datasources.yaml
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: grafana-storage
+      - name: config
+        configMap:
+          name: grafana-config
+      - name: datasources
+        configMap:
+          name: grafana-datasources
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-service
+  namespace: nekazari
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+
+---
+# Node Exporter
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: nekazari
+  labels:
+    app: node-exporter
+    layer: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+        layer: monitoring
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: node-exporter
+        image: prom/node-exporter:latest
+        args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --path.rootfs=/host/root
+        ports:
+        - containerPort: 9100
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: root
+          mountPath: /host/root
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: root
+        hostPath:
+          path: /
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter-service
+  namespace: nekazari
+spec:
+  selector:
+    app: node-exporter
+  ports:
+  - port: 9100
+    targetPort: 9100

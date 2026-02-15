@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quantumleap
+  namespace: nekazari
+  labels:
+    app: quantumleap
+    layer: fiware
+    component: time-series
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quantumleap
+  template:
+    metadata:
+      labels:
+        app: quantumleap
+        layer: fiware
+        component: time-series
+    spec:
+      containers:
+      - name: quantumleap
+        image: orchestracities/quantumleap:1.0.0
+        ports:
+        - name: http
+          containerPort: 8668
+        env:
+        # PostgreSQL/TimescaleDB connection
+        - name: POSTGRES_HOST
+          value: postgresql-service
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB_NAME
+          value: nekazari
+        - name: POSTGRES_DB_USER
+          value: postgres
+        - name: POSTGRES_DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: POSTGRES_PASSWORD
+        
+        # QuantumLeap configuration
+        - name: QL_DEFAULT_DB
+          value: timescale
+        - name: USE_GEOCODING
+          value: "False"
+        - name: CACHE_QUERIES
+          value: "True"
+        - name: LOGLEVEL
+          value: INFO
+        
+        # Multi-tenancy support (using defaults)
+        # QL_CONFIG removed - causes FileNotFoundError when set as env var
+        # QuantumLeap will use built-in defaults
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8668
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8668
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quantumleap-service
+  namespace: nekazari
+  labels:
+    app: quantumleap
+    layer: fiware
+spec:
+  selector:
+    app: quantumleap
+  ports:
+  - name: http
+    port: 8668
+    targetPort: 8668
+    protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,204 @@
+# =============================================================================
+# CronJob para Backup de MongoDB con SFTP a IONOS
+# =============================================================================
+# Este CronJob ejecuta backups cada 6 horas y los sube por SFTP
+# MongoDB almacena todas las entidades NGSI-LD de Orion-LD (crítico)
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongodb-backup-sftp
+  namespace: nekazari
+  labels:
+    app: mongodb
+    component: backup
+spec:
+  # Ejecutar cada 6 horas: 0 */6 * * *
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # No ejecutar si el anterior aún está corriendo
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mongodb
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: mongodb-backup
+            image: mongo:5.0
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              # Instalar dependencias necesarias
+              apt-get update && apt-get install -y lftp && rm -rf /var/lib/apt/lists/*
+              
+              # Variables de entorno desde Secret
+              SFTP_HOST="${SFTP_HOST}"
+              SFTP_USER="${SFTP_USER}"
+              SFTP_PASSWORD="${SFTP_PASSWORD}"
+              REMOTE_DIR="${REMOTE_DIR:-/backups_nkz}"
+              
+              # Variables de MongoDB
+              MONGO_HOST="${MONGO_HOST:-mongodb-service}"
+              MONGO_PORT="${MONGO_PORT:-27017}"
+              MONGO_USER="${MONGO_USER}"
+              MONGO_PASSWORD="${MONGO_PASSWORD}"
+              
+              # Nombre del backup con timestamp
+              BACKUP_FILE="backup-mongodb-nkz-$(date +%Y%m%d-%H%M%S).archive.gz"
+              BACKUP_PATH="/tmp/${BACKUP_FILE}"
+              
+              echo "=========================================="
+              echo "Iniciando backup de MongoDB"
+              echo "Fecha: $(date)"
+              echo "Archivo: ${BACKUP_FILE}"
+              echo "=========================================="
+              
+              # Verificar que las variables críticas estén definidas
+              if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASSWORD" ]; then
+                echo "ERROR: Variables SFTP no configuradas"
+                exit 1
+              fi
+              
+              if [ -z "$MONGO_PASSWORD" ]; then
+                echo "ERROR: Contraseña de MongoDB no configurada"
+                exit 1
+              fi
+              
+              # Esperar a que MongoDB esté listo (máximo 60 segundos)
+              echo "Esperando a que MongoDB esté listo..."
+              for i in {1..30}; do
+                if mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" --username "${MONGO_USER}" --password "${MONGO_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand('ping')" >/dev/null 2>&1; then
+                  echo "MongoDB está listo"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "ERROR: MongoDB no está disponible después de 60 segundos"
+                  exit 1
+                fi
+                echo "Esperando... ($i/30)"
+                sleep 2
+              done
+              
+              # Obtener lista de bases de datos (excluyendo admin, local, config)
+              echo "Obteniendo lista de bases de datos..."
+              DATABASES=$(mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" --username "${MONGO_USER}" --password "${MONGO_PASSWORD}" --authenticationDatabase admin --quiet --eval "db.adminCommand('listDatabases').databases.forEach(d => print(d.name))" 2>/dev/null | grep -v -E "^(admin|local|config)$" || echo "orion")
+              
+              if [ -z "$DATABASES" ]; then
+                echo "ERROR: No se encontraron bases de datos para hacer backup"
+                exit 1
+              fi
+              
+              echo "Bases de datos encontradas:"
+              echo "$DATABASES"
+              
+              # Crear backup de todas las bases de datos
+              echo "Creando backup comprimido..."
+              # mongodump con --gzip crea el archivo directamente comprimido
+              mongodump --host "${MONGO_HOST}" --port "${MONGO_PORT}" --username "${MONGO_USER}" --password "${MONGO_PASSWORD}" --authenticationDatabase admin --archive="${BACKUP_PATH}" --gzip
+              
+              if [ ! -f "${BACKUP_PATH}" ] || [ ! -s "${BACKUP_PATH}" ]; then
+                echo "ERROR: El backup no se creó correctamente o está vacío"
+                exit 1
+              fi
+              
+              BACKUP_SIZE=$(du -h "${BACKUP_PATH}" | cut -f1)
+              echo "Backup creado: ${BACKUP_SIZE}"
+              
+              # Subir por SFTP usando lftp
+              echo "Subiendo backup a SFTP..."
+              echo "Host: ${SFTP_HOST}"
+              echo "Usuario: ${SFTP_USER}"
+              echo "Directorio remoto: ${REMOTE_DIR}"
+              
+              # Crear script lftp temporal
+              LFTP_SCRIPT="/tmp/lftp_upload.txt"
+              echo "set sftp:auto-confirm yes" > "${LFTP_SCRIPT}"
+              echo "cd ${REMOTE_DIR}" >> "${LFTP_SCRIPT}"
+              echo "put ${BACKUP_PATH} -o ${BACKUP_FILE}" >> "${LFTP_SCRIPT}"
+              echo "ls -lh ${BACKUP_FILE}" >> "${LFTP_SCRIPT}"
+              echo "quit" >> "${LFTP_SCRIPT}"
+              
+              # Intentar subir con lftp
+              lftp -u "${SFTP_USER},${SFTP_PASSWORD}" sftp://${SFTP_HOST} -f "${LFTP_SCRIPT}"
+              LFTP_EXIT=$?
+              
+              if [ $LFTP_EXIT -eq 0 ]; then
+                echo "✅ Backup subido exitosamente a SFTP con lftp"
+              else
+                echo "❌ ERROR: Fallo al subir backup con lftp, intentando método alternativo..."
+                # Método alternativo con sftp directo
+                apt-get install -y sshpass
+                SFTP_FALLBACK_SCRIPT="/tmp/sftp_fallback.txt"
+                echo "cd ${REMOTE_DIR}" > "${SFTP_FALLBACK_SCRIPT}"
+                echo "put ${BACKUP_PATH} ${BACKUP_FILE}" >> "${SFTP_FALLBACK_SCRIPT}"
+                echo "ls -lh ${BACKUP_FILE}" >> "${SFTP_FALLBACK_SCRIPT}"
+                echo "bye" >> "${SFTP_FALLBACK_SCRIPT}"
+                
+                sshpass -p "${SFTP_PASSWORD}" sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -b "${SFTP_FALLBACK_SCRIPT}" "${SFTP_USER}@${SFTP_HOST}"
+                if [ $? -ne 0 ]; then
+                  echo "❌ ERROR: Ambos métodos de SFTP fallaron"
+                  exit 1
+                fi
+                echo "✅ Backup subido exitosamente con método alternativo (sshpass/sftp)"
+              fi
+              
+              # Limpiar archivos locales
+              rm -f "${BACKUP_PATH}" "${LFTP_SCRIPT}"
+              
+              echo "=========================================="
+              echo "Backup completado exitosamente"
+              echo "Fecha: $(date)"
+              echo "=========================================="
+            env:
+            # Credenciales SFTP desde Secret
+            - name: SFTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: host
+            - name: SFTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: user
+            - name: SFTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: password
+            - name: REMOTE_DIR
+              valueFrom:
+                secretKeyRef:
+                  name: ionos-sftp-creds
+                  key: remote_dir
+            # Credenciales MongoDB
+            - name: MONGO_HOST
+              value: "mongodb-service"
+            - name: MONGO_PORT
+              value: "27017"
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: root-username
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: root-password
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+

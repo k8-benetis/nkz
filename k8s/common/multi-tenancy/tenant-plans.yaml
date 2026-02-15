@@ -1,0 +1,151 @@
+# =============================================================================
+# Perfiles de Planes para Tenants
+# =============================================================================
+# Define los límites de recursos para cada plan
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-plans
+  namespace: nekazari-system
+  labels:
+    app: nekazari
+    component: multi-tenancy
+data:
+  # =============================================================================
+  # Plan BASIC - Para pequeños productores
+  # =============================================================================
+  basic.yaml: |
+    # ResourceQuota
+    MAX_PODS: "10"
+    CPU_REQUESTS: "2"
+    CPU_LIMITS: "4"
+    MEMORY_REQUESTS: "4Gi"
+    MEMORY_LIMITS: "8Gi"
+    MAX_PVC: "3"
+    STORAGE_REQUESTS: "10Gi"
+    MAX_SERVICES: "5"
+    MAX_LOADBALANCERS: "0"
+    MAX_NODEPORTS: "1"
+    MAX_CONFIGMAPS: "10"
+    MAX_SECRETS: "10"
+    
+    # LimitRange - Container
+    CONTAINER_MAX_CPU: "1"
+    CONTAINER_MAX_MEMORY: "2Gi"
+    CONTAINER_MIN_CPU: "50m"
+    CONTAINER_MIN_MEMORY: "64Mi"
+    CONTAINER_DEFAULT_CPU: "200m"
+    CONTAINER_DEFAULT_MEMORY: "256Mi"
+    CONTAINER_DEFAULT_REQUEST_CPU: "100m"
+    CONTAINER_DEFAULT_REQUEST_MEMORY: "128Mi"
+    
+    # LimitRange - Pod
+    POD_MAX_CPU: "2"
+    POD_MAX_MEMORY: "4Gi"
+    POD_MIN_CPU: "50m"
+    POD_MIN_MEMORY: "64Mi"
+    
+    # LimitRange - PVC
+    PVC_MAX_STORAGE: "5Gi"
+    PVC_MIN_STORAGE: "1Gi"
+    
+    # Tenant Limits
+    MAX_USERS: "1"
+    MAX_ROBOTS: "3"
+    MAX_SENSORS: "10"
+
+  # =============================================================================
+  # Plan PREMIUM - Para productores medianos
+  # =============================================================================
+  premium.yaml: |
+    # ResourceQuota
+    MAX_PODS: "30"
+    CPU_REQUESTS: "8"
+    CPU_LIMITS: "16"
+    MEMORY_REQUESTS: "16Gi"
+    MEMORY_LIMITS: "32Gi"
+    MAX_PVC: "10"
+    STORAGE_REQUESTS: "50Gi"
+    MAX_SERVICES: "15"
+    MAX_LOADBALANCERS: "1"
+    MAX_NODEPORTS: "3"
+    MAX_CONFIGMAPS: "30"
+    MAX_SECRETS: "30"
+    
+    # LimitRange - Container
+    CONTAINER_MAX_CPU: "4"
+    CONTAINER_MAX_MEMORY: "8Gi"
+    CONTAINER_MIN_CPU: "50m"
+    CONTAINER_MIN_MEMORY: "64Mi"
+    CONTAINER_DEFAULT_CPU: "500m"
+    CONTAINER_DEFAULT_MEMORY: "512Mi"
+    CONTAINER_DEFAULT_REQUEST_CPU: "200m"
+    CONTAINER_DEFAULT_REQUEST_MEMORY: "256Mi"
+    
+    # LimitRange - Pod
+    POD_MAX_CPU: "8"
+    POD_MAX_MEMORY: "16Gi"
+    POD_MIN_CPU: "50m"
+    POD_MIN_MEMORY: "64Mi"
+    
+    # LimitRange - PVC
+    PVC_MAX_STORAGE: "20Gi"
+    PVC_MIN_STORAGE: "1Gi"
+    
+    # Tenant Limits
+    MAX_USERS: "5"
+    MAX_ROBOTS: "10"
+    MAX_SENSORS: "50"
+
+  # =============================================================================
+  # Plan ENTERPRISE - Para grandes productores
+  # =============================================================================
+  enterprise.yaml: |
+    # ResourceQuota
+    MAX_PODS: "100"
+    CPU_REQUESTS: "32"
+    CPU_LIMITS: "64"
+    MEMORY_REQUESTS: "64Gi"
+    MEMORY_LIMITS: "128Gi"
+    MAX_PVC: "30"
+    STORAGE_REQUESTS: "200Gi"
+    MAX_SERVICES: "50"
+    MAX_LOADBALANCERS: "3"
+    MAX_NODEPORTS: "10"
+    MAX_CONFIGMAPS: "100"
+    MAX_SECRETS: "100"
+    
+    # LimitRange - Container
+    CONTAINER_MAX_CPU: "16"
+    CONTAINER_MAX_MEMORY: "32Gi"
+    CONTAINER_MIN_CPU: "50m"
+    CONTAINER_MIN_MEMORY: "64Mi"
+    CONTAINER_DEFAULT_CPU: "1"
+    CONTAINER_DEFAULT_MEMORY: "1Gi"
+    CONTAINER_DEFAULT_REQUEST_CPU: "500m"
+    CONTAINER_DEFAULT_REQUEST_MEMORY: "512Mi"
+    
+    # LimitRange - Pod
+    POD_MAX_CPU: "32"
+    POD_MAX_MEMORY: "64Gi"
+    POD_MIN_CPU: "50m"
+    POD_MIN_MEMORY: "64Mi"
+    
+    # LimitRange - PVC
+    PVC_MAX_STORAGE: "100Gi"
+    PVC_MIN_STORAGE: "1Gi"
+    
+    # Tenant Limits
+    MAX_USERS: "999999"
+    MAX_ROBOTS: "999999"
+    MAX_SENSORS: "999999"
+
+  # =============================================================================
+  # Valores por Defecto (si no se especifica plan)
+  # =============================================================================
+  default.yaml: |
+    # Usar plan basic como default
+    PLAN_TYPE: "basic"

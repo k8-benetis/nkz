@@ -1,0 +1,30 @@
+# =============================================================================
+# Default Deny All Network Policy - Zero Trust Base
+# =============================================================================
+# This policy establishes a "deny by default" approach for all pods.
+# Individual services communicate via explicit allow policies:
+#
+#   1. essential-services-access.yaml  → DNS (53) + Ingress controller for ALL pods
+#   2. service-policies.yaml           → Per-service inter-communication rules
+#   3. application-services-access.yaml → Global egress to core services
+#   4. updated-policies.yaml           → VPN, ROS2, frontend, MQTT updates
+#   5. tenant-isolation.yaml           → Multi-tenant network segmentation
+#
+# WARNING: Do NOT create "allow-all" policies to debug 502/503 errors.
+# If services can't communicate, add specific rules to service-policies.yaml.
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: security
+spec:
+  podSelector: {} # Selects all pods in the namespace
+  policyTypes:
+  - Ingress
+  - Egress
+  # No rules defined = deny all traffic

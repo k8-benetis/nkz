@@ -1,0 +1,109 @@
+{
+  "id": null,
+  "uid": "nekazari-docker",
+  "title": "Nekazari - Docker Containers",
+    "tags": ["nekazari", "docker"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+        "type": "table",
+        "title": "Container Status",
+        "targets": [{
+          "expr": "container_last_seen{name=~\".+\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true, "Value": true, "__name__": true, "id": true, "image": false, "instance": true, "job": true},
+              "indexByName": {},
+              "renameByName": {"name": "Container Name", "image": "Image"}
+            }
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "type": "timeseries",
+        "title": "CPU Usage por Contenedor",
+        "targets": [{
+          "expr": "rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m]) * 100",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "type": "timeseries",
+        "title": "Memory Usage por Contenedor",
+        "targets": [{
+          "expr": "container_memory_usage_bytes{name=~\".+\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "type": "timeseries",
+        "title": "Network I/O por Contenedor",
+        "targets": [
+          {
+            "expr": "rate(container_network_receive_bytes_total{name=~\".+\"}[5m])",
+            "legendFormat": "RX - {{name}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(container_network_transmit_bytes_total{name=~\".+\"}[5m])",
+            "legendFormat": "TX - {{name}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "fillOpacity": 10},
+            "unit": "Bps"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "type": "timeseries",
+        "title": "Container Restart Count",
+        "targets": [{
+          "expr": "container_start_time_seconds{name=~\".+\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line"},
+            "unit": "short"
+          }
+        }
+      }
+    ]
+}

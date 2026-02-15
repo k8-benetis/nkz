@@ -1,0 +1,16 @@
+{
+  "robots": "Robots",
+  "sensors": "Capteurs",
+  "parcels": "Parcelles",
+  "analytics": "Analytiques",
+  "settings": "Paramètres",
+  "admin": "Administration",
+  "map3d": "Carte 3D",
+  "ndvi": "NDVI",
+  "admin_badge": "Admin",
+  "weather": "Météo",
+  "simulation": "Simulation",
+  "risks": "Risques",
+  "alerts": "Alertes"
+}
+

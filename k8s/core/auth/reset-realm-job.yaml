@@ -1,0 +1,305 @@
+# =============================================================================
+# Keycloak Realm Reset Job - Deletes and reimports realm to fix roles
+# =============================================================================
+# This job deletes the nekazari realm and reimports it from nekazari-realm.json
+# WARNING: This will delete ALL USERS in the realm!
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-reset-realm
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: realm-reset
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 7200
+  template:
+    metadata:
+      labels:
+        app: keycloak-reset-realm
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+      - name: wait-for-keycloak
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Keycloak to be ready..."
+          MAX_ATTEMPTS=60
+          ATTEMPT=0
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if curl -f -s --max-time 5 http://keycloak-service:8080/auth/realms/master > /dev/null 2>&1; then
+              echo "✅ Keycloak is ready!"
+              exit 0
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Keycloak not ready (attempt $ATTEMPT/$MAX_ATTEMPTS), waiting..."
+            sleep 5
+          done
+          echo "❌ Keycloak did not become ready after $MAX_ATTEMPTS attempts"
+          exit 1
+      containers:
+      - name: reset-realm
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "============================================================================="
+          echo "Reset Keycloak Realm: nekazari"
+          echo "============================================================================="
+          
+          KEYCLOAK_URL="http://keycloak-service:8080"
+          REALM="nekazari"
+          
+          # Get admin credentials from secret
+          ADMIN_USER="${KEYCLOAK_ADMIN:-admin}"
+          ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD:-}"
+          
+          if [ -z "$ADMIN_PASS" ]; then
+            echo "ERROR: KEYCLOAK_ADMIN_PASSWORD not set"
+            exit 1
+          fi
+          
+          # Get admin token
+          echo "Getting admin token..."
+          echo "Using admin user: ${ADMIN_USER}"
+          echo "Keycloak URL: ${KEYCLOAK_URL}"
+          
+          # Use --data-urlencode to properly handle special characters in password
+          TOKEN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "username=${ADMIN_USER}" \
+            --data-urlencode "password=${ADMIN_PASS}" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" \
+            "${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token")
+          
+          HTTP_CODE=$(echo "$TOKEN_RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | grep -v "HTTP_CODE:")
+          
+          echo "HTTP Response Code: ${HTTP_CODE}"
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: Failed to get admin token (HTTP $HTTP_CODE)"
+            echo "Response body: $TOKEN_BODY"
+            exit 1
+          fi
+          
+          # Try multiple methods to extract token (curlimages/curl doesn't have jq)
+          TOKEN=$(echo "$TOKEN_BODY" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || echo "")
+          
+          # Fallback: try with sed if grep fails
+          if [ -z "$TOKEN" ]; then
+            TOKEN=$(echo "$TOKEN_BODY" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+          fi
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "ERROR: Failed to extract access token from response"
+            echo "Response body: $TOKEN_BODY" | head -20
+            exit 1
+          fi
+          
+          echo "✅ Admin token obtained"
+          
+          # Check if realm exists and delete it
+          echo ""
+          echo "Checking if realm exists..."
+          REALM_CHECK=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "${KEYCLOAK_URL}/auth/admin/realms/${REALM}")
+          
+          if echo "$REALM_CHECK" | grep -q '"realm"'; then
+            echo "⚠️  Realm '$REALM' exists. Deleting..."
+            DELETE_CODE=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE \
+              -H "Authorization: Bearer $TOKEN" \
+              "${KEYCLOAK_URL}/auth/admin/realms/${REALM}")
+            
+            if [ "$DELETE_CODE" = "204" ]; then
+              echo "✅ Realm deleted successfully"
+              sleep 2
+            else
+              echo "⚠️  Failed to delete realm (HTTP $DELETE_CODE), continuing anyway..."
+            fi
+          else
+            echo "ℹ️  Realm does not exist, will create it"
+          fi
+          
+          # Import realm from ConfigMap
+          echo ""
+          echo "Importing realm from ConfigMap..."
+          
+          if [ ! -f /realm-config/nekazari-realm.json ]; then
+            echo "ERROR: Realm JSON file not found in ConfigMap"
+            exit 1
+          fi
+          
+          IMPORT_CODE=$(curl -s -w "%{http_code}" -o /tmp/import_response.txt -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @/realm-config/nekazari-realm.json \
+            "${KEYCLOAK_URL}/auth/admin/realms")
+          
+          if [ "$IMPORT_CODE" = "201" ]; then
+            echo "✅ Realm imported successfully"
+          else
+            echo "❌ Failed to import realm (HTTP $IMPORT_CODE)"
+            cat /tmp/import_response.txt
+            exit 1
+          fi
+          
+          # Verify roles were created
+          echo ""
+          echo "Verifying roles were created..."
+          sleep 2
+          
+          ROLES_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/roles")
+          
+          REQUIRED_ROLES="TenantAdmin Farmer PlatformAdmin TechnicalConsultant DashboardViewer"
+          MISSING_COUNT=0
+          
+          for role in $REQUIRED_ROLES; do
+            if echo "$ROLES_RESPONSE" | grep -q "\"name\":\"${role}\""; then
+              echo "✅ Role $role exists"
+            else
+              echo "❌ Role $role is missing!"
+              MISSING_COUNT=$((MISSING_COUNT + 1))
+            fi
+          done
+          
+          if [ $MISSING_COUNT -gt 0 ]; then
+            echo "⚠️  $MISSING_COUNT role(s) are missing!"
+            exit 1
+          fi
+          
+          # Create bootstrap platform admin user
+          echo ""
+          echo "Creating bootstrap platform admin user..."
+          
+          BOOTSTRAP_EMAIL="${BOOTSTRAP_ADMIN_EMAIL:-nekazari@robotika.cloud}"
+          BOOTSTRAP_PASSWORD="${BOOTSTRAP_ADMIN_PASSWORD:-${ADMIN_PASS}}"
+          
+          # Check if user already exists
+          EXISTING_USER=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/users?email=${BOOTSTRAP_EMAIL}")
+          
+          if echo "$EXISTING_USER" | grep -q "\"email\":\"${BOOTSTRAP_EMAIL}\""; then
+            echo "ℹ️  Bootstrap user already exists, skipping creation"
+            USER_ID=$(echo "$EXISTING_USER" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          else
+            # Create bootstrap user
+            CREATE_USER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"username\": \"admin\",
+                \"email\": \"${BOOTSTRAP_EMAIL}\",
+                \"firstName\": \"Platform\",
+                \"lastName\": \"Administrator\",
+                \"enabled\": true,
+                \"emailVerified\": true,
+                \"credentials\": [{
+                  \"type\": \"password\",
+                  \"value\": \"${BOOTSTRAP_PASSWORD}\",
+                  \"temporary\": false
+                }],
+                \"attributes\": {
+                  \"tenant_id\": [\"platform\"]
+                }
+              }" \
+              "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/users")
+            
+            CREATE_USER_CODE=$(echo "$CREATE_USER_RESPONSE" | tail -1)
+            
+            if [ "$CREATE_USER_CODE" = "201" ]; then
+              echo "✅ Bootstrap user created successfully"
+              # Get user ID
+              USER_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+                "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/users?email=${BOOTSTRAP_EMAIL}" | \
+                grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+            else
+              echo "⚠️  Failed to create bootstrap user (HTTP $CREATE_USER_CODE)"
+              echo "Response: $(echo "$CREATE_USER_RESPONSE" | head -5)"
+              # Continue anyway - user might exist
+              USER_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+                "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/users?email=${BOOTSTRAP_EMAIL}" | \
+                grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
+            fi
+          fi
+          
+          # Assign PlatformAdmin role to bootstrap user
+          if [ -n "$USER_ID" ]; then
+            echo "Assigning PlatformAdmin role to bootstrap user..."
+            
+            # Get PlatformAdmin role ID
+            ROLE_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
+              "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/roles/PlatformAdmin")
+            
+            ROLE_ID=$(echo "$ROLE_RESPONSE" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+            
+            if [ -n "$ROLE_ID" ]; then
+              ASSIGN_ROLE_CODE=$(curl -s -w "%{http_code}" -o /dev/null -X POST \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "[{
+                  \"id\": \"${ROLE_ID}\",
+                  \"name\": \"PlatformAdmin\",
+                  \"description\": \"Platform administrator with full access\",
+                  \"composite\": false,
+                  \"clientRole\": false
+                }]" \
+                "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/users/${USER_ID}/role-mappings/realm")
+              
+              if [ "$ASSIGN_ROLE_CODE" = "204" ] || [ "$ASSIGN_ROLE_CODE" = "200" ]; then
+                echo "✅ PlatformAdmin role assigned to bootstrap user"
+              else
+                echo "⚠️  Failed to assign PlatformAdmin role (HTTP $ASSIGN_ROLE_CODE)"
+              fi
+            else
+              echo "⚠️  Could not find PlatformAdmin role ID"
+            fi
+          else
+            echo "⚠️  Could not get bootstrap user ID, skipping role assignment"
+          fi
+          
+          echo ""
+          echo "============================================================================="
+          echo "✅ Realm reset completed successfully"
+          echo "============================================================================="
+          echo ""
+          echo "⚠️  WARNING: All users in the realm have been deleted (except bootstrap)"
+          echo "✅ Bootstrap user created: ${BOOTSTRAP_EMAIL}"
+          echo "ℹ️  Other users will be created when they register with activation codes"
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        - name: BOOTSTRAP_ADMIN_EMAIL
+          value: "nekazari@robotika.cloud"
+        - name: BOOTSTRAP_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+              optional: true
+        volumeMounts:
+        - name: realm-config
+          mountPath: /realm-config
+          readOnly: true
+      volumes:
+      - name: realm-config
+        configMap:
+          name: keycloak-realm-config

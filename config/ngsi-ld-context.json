@@ -1,0 +1,141 @@
+{
+  "@context": {
+    "schema": "https://schema.org/",
+    "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
+    "iot": "https://iot.schema.org/",
+    "saref": "https://saref.etsi.org/core/",
+    "saref4agri": "https://saref.etsi.org/saref4agri/",
+    "AgriculturalRobot": {
+      "@id": "saref4agri:AgriculturalRobot",
+      "@type": "@id"
+    },
+    "AgriSensor": {
+      "@id": "saref4agri:AgriSensor",
+      "@type": "@id"
+    },
+    "AgriParcel": {
+      "@id": "saref4agri:AgriParcel",
+      "@type": "@id"
+    },
+    "AgriOperation": {
+      "@id": "saref4agri:AgriOperation",
+      "@type": "@id"
+    },
+    "AgriculturalTractor": {
+      "@id": "saref4agri:AgriculturalTractor",
+      "@type": "@id"
+    },
+    "AgriculturalImplement": {
+      "@id": "saref4agri:AgriculturalImplement",
+      "@type": "@id"
+    },
+    "WeatherObserved": {
+      "@id": "saref4agri:WeatherObserved",
+      "@type": "@id"
+    },
+    "SatelliteImageObservation": {
+      "@id": "saref4agri:SatelliteImageObservation",
+      "@type": "@id"
+    },
+    "VegetationIndex": {
+      "@id": "saref4agri:VegetationIndex",
+      "@type": "@id"
+    },
+    "LivestockAnimal": {
+      "@id": "saref4agri:LivestockAnimal",
+      "@type": "@id"
+    },
+    "LivestockGroup": {
+      "@id": "saref4agri:LivestockGroup",
+      "@type": "@id"
+    },
+    "LivestockFarm": {
+      "@id": "saref4agri:LivestockFarm",
+      "@type": "@id"
+    },
+    "LivestockProduction": {
+      "@id": "saref4agri:LivestockProduction",
+      "@type": "@id"
+    },
+    "PhotovoltaicInstallation": {
+      "@id": "saref4agri:PhotovoltaicInstallation",
+      "@type": "@id"
+    },
+    "EnergyStorageSystem": {
+      "@id": "saref4agri:EnergyStorageSystem",
+      "@type": "@id"
+    },
+    "name": "schema:name",
+    "description": "schema:description",
+    "location": "schema:location",
+    "status": "schema:status",
+    "batteryLevel": "saref:BatteryLevel",
+    "currentTask": "saref4agri:CurrentTask",
+    "speed": "saref:Speed",
+    "payload": "saref4agri:Payload",
+    "engineSpeed": "saref4agri:EngineSpeed",
+    "fuelLevel": "saref4agri:FuelLevel",
+    "engineHours": "saref4agri:EngineHours",
+    "seedingRate": "saref4agri:SeedingRate",
+    "harvestedWeight": "saref4agri:HarvestedWeight",
+    "tankLevel": "saref4agri:TankLevel",
+    "sprayRate": "saref4agri:SprayRate",
+    "moisture": "saref4agri:Moisture",
+    "ph": "saref4agri:PH",
+    "temperature": "saref:Temperature",
+    "humidity": "saref:Humidity",
+    "pressure": "saref:Pressure",
+    "windSpeed": "saref4agri:WindSpeed",
+    "area": "saref4agri:Area",
+    "treeCount": "saref4agri:TreeCount",
+    "variety": "saref4agri:Variety",
+    "plantingDate": "saref4agri:PlantingDate",
+    "rowCount": "saref4agri:RowCount",
+    "operationType": "saref4agri:OperationType",
+    "startDate": "schema:startDate",
+    "endDate": "schema:endDate",
+    "sensorType": "saref:SensorType",
+    "measurement": "saref:Measurement",
+    "unit": "saref:Unit",
+    "cropType": "saref4agri:CropType",
+    "soilType": "saref4agri:SoilType",
+    "observedAt": "ngsi-ld:observedAt",
+    "createdAt": "ngsi-ld:createdAt",
+    "modifiedAt": "ngsi-ld:modifiedAt",
+    "ref3DModel": "saref4agri:Ref3DModel",
+    "modelScale": "saref4agri:ModelScale",
+    "modelRotation": "saref4agri:ModelRotation",
+    
+    "visualRepresentation": {
+      "@id": "https://nekazari.io/vocab/visualRepresentation",
+      "@type": "@id"
+    },
+    "modelMatrix": {
+      "@id": "https://nekazari.io/vocab/modelMatrix",
+      "@type": "@id"
+    },
+    "boundingBox": {
+      "@id": "https://nekazari.io/vocab/boundingBox",
+      "@type": "@id"
+    },
+    "icon": {
+      "@id": "https://nekazari.io/vocab/icon",
+      "@type": "@id"
+    },
+    "assetUrl": "https://nekazari.io/vocab/assetUrl",
+    "assetFormat": "https://nekazari.io/vocab/assetFormat",
+    "assetHash": "https://nekazari.io/vocab/assetHash",
+    "compressionType": "https://nekazari.io/vocab/compressionType",
+    "heading": "https://nekazari.io/vocab/heading",
+    "pitch": "https://nekazari.io/vocab/pitch",
+    "roll": "https://nekazari.io/vocab/roll",
+    "altitude": "https://nekazari.io/vocab/altitude",
+    "minBounds": "https://nekazari.io/vocab/minBounds",
+    "maxBounds": "https://nekazari.io/vocab/maxBounds",
+    "connectivityStatus": "https://nekazari.io/vocab/connectivityStatus",
+    "lastHeartbeat": "https://nekazari.io/vocab/lastHeartbeat",
+    
+    "Point": "schema:GeoCoordinates",
+    "coordinates": "schema:geo"
+  }
+}

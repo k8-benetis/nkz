@@ -1,0 +1,98 @@
+# =============================================================================
+# Grafana ConfigMap - Configuration
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: nekazari
+  labels:
+    app: grafana
+    layer: monitoring
+data:
+  grafana.ini: |
+    [paths]
+    data = /var/lib/grafana
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+
+    [server]
+    protocol = http
+    http_port = 3000
+    domain = nekazari.robotika.cloud
+    root_url = https://nekazari.robotika.cloud/grafana
+    serve_from_sub_path = true
+
+    [database]
+    type = sqlite3
+    path = /var/lib/grafana/grafana.db
+
+    [security]
+    admin_user = admin
+    admin_password = <CHANGE_ME_IN_ENV_OR_SECRET>
+    disable_gravatar = true
+    allow_embedding = true
+
+    [users]
+    allow_sign_up = false
+    allow_org_create = true
+
+    [auth.anonymous]
+    enabled = false
+    
+    [auth.proxy]
+    enabled = false
+    
+    [auth]
+    disable_login_form = false
+
+    # OAuth configuration for Keycloak SSO
+    # Note: client_secret is set via environment variable GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+    [auth.generic_oauth]
+    enabled = true
+    name = Keycloak
+    allow_sign_up = true
+    client_id = nekazari-frontend
+    # client_secret will be set via GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET env var
+    scopes = openid profile email
+    auth_url = https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/auth
+    token_url = https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/token
+    api_url = https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/userinfo
+    # Use email as username
+    # PKCE enabled to match Keycloak's PKCE enforced setting
+    use_pkce = true
+    # Map Keycloak roles to Grafana roles
+    role_attribute_path = contains(roles[*], 'TenantAdmin') && 'Admin' || contains(roles[*], 'DeviceManager') && 'Editor' || 'Viewer'
+    # Map tenant-id to organization - each tenant gets their own org (created by tenant-webhook)
+    # Users are automatically assigned to their tenant's organization
+
+    [log]
+    mode = console
+    level = info
+    # Enable detailed logging for debugging
+    filters = grafana:debug,grafana.auth.generic_oauth:debug
+
+    [metrics]
+    enabled = true
+
+---
+# =============================================================================
+# Grafana Datasources - Prometheus
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: nekazari
+  labels:
+    app: grafana
+    layer: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    # NOTA: Los datasources ahora se crean dinámicamente por organización
+    # Este archivo está vacío porque cada organización tiene sus propios datasources:
+    # - Tenants: Solo TimescaleDB (filtrado por tenant)
+    # - PlatformAdmin: Prometheus + TimescaleDB (acceso completo)
+    datasources: []

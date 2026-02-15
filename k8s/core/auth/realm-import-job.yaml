@@ -1,0 +1,714 @@
+# =============================================================================
+# Keycloak Realm Import Job
+# =============================================================================
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-realm-import
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-realm-import
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: realm-import
+        image: docker.io/library/debian:bullseye-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          # Install curl and jq
+          apt-get update && apt-get install -y curl jq && rm -rf /var/lib/apt/lists/*
+          
+          echo "Waiting for Keycloak to be ready..."
+          until curl -f -s http://keycloak-service:8080/auth/realms/master > /dev/null; do
+            echo "Keycloak not ready yet, waiting..."
+            sleep 10
+          done
+          
+          echo "Keycloak is ready, getting admin token..."
+          
+          # Use admin password from environment variable
+          ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+          
+          # Generate secure password for sample farmer (must meet Keycloak requirements)
+          # Password must have: min 8 chars, 1 lower, 1 upper, 1 digit, 1 special
+          FARMER_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9!@#$%^&*' | fold -w 12 | head -n 1 | sed 's/./a/' | sed 's/./A/2' | sed 's/./1/3' | sed 's/./!/4')
+          
+          # Get admin token
+          ADMIN_TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=${KEYCLOAK_ADMIN}" \
+            -d "password=${ADMIN_PASSWORD}" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" \
+            http://keycloak-service:8080/auth/realms/master/protocol/openid-connect/token | \
+            jq -r '.access_token')
+          
+          if [ "$ADMIN_TOKEN" = "null" ] || [ -z "$ADMIN_TOKEN" ]; then
+            echo "Failed to get admin token"
+            exit 1
+          fi
+          
+          echo "Admin token obtained, checking if realm exists..."
+          
+          # Check if realm already exists
+          REALM_EXISTS=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari | \
+            jq -r '.realm // empty')
+          
+          if [ "$REALM_EXISTS" = "nekazari" ]; then
+            echo "Realm 'nekazari' already exists, updating frontendUrl..."
+            # Get current realm configuration
+            CURRENT_REALM=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+              http://keycloak-service:8080/auth/admin/realms/nekazari)
+            
+            # Update frontendUrl and adminUrl in the realm configuration
+            UPDATED_REALM=$(echo "$CURRENT_REALM" | jq '.attributes.frontendUrl = "https://auth.robotika.cloud/auth" | .attributes.adminUrl = "https://auth.robotika.cloud/auth/admin"')
+            
+            # Update realm with modified configuration
+            curl -s -X PUT \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$UPDATED_REALM" \
+              http://keycloak-service:8080/auth/admin/realms/nekazari
+            
+            echo "Realm updated successfully"
+            echo "Checking if users need to be created..."
+            
+            # Check if admin user exists (search by email since registrationEmailAsUsername is true)
+            ADMIN_EXISTS=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=nekazari@robotika.cloud" | \
+              jq -r 'if length > 0 then "exists" else "missing" end')
+            
+            if [ "$ADMIN_EXISTS" = "missing" ]; then
+              echo "Admin user does not exist, will create after realm import..."
+              CREATE_USERS="true"
+            else
+              echo "Users already exist, skipping user creation"
+              CREATE_USERS="false"
+            fi
+            
+            # CRÍTICO: Si el realm existe y tiene usuarios, NO hacer nada más
+            # Esto previene que se eliminen usuarios existentes
+            if [ "$CREATE_USERS" = "false" ]; then
+              echo "✅ Realm y usuarios ya existen, NO se modificarán (protección contra pérdida de datos)"
+              echo "✅ El frontendUrl ya está actualizado, terminando sin cambios"
+              exit 0
+            fi
+            # Si el realm existe pero NO tiene usuarios, crear solo los usuarios de ejemplo
+            echo "⚠️  Realm existe pero usuarios faltan, creando solo usuarios de ejemplo..."
+          else
+            # Realm doesn't exist, will import and create users
+            CREATE_USERS="true"
+            echo "Realm does not exist, importing..."
+          
+          # Import realm
+          curl -s -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/realm-config.json \
+            http://keycloak-service:8080/auth/admin/realms
+          
+          echo "Realm imported successfully"
+          
+          # Only create users if CREATE_USERS is true
+          if [ "$CREATE_USERS" != "true" ]; then
+            echo "Skipping user creation (users already exist)"
+            exit 0
+          fi
+          
+          # Create initial admin user
+          echo "Creating initial admin user..."
+          
+          # Ensure password meets Keycloak requirements (min 8 chars, 1 lower, 1 upper, 1 digit, 1 special)
+          # If ADMIN_PASSWORD doesn't meet requirements, use a default secure password
+          if [ -z "$ADMIN_PASSWORD" ] || [ ${#ADMIN_PASSWORD} -lt 8 ]; then
+            echo "Error: ADMIN_PASSWORD not set or too short. Cannot create admin user safely."
+            exit 1
+          fi
+          
+          curl -s -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"username\": \"admin\",
+              \"email\": \"nekazari@robotika.cloud\",
+              \"firstName\": \"Platform\",
+              \"lastName\": \"Administrator\",
+              \"enabled\": true,
+              \"emailVerified\": true,
+              \"credentials\": [{
+                \"type\": \"password\",
+                \"value\": \"$ADMIN_PASSWORD\",
+                \"temporary\": false
+              }],
+              \"attributes\": {
+                \"tenant_id\": [\"platform\"]
+              }
+            }" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari/users
+          
+          # Get the user ID (search by email since registrationEmailAsUsername is true)
+          USER_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=nekazari@robotika.cloud" | \
+            jq -r '.[0].id')
+          
+          # Assign PlatformAdmin role
+          ROLE_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari/roles/PlatformAdmin | \
+            jq -r '.id')
+          
+          curl -s -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '[{
+              "id": "'$ROLE_ID'",
+              "name": "PlatformAdmin",
+              "description": "Platform administrator with full access",
+              "composite": false,
+              "clientRole": false
+            }]' \
+            http://keycloak-service:8080/auth/admin/realms/nekazari/users/$USER_ID/role-mappings/realm
+          
+          echo "Initial admin user created with PlatformAdmin role"
+          
+          # Create sample farmer user
+          echo "Creating sample farmer user..."
+          
+          curl -s -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"username\": \"farmer1\",
+              \"email\": \"farmer1@robotika.cloud\",
+              \"firstName\": \"Sample\",
+              \"lastName\": \"Farmer\",
+              \"enabled\": true,
+              \"emailVerified\": true,
+              \"credentials\": [{
+                \"type\": \"password\",
+                \"value\": \"$FARMER_PASSWORD\",
+                \"temporary\": false
+              }],
+              \"attributes\": {
+                \"tenant_id\": [\"tenant1\"]
+              }
+            }" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari/users
+          
+          # Get farmer user ID and assign Farmer role (search by email since registrationEmailAsUsername is true)
+          FARMER_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=farmer1@robotika.cloud" | \
+            jq -r '.[0].id')
+          
+          FARMER_ROLE_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+            http://keycloak-service:8080/auth/admin/realms/nekazari/roles/Farmer | \
+            jq -r '.id')
+          
+          curl -s -X POST \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '[{
+              "id": "'$FARMER_ROLE_ID'",
+              "name": "Farmer",
+              "description": "Farmer with basic access to their data",
+              "composite": false,
+              "clientRole": false
+            }]' \
+            http://keycloak-service:8080/auth/admin/realms/nekazari/users/$FARMER_ID/role-mappings/realm
+          
+          echo "Sample farmer user created with Farmer role"
+          echo "Keycloak realm setup completed successfully!"
+          fi  # Close the if [ "$REALM_EXISTS" = "nekazari" ] block
+          
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        # Note: Using KEYCLOAK_ADMIN_* for job compatibility (Keycloak API still accepts these)
+        volumeMounts:
+        - name: realm-config
+          mountPath: /tmp/realm-config.json
+          subPath: nekazari-realm.json
+      volumes:
+      - name: realm-config
+        configMap:
+          name: keycloak-realm-config
+      initContainers:
+      - name: wait-for-keycloak
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for Keycloak to be available..."
+          until curl -f -s http://keycloak-service:8080/auth/realms/master > /dev/null; do
+            echo "Keycloak not ready yet, waiting..."
+            sleep 5
+          done
+          echo "Keycloak is available!"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: nekazari
+  labels:
+    app: keycloak
+    layer: auth
+data:
+  nekazari-realm.json: |
+    {
+      "realm": "nekazari",
+      "displayName": "Nekazari Platform",
+      "displayNameHtml": "<div class=\"kc-logo-text\"><span>Nekazari</span></div>",
+      "enabled": true,
+      "sslRequired": "external",
+      "registrationAllowed": true,
+      "registrationEmailAsUsername": true,
+      "rememberMe": true,
+      "verifyEmail": false,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "editUsernameAllowed": false,
+      "bruteForceProtected": true,
+      "permanentLockout": false,
+      "maxFailureWaitSeconds": 900,
+      "minimumQuickLoginWaitSeconds": 60,
+      "waitIncrementSeconds": 60,
+      "quickLoginCheckMilliSeconds": 1000,
+      "maxDeltaTimeSeconds": 43200,
+      "failureFactor": 30,
+      "defaultRoles": ["offline_access", "uma_authorization"],
+      "requiredCredentials": ["password"],
+      "passwordPolicy": "length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)",
+      "otpPolicyType": "totp",
+      "otpPolicyAlgorithm": "HmacSHA1",
+      "otpPolicyInitialCounter": 0,
+      "otpPolicyDigits": 6,
+      "otpPolicyLookAheadWindow": 1,
+      "otpPolicyPeriod": 30,
+      "otpSupportedApplications": ["FreeOTP", "Google Authenticator"],
+      "webAuthnPolicyRpEntityName": "keycloak",
+      "webAuthnPolicySignatureAlgorithms": ["ES256"],
+      "webAuthnPolicyRpId": "",
+      "webAuthnPolicyAttestationConveyancePreference": "not specified",
+      "webAuthnPolicyAuthenticatorAttachment": "not specified",
+      "webAuthnPolicyRequireResidentKey": "not specified",
+      "webAuthnPolicyUserVerificationRequirement": "not specified",
+      "webAuthnPolicyCreateTimeout": 0,
+      "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+      "webAuthnPolicyAcceptableAaguids": [],
+      "webAuthnPolicyPasswordlessRpEntityName": "keycloak",
+      "webAuthnPolicyPasswordlessSignatureAlgorithms": ["ES256"],
+      "webAuthnPolicyPasswordlessRpId": "",
+      "webAuthnPolicyPasswordlessAttestationConveyancePreference": "not specified",
+      "webAuthnPolicyPasswordlessAuthenticatorAttachment": "not specified",
+      "webAuthnPolicyPasswordlessRequireResidentKey": "not specified",
+      "webAuthnPolicyPasswordlessUserVerificationRequirement": "not specified",
+      "webAuthnPolicyPasswordlessCreateTimeout": 0,
+      "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
+      "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+      "clients": [
+        {
+          "clientId": "nekazari-frontend",
+          "name": "Nekazari Frontend",
+          "description": "Frontend application for Nekazari platform",
+          "enabled": true,
+          "publicClient": true,
+          "clientAuthenticatorType": "client-secret",
+          "redirectUris": [
+            "https://nekazari.robotika.cloud/*",
+            "http://localhost:3000/*",
+            "http://localhost:5173/*"
+          ],
+          "webOrigins": [
+            "https://nekazari.robotika.cloud",
+            "http://localhost:3000",
+            "http://localhost:5173"
+          ],
+          "protocol": "openid-connect",
+          "attributes": {
+            "saml.assertion.signature": "false",
+            "saml.force.post.binding": "false",
+            "saml.multivalued.roles": "false",
+            "saml.encrypt": "false",
+            "saml.server.signature": "false",
+            "saml.server.signature.keyinfo.ext": "false",
+            "exclude.session.state.from.auth.response": "false",
+            "saml_force_name_id_format": "false",
+            "saml.client.signature": "false",
+            "tls.client.certificate.bound.access.tokens": "false",
+            "saml.authnstatement": "false",
+            "display.on.consent.screen": "false",
+            "saml.onetimeuse.condition": "false",
+            "access.token.lifespan": "300",
+            "refresh.token.max.reuse": "0",
+            "pkce.code.challenge.method": "S256"
+          },
+          "authenticationFlowBindingOverrides": {},
+          "fullScopeAllowed": true,
+          "nodeReRegistrationTimeout": -1,
+          "defaultClientScopes": [
+            "web-origins",
+            "role_list",
+            "profile",
+            "roles",
+            "email",
+            "tenant-id",
+            "basic"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access",
+            "microprofile-jwt"
+          ],
+          "access": {
+            "view": true,
+            "configure": true,
+            "manage": true
+          },
+          "protocolMappers": [
+            {
+              "name": "realm-roles",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "config": {
+                "multivalued": "true",
+                "userinfo.token.claim": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "realm_access.roles",
+                "jsonType.label": "String"
+              }
+            },
+            {
+              "name": "tenant-id-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-attribute-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "user.attribute": "tenant_id",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "tenant_id",
+                "jsonType.label": "String",
+                "multivalued": "false"
+              }
+            },
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "consentRequired": false,
+              "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "groups",
+                "userinfo.token.claim": "true"
+              }
+            },
+            {
+              "name": "group-tenant-attributes-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-script-based-protocol-mapper",
+              "consentRequired": false,
+              "config": {
+                "script": "var groups = user.getGroups();\nvar tenantId = null;\nvar tenantType = null;\n\n// Iterate through user's groups to find tenant attributes\nfor (var i = 0; i < groups.size(); i++) {\n    var group = groups.get(i);\n    var attributes = group.getAttributes();\n    \n    // Check for tenant_id attribute\n    if (attributes.containsKey(\"tenant_id\")) {\n        var tenantIdValues = attributes.get(\"tenant_id\");\n        if (tenantIdValues != null && tenantIdValues.size() > 0) {\n            tenantId = tenantIdValues.get(0);\n        }\n    }\n    \n    // Check for tenant_type attribute\n    if (attributes.containsKey(\"tenant_type\")) {\n        var tenantTypeValues = attributes.get(\"tenant_type\");\n        if (tenantTypeValues != null && tenantTypeValues.size() > 0) {\n            tenantType = tenantTypeValues.get(0);\n        }\n    }\n    \n    // If we found tenant_id, we can break (or continue to find highest priority)\n    // For now, take from first group that has tenant_id\n    if (tenantId != null) {\n        break;\n    }\n}\n\n// Add claims to token if found\nif (tenantId != null) {\n    token.setOtherClaims(\"tenant_id\", tenantId);\n}\nif (tenantType != null) {\n    token.setOtherClaims(\"tenant_type\", tenantType);\n}",
+                "token.claim.name": "tenant_id",
+                "access.token.claim": "true",
+                "id.token.claim": "true",
+                "userinfo.token.claim": "true",
+                "jsonType.label": "String"
+              }
+            }
+          ]
+        },
+        {
+          "clientId": "nekazari-admin",
+          "name": "Nekazari Admin Panel",
+          "description": "Administration panel for Nekazari platform",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "admin-secret-change-in-production",
+          "redirectUris": [
+            "https://nekazari.robotika.cloud/admin/*",
+            "http://localhost:3000/admin/*",
+            "http://localhost:5173/admin/*"
+          ],
+          "webOrigins": [
+            "https://nekazari.robotika.cloud",
+            "http://localhost:3000",
+            "http://localhost:5173"
+          ],
+          "protocol": "openid-connect",
+          "attributes": {
+            "access.token.lifespan": "300",
+            "refresh.token.max.reuse": "0",
+            "pkce.code.challenge.method": "S256"
+          },
+          "authenticationFlowBindingOverrides": {},
+          "fullScopeAllowed": true,
+          "nodeReRegistrationTimeout": -1,
+          "defaultClientScopes": [
+            "web-origins",
+            "role_list",
+            "profile",
+            "roles",
+            "email"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access",
+            "microprofile-jwt"
+          ],
+          "access": {
+            "view": true,
+            "configure": true,
+            "manage": true
+          }
+        },
+        {
+          "clientId": "nekazari-api-gateway",
+          "name": "Nekazari API Gateway",
+          "description": "API Gateway service for Nekazari platform",
+          "enabled": true,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "api-gateway-secret-change-in-production",
+          "serviceAccountsEnabled": true,
+          "protocol": "openid-connect",
+          "attributes": {
+            "access.token.lifespan": "3600",
+            "refresh.token.max.reuse": "0"
+          },
+          "authenticationFlowBindingOverrides": {},
+          "fullScopeAllowed": true,
+          "nodeReRegistrationTimeout": -1,
+          "defaultClientScopes": [
+            "web-origins",
+            "role_list",
+            "profile",
+            "roles",
+            "email"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access",
+            "microprofile-jwt"
+          ],
+          "access": {
+            "view": true,
+            "configure": true,
+            "manage": true
+          }
+        }
+      ],
+      "clientScopes": [
+        {
+          "name": "tenant-id",
+          "description": "Tenant ID for multi-tenancy",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "true",
+            "consent.screen.text": "Tenant ID"
+          },
+          "protocolMappers": [
+            {
+              "name": "tenant-id-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-attribute-mapper",
+              "consentRequired": false,
+              "config": {
+                "userinfo.token.claim": "true",
+                "user.attribute": "tenant_id",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "claim.name": "tenant_id",
+                "jsonType.label": "String"
+              }
+            }
+          ]
+        },
+        {
+          "name": "user-roles",
+          "description": "User roles for authorization",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "true",
+            "consent.screen.text": "User Roles"
+          },
+          "protocolMappers": [
+            {
+              "name": "user-roles-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-realm-role-mapper",
+              "consentRequired": false,
+              "config": {
+                "user.attribute": "roles",
+                "claim.name": "roles",
+                "jsonType.label": "String",
+                "multivalued": "true",
+                "access.token.claim": "true",
+                "id.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        }
+      ],
+      "roles": {
+        "realm": [
+          {
+            "name": "PlatformAdmin",
+            "description": "Platform administrator with full access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          },
+          {
+            "name": "TenantAdmin",
+            "description": "Tenant administrator with tenant-level access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          },
+          {
+            "name": "DeviceManager",
+            "description": "Device manager with device management permissions",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          },
+          {
+            "name": "DashboardViewer",
+            "description": "Dashboard viewer with read-only access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          },
+          {
+            "name": "Farmer",
+            "description": "Farmer with basic access to their data",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          }
+        ]
+      },
+      "groups": [
+        {
+          "name": "Platform Administrators",
+          "path": "/Platform Administrators",
+          "subGroups": [],
+          "attributes": {},
+          "realmRoles": ["PlatformAdmin"],
+          "clientRoles": {}
+        },
+        {
+          "name": "Tenant Administrators",
+          "path": "/Tenant Administrators",
+          "subGroups": [],
+          "attributes": {},
+          "realmRoles": ["TenantAdmin"],
+          "clientRoles": {}
+        },
+        {
+          "name": "Device Managers",
+          "path": "/Device Managers",
+          "subGroups": [],
+          "attributes": {},
+          "realmRoles": ["DeviceManager"],
+          "clientRoles": {}
+        },
+        {
+          "name": "Farmers",
+          "path": "/Farmers",
+          "subGroups": [],
+          "attributes": {},
+          "realmRoles": ["Farmer"],
+          "clientRoles": {}
+        }
+      ],
+      "defaultDefaultClientScopes": [
+        "role_list",
+        "profile",
+        "email",
+        "roles",
+        "web-origins"
+      ],
+      "defaultOptionalClientScopes": [
+        "offline_access",
+        "address",
+        "phone",
+        "microprofile-jwt"
+      ],
+      "browserSecurityHeaders": {
+        "contentSecurityPolicyReportOnly": "",
+        "xContentTypeOptions": "nosniff",
+        "xRobotsTag": "none",
+        "xFrameOptions": "SAMEORIGIN",
+        "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+        "xXSSProtection": "1; mode=block",
+        "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+      },
+      "smtpServer": {},
+      "loginTheme": "keycloak",
+      "accountTheme": "keycloak",
+      "adminTheme": "keycloak",
+      "emailTheme": "keycloak",
+      "eventsEnabled": false,
+      "eventsListeners": [],
+      "enabledEventTypes": [],
+      "adminEventsEnabled": false,
+      "adminEventsDetailsEnabled": false,
+      "internationalizationEnabled": false,
+      "supportedLocales": [],
+      "defaultLocale": "",
+      "browserFlow": "browser",
+      "registrationFlow": "registration",
+      "directGrantFlow": "direct grant",
+      "resetCredentialsFlow": "reset credentials",
+      "clientAuthenticationFlow": "clients",
+      "dockerAuthenticationFlow": "docker auth",
+      "attributes": {
+        "cibaBackchannelTokenDeliveryMode": "poll",
+        "cibaExpiresIn": "120",
+        "cibaInterval": "5",
+        "cibaAuthRequestedUserHint": "login_hint",
+        "parRequestUriLifespan": "60",
+        "frontendUrl": "https://auth.robotika.cloud/auth",
+        "adminUrl": "https://auth.robotika.cloud/auth/admin"
+      }
+    }

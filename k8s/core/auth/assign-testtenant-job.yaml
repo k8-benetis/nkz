@@ -1,0 +1,101 @@
+# =============================================================================
+# Job para asignar tenant_id TESTTENANT a usuarios de ejemplo
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: assign-testtenant-users
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: tenant-assignment
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-tenant-assignment
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: assign-tenant
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          # Instalar jq
+          apk add --no-cache jq > /dev/null 2>&1
+          
+          echo "Obteniendo token de admin..."
+          
+          # Obtener credenciales
+          ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}"
+          ADMIN_USER="${KEYCLOAK_ADMIN}"
+          
+          # Obtener token
+          ADMIN_TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=${ADMIN_USER}" \
+            -d "password=${ADMIN_PASSWORD}" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" \
+            http://keycloak-service:8080/auth/realms/master/protocol/openid-connect/token | \
+            jq -r '.access_token')
+          
+          if [ "$ADMIN_TOKEN" = "null" ] || [ -z "$ADMIN_TOKEN" ]; then
+            echo "ERROR: No se pudo obtener token"
+            exit 1
+          fi
+          
+          echo "Token obtenido"
+          
+          # Asignar tenant_id a usuarios
+          for EMAIL in "nekazari@robotika.cloud" "farmer1@robotika.cloud"; do
+            echo "Asignando TESTTENANT a ${EMAIL}..."
+            
+            # Obtener ID del usuario
+            USER_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=${EMAIL}" | \
+              jq -r '.[0].id // empty')
+            
+            if [ -z "$USER_ID" ] || [ "$USER_ID" = "null" ]; then
+              echo "  ⚠️  Usuario ${EMAIL} no encontrado"
+              continue
+            fi
+            
+            # Obtener datos del usuario
+            USER_DATA=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/users/${USER_ID}")
+            
+            # Actualizar con tenant_id
+            UPDATED_USER=$(echo "$USER_DATA" | jq '.attributes.tenant_id = ["TESTTENANT"]')
+            
+            # Actualizar usuario
+            HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null -X PUT \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$UPDATED_USER" \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/users/${USER_ID}")
+            
+            if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
+              echo "  ✅ Tenant TESTTENANT asignado a ${EMAIL}"
+            else
+              echo "  ❌ ERROR: Fallo al asignar (HTTP $HTTP_CODE)"
+            fi
+          done
+          
+          echo "✅ Proceso completado"
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+

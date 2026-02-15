@@ -1,0 +1,58 @@
+# NPM Ignore - SDK Package
+# This ensures ONLY dist/, README.md, LICENSE, and package.json are published
+
+# Source files (should NOT be published)
+src/
+*.ts
+*.tsx
+!*.d.ts
+
+# Configuration files (should NOT be published)
+tsconfig.json
+tsconfig.*.json
+.gitignore
+.npmignore
+
+# Development files
+node_modules/
+.cache/
+*.log
+.DS_Store
+
+# Build artifacts (keep dist/, ignore others)
+*.map
+coverage/
+.nyc_output/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+test/
+
+# Documentation (keep README.md, ignore others)
+docs/
+*.md
+!README.md
+
+# Core platform code (CRITICAL - must not be published)
+../services/
+../apps/
+../k8s/
+../config/
+../scripts/
+
+# Root files
+../LICENSE
+../README.md
+../package.json
+../.gitignore
+../.npmrc

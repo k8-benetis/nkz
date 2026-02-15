@@ -1,0 +1,155 @@
+# =============================================================================
+# Keycloak Realm Import Job for Tenant
+# =============================================================================
+# This job imports a Keycloak realm for a tenant
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-realm-import-{{ .Values.tenantId }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    tenant-id: {{ .Values.tenantId }}
+    app: keycloak-realm-import
+spec:
+  template:
+    metadata:
+      labels:
+        tenant-id: {{ .Values.tenantId }}
+        app: keycloak-realm-import
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: realm-import
+        image: curlimages/curl:latest
+        env:
+        - name: KEYCLOAK_URL
+          value: "http://keycloak-service:8080"
+        - name: KEYCLOAK_ADMIN_USER
+          value: "admin"
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        - name: TENANT_ID
+          value: "{{ .Values.tenantId }}"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          
+          echo "Importing Keycloak realm for tenant: $TENANT_ID"
+          
+          # Wait for Keycloak to be ready
+          echo "Waiting for Keycloak to be ready..."
+          until curl -f -s "$KEYCLOAK_URL/auth/realms/master" > /dev/null; do
+            echo "Keycloak not ready, waiting..."
+            sleep 5
+          done
+          
+          # Get admin token
+          echo "Getting admin token..."
+          ADMIN_TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/auth/realms/master/protocol/openid-connect/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=$KEYCLOAK_ADMIN_USER" \
+            -d "password=$KEYCLOAK_ADMIN_PASSWORD" \
+            -d "grant_type=password" \
+            -d "client_id=admin-cli" | \
+            grep -o '"access_token":"[^"]*' | \
+            cut -d'"' -f4)
+          
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "Failed to get admin token"
+            exit 1
+          fi
+          
+          # Create realm JSON
+          cat > /tmp/realm.json << EOF
+          {
+            "realm": "$TENANT_ID",
+            "enabled": true,
+            "displayName": "Nekazari Tenant $TENANT_ID",
+            "loginWithEmailAllowed": true,
+            "duplicateEmailsAllowed": false,
+            "resetPasswordAllowed": true,
+            "editUsernameAllowed": false,
+            "bruteForceProtected": true,
+            "clients": [
+              {
+                "clientId": "$TENANT_ID-frontend",
+                "enabled": true,
+                "publicClient": true,
+                "standardFlowEnabled": true,
+                "implicitFlowEnabled": false,
+                "directAccessGrantsEnabled": true,
+                "serviceAccountsEnabled": false,
+                "redirectUris": [
+                  "https://$TENANT_ID.nekazari.robotika.cloud/*",
+                  "http://localhost:3000/*"
+                ],
+                "webOrigins": [
+                  "https://$TENANT_ID.nekazari.robotika.cloud",
+                  "http://localhost:3000"
+                ]
+              },
+              {
+                "clientId": "$TENANT_ID-api",
+                "enabled": true,
+                "publicClient": false,
+                "serviceAccountsEnabled": true,
+                "standardFlowEnabled": false,
+                "implicitFlowEnabled": false,
+                "directAccessGrantsEnabled": false
+              }
+            ],
+            "roles": {
+              "realm": [
+                {
+                  "name": "farmer",
+                  "description": "Farmer role for tenant $TENANT_ID"
+                },
+                {
+                  "name": "admin",
+                  "description": "Admin role for tenant $TENANT_ID"
+                }
+              ]
+            },
+            "users": [
+              {
+                "username": "admin",
+                "enabled": true,
+                "emailVerified": true,
+                "firstName": "Admin",
+                "lastName": "$TENANT_ID",
+                "email": "admin@$TENANT_ID.local",
+                "credentials": [
+                  {
+                    "type": "password",
+                    "value": "CHANGE_ON_FIRST_LOGIN",
+                    "temporary": true
+                  }
+                ],
+                "realmRoles": ["admin"]
+              }
+            ]
+          }
+          EOF
+          
+          # Import realm
+          echo "Importing realm $TENANT_ID..."
+          curl -s -X POST "$KEYCLOAK_URL/auth/admin/realms" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/realm.json
+          
+          # Check if realm was created successfully
+          if curl -f -s "$KEYCLOAK_URL/auth/realms/$TENANT_ID" > /dev/null; then
+            echo "Realm $TENANT_ID imported successfully"
+          else
+            echo "Failed to import realm $TENANT_ID"
+            exit 1
+          fi
+          
+      backoffLimit: 3

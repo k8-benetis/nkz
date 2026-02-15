@@ -1,0 +1,166 @@
+{
+  "id": null,
+  "uid": "tenant-telemetry-template",
+  "title": "Telemetría - Tenant",
+  "tags": ["nekazari", "tenant", "telemetry"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "tenant_id",
+        "type": "constant",
+        "current": {
+          "value": "tenant-example",
+          "text": "tenant-example"
+        },
+        "options": [{
+          "value": "tenant-example",
+          "text": "tenant-example"
+        }],
+        "query": "tenant-example",
+        "hide": 2
+      },
+      {
+        "name": "device_id",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "TimescaleDB"
+        },
+        "query": "SELECT DISTINCT device_id FROM telemetry_events WHERE tenant_id = '$tenant_id' ORDER BY device_id",
+        "current": {
+          "value": "all",
+          "text": "All"
+        },
+        "includeAll": true,
+        "multi": false,
+        "allValue": ".*",
+        "regex": false
+      },
+      {
+        "name": "metric_name",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "TimescaleDB"
+        },
+        "query": "SELECT DISTINCT metric_name FROM telemetry_events WHERE tenant_id = '$tenant_id' ORDER BY metric_name",
+        "current": {
+          "value": "all",
+          "text": "All"
+        },
+        "includeAll": true,
+        "multi": false,
+        "allValue": ".*",
+        "regex": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+      "type": "text",
+      "title": "",
+      "options": {
+        "mode": "markdown",
+        "content": "# 📊 Telemetría de Dispositivos\n\nEste dashboard muestra la telemetría de todos los dispositivos del tenant.\n\n**Tenant:** `$tenant_id`"
+      }
+    },
+    {
+      "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 3},
+      "type": "timeseries",
+      "title": "Valor de Métrica",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [{
+        "datasource": {
+          "type": "postgres",
+          "uid": "TimescaleDB"
+        },
+        "rawSql": "SELECT\n    observed_at AS time,\n    value\nFROM telemetry_events\nWHERE tenant_id = '$tenant_id'\n  AND device_id ~ '$device_id'\n  AND metric_name ~ '$metric_name'\n  AND observed_at >= $__timeFrom()\n  AND observed_at <= $__timeTo()\nORDER BY observed_at",
+        "format": "time_series",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 3},
+      "type": "stat",
+      "title": "Dispositivos Activos",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [{
+        "datasource": {
+          "type": "postgres",
+          "uid": "TimescaleDB"
+        },
+        "rawSql": "SELECT\n    COUNT(DISTINCT device_id) AS value\nFROM telemetry_events\nWHERE tenant_id = '$tenant_id'\n  AND observed_at >= NOW() - INTERVAL '5 minutes'",
+        "format": "table",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 11},
+      "type": "table",
+      "title": "Dispositivos y Última Lectura",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "targets": [{
+        "datasource": {
+          "type": "postgres",
+          "uid": "TimescaleDB"
+        },
+        "rawSql": "SELECT\n    device_id AS \"Dispositivo\",\n    metric_name AS \"Métrica\",\n    MAX(observed_at) AS \"Última Lectura\",\n    MAX(value) AS \"Último Valor\"\nFROM telemetry_events\nWHERE tenant_id = '$tenant_id'\n  AND observed_at >= $__timeFrom()\nGROUP BY device_id, metric_name\nORDER BY \"Última Lectura\" DESC",
+        "format": "table",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {}
+      }
+    }
+  ]
+}
+

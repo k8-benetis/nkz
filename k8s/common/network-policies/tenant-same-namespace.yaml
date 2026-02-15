@@ -1,0 +1,29 @@
+# =============================================================================
+# Tenant Network Policy - Simplified and Robust
+# =============================================================================
+# This policy allows communication within tenant namespace (simplified approach)
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace-traffic
+  namespace: {{ .Values.namespace }}
+  labels:
+    tenant-id: {{ .Values.tenantId }}
+    policy-type: tenant-isolation
+spec:
+  podSelector: {} # Applies to all pods in the namespace
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Allow ingress from any pod in the same namespace
+  # This is simpler and more robust than using tenant-id labels
+  ingress:
+  - from:
+    - podSelector: {} # Any pod in the same namespace
+  
+  # Allow egress to any pod in the same namespace
+  egress:
+  - to:
+    - podSelector: {} # Any pod in the same namespace

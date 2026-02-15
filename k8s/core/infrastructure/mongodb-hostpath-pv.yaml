@@ -1,0 +1,47 @@
+# =============================================================================
+# MongoDB HostPath PersistentVolume
+# =============================================================================
+# Este PV usa HostPath para almacenar datos de MongoDB directamente en el nodo,
+# evitando problemas con el provisionador local-path que pueden causar pérdida de datos.
+#
+# IMPORTANTE: La política de retención es "Retain" para evitar pérdida de datos
+# si el PVC se elimina accidentalmente.
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongodb-hostpath-pv
+  labels:
+    app: mongodb
+spec:
+  capacity:
+    storage: 20Gi  # MongoDB puede crecer más que PostgreSQL
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain  # CRÍTICO: Retener los datos incluso si el PVC se elimina
+  storageClassName: hostpath-mongodb
+  hostPath:
+    path: "/var/lib/nekazari/mongodb"  # Ruta en el nodo host
+    type: DirectoryOrCreate  # Asegura que el directorio exista
+  # nodeAffinity removed — hardcoded hostname (vmi2826274) created SPOF
+  # K8s scheduler will bind this PV to whichever node has the hostPath directory
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-hostpath-pvc
+  namespace: nekazari
+  labels:
+    app: mongodb
+    layer: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath-mongodb
+  resources:
+    requests:
+      storage: 20Gi
+  volumeName: mongodb-hostpath-pv  # Vincula explícitamente con el PV
+

@@ -1,0 +1,865 @@
+// =============================================================================
+// Keycloak Auth Context - Lazy initialization
+// =============================================================================
+
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import Keycloak from 'keycloak-js';
+import { getConfig } from '@/config/environment';
+import { formatAuthError } from '@/utils/keycloakHelpers';
+
+export interface KeycloakUser {
+  id: string;
+  username: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  tenant?: string;
+  roles: string[];
+}
+
+export interface KeycloakAuthContextType {
+  keycloak: Keycloak | null;
+  user: KeycloakUser | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (forcePrompt?: boolean) => Promise<void>;
+  logout: () => void;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
+  getToken: () => string | undefined;
+  tenantId: string;
+}
+
+const KeycloakAuthContext = createContext<KeycloakAuthContextType | undefined>(undefined);
+
+interface KeycloakAuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) => {
+  const [keycloak, setKeycloak] = useState<Keycloak | null>(null);
+  const [user, setUser] = useState<KeycloakUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start as loading until we check auth status
+  const [isProcessingLogin, setIsProcessingLogin] = useState(false); // Flag to prevent login loops
+  const errorProcessedRef = React.useRef<string | null>(null); // Track processed errors to avoid loops
+
+  // formatError is now imported as formatAuthError from @/utils/keycloakHelpers
+
+  // Helper function to update user roles from token
+  const updateUserRolesFromToken = (kc: Keycloak): void => {
+    if (!kc.token) return;
+
+    try {
+      const decoded = JSON.parse(atob(kc.token.split('.')[1]));
+      const realmRoles = decoded.realm_access?.roles || [];
+      const resourceRoles = Object.values(decoded.resource_access || {}).flatMap((r: any) => r.roles || []);
+      const rootRoles = decoded.roles || decoded['roles'] || [];
+      const roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
+
+      // Extract tenant - try multiple claim names and fallback to groups
+      let tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+
+      // Fallback: Extract from groups (same logic as backend)
+      if (!tokenTenant && decoded.groups && Array.isArray(decoded.groups) && decoded.groups.length > 0) {
+        const firstGroup = decoded.groups[0];
+        // Remove leading slash if present (Keycloak groups often start with /)
+        tokenTenant = firstGroup.startsWith('/') ? firstGroup.substring(1) : firstGroup;
+        console.log('[Auth] Extracted tenant from groups:', tokenTenant);
+      }
+
+      console.log('[Auth] Updating user roles from token - roles:', roles, 'tenant:', tokenTenant, 'groups:', decoded.groups);
+
+      // Update user state using functional update to get current state
+      setUser((currentUser: KeycloakUser | null) => {
+        if (currentUser) {
+          // Update existing user with new roles
+          return {
+            ...currentUser,
+            roles: roles,
+            tenant: tokenTenant || currentUser.tenant,
+          };
+        } else {
+          // If no user yet, use token data
+          return {
+            id: kc.subject || '',
+            username: kc.tokenParsed?.preferred_username || '',
+            email: kc.tokenParsed?.email || '',
+            name: kc.tokenParsed?.name || '',
+            tenant: tokenTenant,
+            roles: roles,
+          };
+        }
+      });
+    } catch (e) {
+      console.warn('[Auth] Error updating roles from token:', e);
+    }
+  };
+
+  const login = async (forcePrompt: boolean = false) => {
+    // CRÍTICO: Detectar error=login_required ANTES de cualquier otra lógica
+    // Si hay error, limpiar hash e ir a Keycloak INMEDIATAMENTE (solo una vez para evitar bucles)
+    if (typeof window !== 'undefined') {
+      const hasError = window.location.hash.includes('error=login_required') ||
+        window.location.search.includes('error=login_required');
+
+      if (hasError || forcePrompt) {
+        const errorHash = window.location.hash + window.location.search;
+
+        // Verificar si ya procesamos este error (solo si no es forzado)
+        if (!forcePrompt && errorProcessedRef.current === errorHash) {
+          console.log('[Auth] ⏭️ Error ya procesado en login(), evitando bucle');
+          return;
+        }
+
+        console.log('[Auth] 🔴 ERROR=LOGIN_REQUIRED DETECTADO o FORZADO - REDIRIGIENDO A KEYCLOAK INMEDIATAMENTE');
+
+        // Marcar este error como procesado
+        if (!forcePrompt) {
+          errorProcessedRef.current = errorHash;
+        }
+
+        // Limpiar hash INMEDIATAMENTE
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // CRÍTICO: Cuando forcePrompt=true, crear NUEVA instancia de Keycloak
+        // Inicializar SIN onLoad (no usar check-sso) y luego llamar a login() con prompt=login
+        // Esto evita que Keycloak use prompt=none de check-sso
+        const config = getConfig();
+
+        // Crear NUEVA instancia (no reutilizar la existente que puede tener check-sso configurado)
+        const freshKc = new Keycloak({
+          url: config.keycloak.url,
+          realm: config.keycloak.realm,
+          clientId: config.keycloak.clientId,
+        });
+
+        // CRÍTICO: Guardar la nueva instancia en el estado ANTES de inicializar
+        // Esto asegura que el callback use la misma instancia
+        setKeycloak(freshKc);
+
+        // Inicializar SIN onLoad (no check-sso) - esto evita prompt=none
+        // Luego llamar a login() con prompt=login explícito
+        console.log('[Auth] Creando nueva instancia Keycloak, inicializando sin check-sso, luego login() con prompt=login');
+
+        try {
+          // Inicializar mínimamente SIN check-sso
+          await freshKc.init({
+            onLoad: undefined, // Sin onLoad - no hacer check-sso que usa prompt=none
+            pkceMethod: 'S256', // PKCE para seguridad
+            checkLoginIframe: false,
+            enableLogging: true,
+          });
+
+          // Ahora llamar a login() con prompt=login explícito
+          // Keycloak JS SDK debería respetar el prompt=login en la URL
+          console.log('[Auth] Llamando a login() con prompt=login');
+          await freshKc.login({
+            prompt: 'login', // CRÍTICO: Forzar formulario de login
+            redirectUri: `${window.location.origin}/dashboard`
+          });
+
+          console.log('[Auth] kc.login() llamado exitosamente');
+        } catch (err) {
+          console.error('[Auth] Error en kc.login(), usando redirección manual como fallback:', err);
+          // Fallback: redirección manual si kc.login() falla
+          const keycloakUrl = `${config.keycloak.url}/realms/${config.keycloak.realm}/protocol/openid-connect/auth`;
+          const params = new URLSearchParams({
+            client_id: config.keycloak.clientId,
+            redirect_uri: `${window.location.origin}/dashboard`,
+            response_type: 'code',
+            response_mode: 'fragment',
+            scope: 'openid',
+            prompt: 'login' // CRÍTICO: Forzar formulario de login
+          });
+          console.log('[Auth] Redirección manual fallback con prompt=login');
+          window.location.href = `${keycloakUrl}?${params.toString()}`;
+        }
+
+        return; // SALIR INMEDIATAMENTE - NO procesar más lógica
+      }
+    }
+
+    // Prevenir bucles: si ya estamos procesando un login, no hacer nada
+    if (isProcessingLogin) {
+      console.log('[Auth] ⏭️ Login already in progress, skipping...');
+      return;
+    }
+
+    console.log('[Auth] login() called');
+    setIsProcessingLogin(true);
+    const config = getConfig();
+
+    try {
+      let kc = keycloak;
+
+      if (!kc) {
+        console.log('[Auth] Creating new Keycloak instance');
+        kc = new Keycloak({
+          url: config.keycloak.url,
+          realm: config.keycloak.realm,
+          clientId: config.keycloak.clientId,
+        });
+        setKeycloak(kc);
+      }
+
+      console.log('[Auth] Initializing Keycloak');
+      setIsLoading(true);
+
+      // Check if we're in the middle of a callback (hash contains code)
+      const hasCode = typeof window !== 'undefined' && (
+        window.location.hash.includes('code=') ||
+        window.location.search.includes('code=')
+      );
+
+      console.log('[Auth] Callback check:', {
+        hasCode,
+        hash: typeof window !== 'undefined' ? window.location.hash.substring(0, 50) : 'N/A'
+      });
+
+      // CRÍTICO: Si es una llamada explícita del usuario (no callback, no error previo),
+      // NO usar check-sso porque usa prompt=none y devuelve error=login_required.
+      // En su lugar, inicializar mínimamente y llamar directamente a login() con prompt=login
+      if (!hasCode && !errorProcessedRef.current) {
+        console.log('[Auth] Usuario hizo clic explícito en Login - inicializando mínimamente y llamando a login() con prompt=login');
+
+        // Inicializar Keycloak mínimamente (sin onLoad para evitar check-sso)
+        try {
+          await kc.init({
+            onLoad: undefined, // Sin onLoad - no hacer check-sso
+            pkceMethod: 'S256',
+            checkLoginIframe: false,
+            enableLogging: true,
+          });
+        } catch (initError) {
+          console.error('[Auth] Error en init mínimo:', initError);
+        }
+
+        setIsLoading(false);
+        setIsProcessingLogin(false);
+
+        // Llamar directamente a login() con prompt=login - esto fuerza que Keycloak muestre el formulario
+        console.log('[Auth] Llamando a kc.login() directamente con prompt=login');
+        await kc.login({
+          prompt: 'login', // CRÍTICO: Forzar formulario de login
+          redirectUri: `${window.location.origin}/dashboard`
+        }).catch(err => {
+          console.error('[Auth] Error en kc.login():', err);
+          setIsProcessingLogin(false);
+        });
+        return; // Salir - kc.login() redirige
+      }
+
+      // CRÍTICO: Si hay código en el callback, Keycloak DEBE procesarlo durante init()
+      // NO usar check-sso para callbacks porque puede interferir
+      // Si la instancia ya fue inicializada, puede que necesitemos reinicializarla para procesar el callback
+      let authenticated: boolean;
+
+      if (hasCode) {
+        console.log('[Auth] 🔄 Callback con code detectado - procesando con init()');
+        // Para callbacks, NO usar check-sso - dejar que Keycloak procese el callback automáticamente
+        authenticated = await kc.init({
+          onLoad: undefined, // Sin onLoad - Keycloak procesará el callback automáticamente
+          pkceMethod: 'S256',
+          checkLoginIframe: false,
+          enableLogging: true,
+        });
+
+        console.log('[Auth] Callback procesado, authenticated:', authenticated, 'hasToken:', !!kc.token);
+
+        // Verificar si el callback fue procesado correctamente
+        if (kc.token && authenticated) {
+          console.log('[Auth] ✅ Callback procesado exitosamente - token encontrado');
+
+          // CRÍTICO: Establecer autenticación y configurar token INMEDIATAMENTE
+          setIsAuthenticated(true);
+          setIsLoading(false);
+
+          // Guardar token en localStorage
+          if (kc.token) {
+            sessionStorage.setItem('auth_token', kc.token);
+          }
+
+          // Configurar refresh de token
+          kc.onTokenExpired = async () => {
+            try {
+              const refreshed = await kc.updateToken(30);
+              if (refreshed && kc.token) {
+                sessionStorage.setItem('auth_token', kc.token);
+                // CRÍTICO: Actualizar roles cuando el token se refresca
+                updateUserRolesFromToken(kc);
+              }
+            } catch (e) {
+              console.warn('Token refresh failed, forcing login');
+              kc.login();
+            }
+          };
+
+          // Decode token para obtener tenant y roles
+          let roles: string[] = [];
+          let tokenTenant = '';
+
+          try {
+            const decoded = JSON.parse(atob(kc.token.split('.')[1]));
+            // Buscar roles en múltiples ubicaciones posibles (Realm + Client roles)
+            const realmRoles = decoded.realm_access?.roles || [];
+            const resourceRoles = Object.values(decoded.resource_access || {}).flatMap((r: any) => r.roles || []);
+            const rootRoles = decoded.roles || decoded['roles'] || [];
+            roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
+
+            // Buscar tenant_id en múltiples formatos (string o array)
+            let rawTenant = decoded['tenant_id'] || decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+
+            // Si no hay tenant_id, intentar extraer del primer grupo (misma lógica que backend)
+            if (!rawTenant && decoded.groups && Array.isArray(decoded.groups) && decoded.groups.length > 0) {
+              const firstGroup = decoded.groups[0];
+              // Remove leading slash if present (Keycloak groups often start with /)
+              rawTenant = firstGroup.startsWith('/') ? firstGroup.substring(1) : firstGroup;
+            }
+
+            // Si es array (de Keycloak group mapper), tomar primer elemento
+            tokenTenant = Array.isArray(rawTenant) ? (rawTenant[0] || '') : rawTenant;
+            console.log('[Auth] Token decoded - roles:', roles, 'tenant:', tokenTenant, 'full decoded:', decoded);
+          } catch (e) {
+            console.warn('[Auth] Error decoding token:', e);
+          }
+
+          // Fallback a tokenParsed
+          if (roles.length === 0) {
+            roles = kc.tokenParsed?.realm_access?.roles || (kc.tokenParsed as any)?.roles || (kc.tokenParsed as any)?.['roles'] || [];
+          }
+          if (!tokenTenant) {
+            tokenTenant = (kc.tokenParsed as any)?.tenant || (kc.tokenParsed as any)?.tenantId || (kc.tokenParsed as any)?.['tenant-id'] || '';
+          }
+
+          // Cargar perfil de usuario
+          try {
+            const userInfo = await kc.loadUserProfile();
+            console.log('[Auth] 🔍 [CALLBACK] loadUserProfile() returned:', {
+              firstName: userInfo?.firstName,
+              lastName: userInfo?.lastName,
+              username: userInfo?.username,
+              email: userInfo?.email,
+              fullObject: userInfo
+            });
+            console.log('[Auth] 🔍 [CALLBACK] tokenParsed:', {
+              given_name: kc.tokenParsed?.given_name,
+              family_name: kc.tokenParsed?.family_name,
+              name: kc.tokenParsed?.name
+            });
+
+            const finalFirstName = userInfo?.firstName || kc.tokenParsed?.given_name || '';
+            const finalLastName = userInfo?.lastName || kc.tokenParsed?.family_name || '';
+            const finalName = `${finalFirstName} ${finalLastName}`.trim();
+
+            console.log('[Auth] 🔍 [CALLBACK] Final user name values:', {
+              firstName: finalFirstName,
+              lastName: finalLastName,
+              fullName: finalName
+            });
+
+            setUser({
+              id: kc.subject || '',
+              username: userInfo?.username || kc.tokenParsed?.preferred_username || '',
+              email: userInfo?.email || kc.tokenParsed?.email || '',
+              firstName: finalFirstName,
+              lastName: finalLastName,
+              name: finalName,
+              tenant: tokenTenant,
+              roles: roles,
+            });
+          } catch (profileError) {
+            console.warn('[Auth] Error loading user profile, using token data:', profileError);
+            setUser({
+              id: kc.subject || '',
+              username: kc.tokenParsed?.preferred_username || '',
+              email: kc.tokenParsed?.email || '',
+              name: kc.tokenParsed?.name || '',
+              tenant: tokenTenant,
+              roles: roles,
+            });
+          }
+
+          // Limpiar hash después de procesar
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              if (window.location.hash) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+            }, 100);
+          }
+
+          setIsProcessingLogin(false);
+          console.log('[Auth] ✅ Callback completado - usuario autenticado');
+
+          // SALIR INMEDIATAMENTE - no continuar con más código
+          return;
+        } else {
+          console.error('[Auth] ❌ Callback NO procesado correctamente');
+          console.error('[Auth] Token:', !!kc.token, 'Authenticated:', authenticated);
+          console.error('[Auth] Hash:', window.location.hash.substring(0, 100));
+
+          // El callback no fue procesado - puede ser un error o PKCE mismatch
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          setIsProcessingLogin(false);
+
+          // Limpiar hash
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+
+          console.error('[Auth] Error procesando callback');
+          // NO llamar a login() aquí porque causaría un bucle - dejar que el usuario intente de nuevo
+          return;
+        }
+      } else {
+        // Flujo normal (sin callback) - usar check-sso para verificar sesión existente
+        authenticated = await kc.init({
+          onLoad: 'check-sso',
+          pkceMethod: 'S256',
+          checkLoginIframe: false,
+          enableLogging: true,
+        });
+
+        console.log('[Auth] Inicializado sin callback, authenticated:', authenticated, 'hasToken:', !!kc.token);
+        setIsAuthenticated(authenticated);
+        setIsLoading(false);
+      }
+
+      // Clear URL hash/query after processing callback (but wait a bit to ensure it's processed)
+      if (hasCode && authenticated && typeof window !== 'undefined') {
+        // Wait a moment before clearing to ensure Keycloak has processed everything
+        setTimeout(() => {
+          if (window.location.hash) {
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          }
+        }, 100);
+      }
+
+      if (authenticated || kc.token) {
+        try {
+          // CRÍTICO: Marcar como autenticado SIEMPRE que tengamos un token
+          setIsAuthenticated(true);
+
+          if (kc.token) {
+            sessionStorage.setItem('auth_token', kc.token);
+          }
+
+          kc.onTokenExpired = async () => {
+            try {
+              const refreshed = await kc.updateToken(30);
+              if (refreshed && kc.token) {
+                sessionStorage.setItem('auth_token', kc.token);
+                // CRÍTICO: Actualizar roles cuando el token se refresca
+                updateUserRolesFromToken(kc);
+              }
+            } catch (e) {
+              console.warn('Token refresh failed, forcing login');
+              kc.login();
+            }
+          };
+
+          // Decode token to get tenant and roles
+          let roles: string[] = [];
+          let tokenTenant = '';
+
+          if (kc.token) {
+            try {
+              const decoded = JSON.parse(atob(kc.token.split('.')[1]));
+              const realmRoles = decoded.realm_access?.roles || [];
+              const resourceRoles = Object.values(decoded.resource_access || {}).flatMap((r: any) => r.roles || []);
+              const rootRoles = decoded.roles || decoded['roles'] || [];
+              roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
+              tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+              console.log('[Auth] Token decoded - roles:', roles, 'tenant:', tokenTenant);
+            } catch (e) {
+              console.warn('[Auth] Error decoding token:', e);
+            }
+          }
+
+          // Fallback to tokenParsed
+          if (roles.length === 0) {
+            roles = kc.tokenParsed?.realm_access?.roles || (kc.tokenParsed as any)?.roles || [];
+          }
+          if (!tokenTenant) {
+            tokenTenant = (kc.tokenParsed as any)?.tenant || (kc.tokenParsed as any)?.tenantId || (kc.tokenParsed as any)?.['tenant-id'] || '';
+          }
+
+          console.log('[Auth] Configured roles:', roles);
+          console.log('[Auth] Configured tenant:', tokenTenant);
+
+          // Load user profile
+          let userInfo: any = null;
+          try {
+            userInfo = await kc.loadUserProfile();
+            console.log('[Auth] 🔍 loadUserProfile() returned:', {
+              firstName: userInfo?.firstName,
+              lastName: userInfo?.lastName,
+              username: userInfo?.username,
+              email: userInfo?.email,
+              fullObject: userInfo
+            });
+          } catch (profileError) {
+            console.warn('Error loading user profile:', formatAuthError(profileError));
+            userInfo = {
+              username: kc.tokenParsed?.preferred_username || kc.subject || '',
+              email: kc.tokenParsed?.email || '',
+              firstName: kc.tokenParsed?.given_name || '',
+              lastName: kc.tokenParsed?.family_name || '',
+            };
+          }
+
+          // Debug: Log token parsed data
+          console.log('[Auth] 🔍 tokenParsed:', {
+            given_name: kc.tokenParsed?.given_name,
+            family_name: kc.tokenParsed?.family_name,
+            name: kc.tokenParsed?.name,
+            email: kc.tokenParsed?.email,
+            preferred_username: kc.tokenParsed?.preferred_username
+          });
+
+          const finalFirstName = userInfo?.firstName || kc.tokenParsed?.given_name || '';
+          const finalLastName = userInfo?.lastName || kc.tokenParsed?.family_name || '';
+          const finalName = `${finalFirstName} ${finalLastName}`.trim();
+
+          console.log('[Auth] 🔍 Final user name values:', {
+            firstName: finalFirstName,
+            lastName: finalLastName,
+            fullName: finalName
+          });
+
+          setUser({
+            id: kc.subject || '',
+            username: userInfo?.username || kc.tokenParsed?.preferred_username || '',
+            email: userInfo?.email || kc.tokenParsed?.email || '',
+            firstName: finalFirstName,
+            lastName: finalLastName,
+            name: finalName,
+            tenant: tokenTenant,
+            roles: roles,
+          });
+
+          // Reset flags cuando el login se completa exitosamente
+          setIsLoading(false);
+          setIsProcessingLogin(false);
+          console.log('[Auth] ✅ Usuario autenticado y configurado correctamente');
+        } catch (error) {
+          console.error('Error setting up user:', formatAuthError(error));
+          setIsLoading(false);
+          setIsProcessingLogin(false);
+        }
+      } else {
+        // Not authenticated and not in a callback - call login to redirect to Keycloak
+        if (!hasCode) {
+          console.log('[Auth] Not authenticated and not in callback, calling kc.login()');
+          setIsProcessingLogin(false); // Reset flag antes de redirigir
+          await kc.login({ redirectUri: `${window.location.origin}/dashboard` });
+        } else {
+          console.log('[Auth] In callback but not authenticated, waiting...');
+          // Already handled above in the callback processing
+          setIsProcessingLogin(false);
+        }
+      }
+    } catch (error) {
+      console.error('Keycloak init/login failed:', formatAuthError(error));
+      setIsLoading(false);
+      setIsProcessingLogin(false); // Reset flag on error
+    }
+  };
+
+  const logout = () => {
+    if (keycloak) {
+      keycloak.logout();
+      setKeycloak(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      sessionStorage.removeItem('auth_token');
+      // Limpiar window.keycloak al hacer logout
+      if (typeof window !== 'undefined') {
+        delete (window as any).keycloak;
+        console.log('[Auth] 🧹 window.keycloak limpiado en logout');
+      }
+    }
+  };
+
+  const hasRole = (role: string): boolean => {
+    return user?.roles?.includes(role) || false;
+  };
+
+  const hasAnyRole = (roles: string[]): boolean => {
+    return roles.some(role => user?.roles?.includes(role)) || false;
+  };
+
+  const getToken = (): string | undefined => {
+    return keycloak?.token;
+  };
+
+  const tenantId = user?.tenant || 'master';
+
+  // CRÍTICO: Sincronizar window.keycloak con el estado de React
+  // Esto permite que api.ts y otros módulos accedan a la instancia de Keycloak
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (keycloak) {
+        // Establecer window.keycloak cuando la instancia está disponible
+        (window as any).keycloak = keycloak;
+        console.log('[Auth] ✅ window.keycloak establecido');
+      } else {
+        // Limpiar window.keycloak cuando no hay instancia
+        delete (window as any).keycloak;
+        console.log('[Auth] 🧹 window.keycloak limpiado');
+      }
+    }
+  }, [keycloak]);
+
+  // CRÍTICO: Detectar callback o error INMEDIATAMENTE al montar y procesarlo
+  React.useEffect(() => {
+    console.log('[Auth] 🔄 AuthProvider mounted');
+
+    if (typeof window !== 'undefined') {
+      // Detectar callback con código OAuth
+      const hasCallback = window.location.hash.includes('code=') ||
+        window.location.search.includes('code=');
+
+      // Detectar error de login
+      const hasError = window.location.hash.includes('error=login_required') ||
+        window.location.search.includes('error=login_required');
+
+      // Si hay callback, procesarlo automáticamente
+      // PERO solo si no estamos ya procesando un login (evitar bucles)
+      if (hasCallback && !isProcessingLogin) {
+        console.log('[Auth] ✅ Callback con code= detectado - procesando automáticamente');
+        setIsLoading(true);
+        setIsProcessingLogin(true);
+        // Llamar a login() para procesar el callback - esto inicializará Keycloak y procesará el código
+        login().catch(err => {
+          console.error('[Auth] Error procesando callback:', err);
+          setIsLoading(false);
+          setIsProcessingLogin(false);
+        });
+        return; // Salir - login() se encargará del resto
+      } else if (hasCallback && isProcessingLogin) {
+        console.log('[Auth] ⏭️ Callback detectado pero ya procesando login, esperando...');
+        setIsLoading(true);
+        return; // Esperar a que termine el procesamiento actual
+      }
+
+      // Si hay error, manejar el error (solo una vez para evitar bucles)
+      // PERO: si estamos en una ruta pública (/, /login, /activate, /forgot-password), 
+      // NO procesar el error automáticamente - dejar que el usuario haga clic en Login
+      if (hasError) {
+        const errorHash = window.location.hash + window.location.search;
+        const isPublicRoute = ['/', '/login', '/activate', '/forgot-password'].includes(window.location.pathname);
+
+        // Verificar si ya procesamos este error
+        if (errorProcessedRef.current === errorHash) {
+          console.log('[Auth] ⏭️ Error ya procesado, evitando bucle');
+          setIsLoading(false);
+          return;
+        }
+
+        // Si estamos en una ruta pública, solo limpiar el error y marcar como procesado
+        // NO redirigir automáticamente - dejar que el usuario haga clic en Login
+        if (isPublicRoute) {
+          console.log('[Auth] ⚠️ Error detectado en ruta pública - limpiando pero no redirigiendo automáticamente');
+          errorProcessedRef.current = errorHash;
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setIsLoading(false);
+          return; // Salir - no procesar más
+        }
+
+        console.log('[Auth] 🔴 ERROR=LOGIN_REQUIRED detectado en mount - redirigiendo INMEDIATAMENTE');
+
+        // Marcar este error como procesado
+        errorProcessedRef.current = errorHash;
+
+        // Limpiar hash INMEDIATAMENTE
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // Inicializar Keycloak y redirigir
+        const config = getConfig();
+        const kc = new Keycloak({
+          url: config.keycloak.url,
+          realm: config.keycloak.realm,
+          clientId: config.keycloak.clientId,
+        });
+
+        setKeycloak(kc);
+
+        // Inicializar y redirigir inmediatamente
+        kc.init({
+          onLoad: 'check-sso',
+          pkceMethod: 'S256',
+          checkLoginIframe: false,
+          enableLogging: true,
+        }).then(() => {
+          console.log('[Auth] Keycloak inicializado, redirigiendo con prompt=login');
+          kc.login({
+            prompt: 'login',
+            redirectUri: `${window.location.origin}/dashboard`
+          }).catch(err => {
+            console.error('[Auth] Error en redirect:', err);
+            setIsLoading(false);
+            errorProcessedRef.current = null; // Reset si falla
+          });
+        }).catch(err => {
+          console.error('[Auth] Error inicializando Keycloak:', err);
+          setIsLoading(false);
+          errorProcessedRef.current = null; // Reset si falla
+        });
+
+        return; // Salir - no procesar más
+      }
+    }
+
+    // CRÍTICO: En rutas públicas, NO inicializar Keycloak automáticamente
+    // Esto evita navegación automática con prompt=none
+    const isPublicRoute = typeof window !== 'undefined' &&
+      ['/', '/login', '/activate', '/forgot-password'].includes(window.location.pathname);
+
+    // CRÍTICO: Si ya estamos autenticados (por ejemplo, después de procesar callback),
+    // NO hacer nada más - evitar interferencias
+    if (isAuthenticated) {
+      console.log('[Auth] Ya autenticado, saltando inicialización automática');
+      setIsLoading(false);
+      return;
+    }
+
+    // Si no hay callback ni error, verificar si hay token en localStorage
+    // PERO solo si NO estamos en una ruta pública Y no estamos ya procesando un login
+    if (!keycloak && !isPublicRoute && !isProcessingLogin) {
+      const storedToken = sessionStorage.getItem('auth_token');
+      if (storedToken) {
+        console.log('[Auth] Token encontrado en localStorage, inicializando Keycloak para verificar...');
+        setIsLoading(true);
+        const config = getConfig();
+        const kc = new Keycloak({
+          url: config.keycloak.url,
+          realm: config.keycloak.realm,
+          clientId: config.keycloak.clientId,
+        });
+        setKeycloak(kc);
+
+        // Intentar inicializar con check-sso (silent check)
+        kc.init({
+          onLoad: 'check-sso',
+          pkceMethod: 'S256',
+          checkLoginIframe: false,
+          enableLogging: true,
+        }).then((authenticated) => {
+          console.log('[Auth] Keycloak inicializado, authenticated:', authenticated, 'token:', !!kc.token);
+          if (authenticated && kc.token) {
+            setIsAuthenticated(true);
+            // Configurar usuario y roles desde el token
+            try {
+              const decoded = JSON.parse(atob(kc.token.split('.')[1]));
+              const roles = decoded.realm_access?.roles || decoded.roles || decoded['roles'] || [];
+              const tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+              console.log('[Auth] Init - Token decoded - roles:', roles, 'tenant:', tokenTenant);
+              console.log('[Auth] Init - Full decoded token:', decoded);
+
+              kc.loadUserProfile().then((userInfo) => {
+                setUser({
+                  id: kc.subject || '',
+                  username: userInfo?.username || kc.tokenParsed?.preferred_username || '',
+                  email: userInfo?.email || kc.tokenParsed?.email || '',
+                  firstName: userInfo?.firstName || kc.tokenParsed?.given_name || '',
+                  lastName: userInfo?.lastName || kc.tokenParsed?.family_name || '',
+                  name: `${userInfo?.firstName || kc.tokenParsed?.given_name || ''} ${userInfo?.lastName || kc.tokenParsed?.family_name || ''}`.trim(),
+                  tenant: tokenTenant,
+                  roles: roles,
+                });
+                setIsLoading(false);
+              }).catch(() => {
+                // Fallback si loadUserProfile falla
+                setUser({
+                  id: kc.subject || '',
+                  username: kc.tokenParsed?.preferred_username || '',
+                  email: kc.tokenParsed?.email || '',
+                  firstName: kc.tokenParsed?.given_name || '',
+                  lastName: kc.tokenParsed?.family_name || '',
+                  name: `${kc.tokenParsed?.given_name || ''} ${kc.tokenParsed?.family_name || ''}`.trim(),
+                  tenant: tokenTenant,
+                  roles: roles,
+                });
+                setIsLoading(false);
+              });
+            } catch (e) {
+              console.error('[Auth] Error decodificando token:', e);
+              setIsLoading(false);
+            }
+          } else {
+            // Token inválido o expirado
+            console.log('[Auth] Token inválido o expirado, limpiando...');
+            sessionStorage.removeItem('auth_token');
+            setIsAuthenticated(false);
+            setIsLoading(false);
+          }
+        }).catch((err) => {
+          console.error('[Auth] Error inicializando Keycloak:', err);
+          setIsLoading(false);
+        });
+      } else {
+        setIsLoading(false);
+      }
+    } else if (isPublicRoute) {
+      // En rutas públicas, NO inicializar Keycloak automáticamente
+      // El usuario debe hacer clic explícitamente en Login
+      console.log('[Auth] Ruta pública detectada - NO inicializando Keycloak automáticamente');
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo ejecutar una vez al montar
+
+  const value: KeycloakAuthContextType = {
+    keycloak,
+    user,
+    isAuthenticated,
+    isLoading,
+    login,
+    logout,
+    hasRole,
+    hasAnyRole,
+    getToken,
+    tenantId,
+  };
+
+  // Expose auth context to external modules via window (for SDK access)
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__nekazariAuthContext = value;
+      console.log('[AuthProvider] ✅ Auth context exposed to window.__nekazariAuthContext for external modules');
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).__nekazariAuthContext;
+      }
+    };
+  }, [value]);
+
+  return (
+    <KeycloakAuthContext.Provider value={value}>
+      {children}
+    </KeycloakAuthContext.Provider>
+  );
+};
+
+export const useAuth = (): KeycloakAuthContextType => {
+  const context = useContext(KeycloakAuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within a KeycloakAuthProvider');
+  }
+  return context;
+};
+
+export const useHasRole = (role: string): boolean => {
+  const { hasRole } = useAuth();
+  return hasRole(role);
+};
+
+export const useTenantId = (): string => {
+  const { tenantId } = useAuth();
+  return tenantId;
+};

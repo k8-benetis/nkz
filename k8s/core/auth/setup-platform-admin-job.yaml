@@ -1,0 +1,227 @@
+# =============================================================================
+# Setup Platform Admin Job
+# =============================================================================
+# Job to setup platform group and migrate PlatformAdmin users
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: setup-platform-admin
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: platform-admin-setup
+spec:
+  template:
+    metadata:
+      labels:
+        app: setup-platform-admin
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: setup
+        image: python:3.11-slim
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          pip install requests >/dev/null 2>&1
+          
+          # Get credentials from secret
+          ADMIN_USER="${KEYCLOAK_ADMIN}"
+          ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD}"
+          
+          KEYCLOAK_URL="https://auth.robotika.cloud/auth"
+          REALM="nekazari"
+          TARGET_EMAIL="${TARGET_EMAIL:-}"
+          
+          python3 << 'PYTHON_SCRIPT'
+import os
+import sys
+import json
+import requests
+
+KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'https://auth.robotika.cloud/auth')
+REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
+TARGET_EMAIL = os.getenv('TARGET_EMAIL')
+
+admin_user = os.getenv('KEYCLOAK_ADMIN')
+admin_pass = os.getenv('KEYCLOAK_ADMIN_PASSWORD')
+
+if not admin_user or not admin_pass:
+    print("❌ KEYCLOAK_ADMIN and KEYCLOAK_ADMIN_PASSWORD must be set")
+    sys.exit(1)
+
+print("=== Setting up Platform Admin Tenant Group ===\n")
+
+# Get admin token
+url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
+data = {
+    'client_id': 'admin-cli',
+    'username': admin_user,
+    'password': admin_pass,
+    'grant_type': 'password'
+}
+
+response = requests.post(url, data=data)
+if response.status_code != 200:
+    print(f"❌ Failed to get admin token: {response.status_code}")
+    sys.exit(1)
+
+token = response.json()['access_token']
+headers = {'Authorization': f'Bearer {token}'}
+
+# Create or get platform group
+print("Creating/verifying 'platform' group...")
+groups_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}/groups"
+groups_response = requests.get(groups_url, headers=headers)
+groups = groups_response.json()
+
+platform_group = next((g for g in groups if g.get('name') == 'platform'), None)
+
+if not platform_group:
+    print("  Creating platform group...")
+    create_response = requests.post(
+        groups_url,
+        headers={**headers, 'Content-Type': 'application/json'},
+        json={
+            'name': 'platform',
+            'path': '/platform',
+            'attributes': {
+                'tenant_id': ['platform'],
+                'tenant_type': ['system'],
+                'plan_type': ['system']
+            }
+        }
+    )
+    if create_response.status_code in (201, 200):
+        groups_response = requests.get(groups_url, headers=headers)
+        platform_group = next((g for g in groups_response.json() if g.get('name') == 'platform'), None)
+        print("  ✅ Platform group created")
+    else:
+        print(f"  ❌ Failed to create platform group: {create_response.status_code}")
+        sys.exit(1)
+else:
+    print("  ✅ Platform group already exists")
+    # Update attributes
+    update_response = requests.put(
+        f"{groups_url}/{platform_group['id']}",
+        headers={**headers, 'Content-Type': 'application/json'},
+        json={
+            'name': 'platform',
+            'path': '/platform',
+            'attributes': {
+                'tenant_id': ['platform'],
+                'tenant_type': ['system'],
+                'plan_type': ['system']
+            }
+        }
+    )
+    if update_response.status_code in (200, 204):
+        print("  ✅ Platform group attributes updated")
+
+platform_group_id = platform_group['id']
+print(f"  Group ID: {platform_group_id}\n")
+
+# Get all users
+print("Finding PlatformAdmin users...")
+users_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}/users"
+users_response = requests.get(users_url, headers=headers)
+all_users = users_response.json()
+
+platform_admins = []
+for user in all_users:
+    # Get user roles
+    roles_url = f"{users_url}/{user['id']}/role-mappings/realm"
+    roles_response = requests.get(roles_url, headers=headers)
+    roles_data = roles_response.json()
+    
+    # Check if user has PlatformAdmin role
+    mappings = roles_data.get('mappings', []) if isinstance(roles_data, dict) else roles_data
+    has_platform_admin = any(
+        role.get('name') == 'PlatformAdmin' 
+        for role in mappings
+    )
+    
+    if has_platform_admin:
+        email = user.get('email')
+        if not TARGET_EMAIL or email == TARGET_EMAIL:
+            platform_admins.append((user['id'], email))
+
+if not platform_admins:
+    print("⚠️  No PlatformAdmin users found")
+    if TARGET_EMAIL:
+        print(f"   (Searching for: {TARGET_EMAIL})")
+else:
+    print(f"Found {len(platform_admins)} PlatformAdmin user(s):\n")
+    
+    for user_id, email in platform_admins:
+        print(f"  - {email}")
+        
+        # Get user groups
+        user_groups_url = f"{users_url}/{user_id}/groups"
+        user_groups_response = requests.get(user_groups_url, headers=headers)
+        user_groups = user_groups_response.json()
+        
+        # Check if in platform group
+        in_platform = any(g['id'] == platform_group_id for g in user_groups)
+        
+        # Find tenant groups (bootstrap, tenant-*, etc.)
+        tenant_groups = [
+            g for g in user_groups 
+            if g['name'] not in ('platform', 'Platform Administrators', 'default', 'offline_access', 'uma_authorization')
+            and not g['name'].lower().endswith(('administrators', 'admins'))
+        ]
+        
+        if not in_platform:
+            print("    → Adding to platform group...")
+            add_response = requests.put(
+                f"{user_groups_url}/{platform_group_id}",
+                headers=headers
+            )
+            if add_response.status_code in (200, 204):
+                print("    ✅ Added to platform group")
+            else:
+                print(f"    ❌ Failed to add to platform group: {add_response.status_code}")
+        else:
+            print("    ✅ Already in platform group")
+        
+        # Remove from tenant groups
+        for tenant_group in tenant_groups:
+            print(f"    → Removing from tenant group '{tenant_group['name']}'...")
+            remove_response = requests.delete(
+                f"{user_groups_url}/{tenant_group['id']}",
+                headers=headers
+            )
+            if remove_response.status_code in (200, 204):
+                print(f"    ✅ Removed from '{tenant_group['name']}'")
+
+print("\n=== Summary ===")
+print("✅ Platform group created/configured")
+print("✅ PlatformAdmin users configured")
+print("\n⚠️  IMPORTANT: Users must logout and login again to get new token with tenant-id='platform'\n")
+PYTHON_SCRIPT
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        - name: KEYCLOAK_URL
+          value: "https://auth.robotika.cloud/auth"
+        - name: KEYCLOAK_REALM
+          value: "nekazari"
+        - name: TARGET_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: bootstrap-secret
+              key: admin-email
+
+
+
+

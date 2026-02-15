@@ -1,0 +1,9 @@
+{
+  "mappers": [
+    {
+      "name": "Group Tenant Attributes Mapper",
+      "fileName": "group-tenant-attributes-mapper.js",
+      "description": "Maps tenant attributes (tenant_id, tenant_type, plan_type, max_users, max_robots, max_sensors) from group attributes to JWT token claims"
+    }
+  ]
+}

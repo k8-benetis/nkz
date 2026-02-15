@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: populate-municipalities
+  namespace: nekazari
+  labels:
+    app: nekazari
+    component: data-population
+spec:
+  template:
+    metadata:
+      labels:
+        app: populate-municipalities
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: populate
+        image: python:3.9-slim
+        command:
+        - /bin/sh
+        - -c
+        - |
+          pip install requests psycopg2-binary
+          python /scripts/populate-municipalities-from-aemet.py
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: POSTGRES_HOST
+          value: postgresql-service
+        - name: POSTGRES_URL
+          value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):5432/$(POSTGRES_DB)
+        - name: SKIP_GEOCODING
+          value: "true"   # Skip geocoding - will be done on-demand when users search
+        - name: MAX_GEOCODE
+          value: "0"      # No geocoding in batch (on-demand only)
+        volumeMounts:
+        - name: scripts-vol
+          mountPath: /scripts
+      volumes:
+      - name: scripts-vol
+        configMap:
+          name: bootstrap-scripts
+          defaultMode: 0755

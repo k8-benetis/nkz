@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+  namespace: nekazari
+  labels:
+    app: postgresql
+    layer: database
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+        layer: database
+    spec:
+      # InitContainer to fix volume permissions before PostgreSQL starts
+      # This ensures the persistent volume has correct ownership (999:999 = postgres:postgres)
+      # and permissions (700) before PostgreSQL tries to access it
+      # CRITICAL: This must run before PostgreSQL starts to prevent permission errors
+      initContainers:
+      - name: fix-volume-permissions
+        image: busybox:latest
+        securityContext:
+          runAsUser: 0  # Run as root to be able to change ownership
+          runAsGroup: 0
+        command:
+        - sh
+        - -c
+        - |
+          echo "Fixing persistent volume permissions..."
+          chown -R 999:999 /data || true
+          chmod -R 700 /data || true
+          ls -lad /data
+          ls -la /data
+          echo "Volume permissions fixed"
+        volumeMounts:
+        - name: postgresql-storage
+          mountPath: /data
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+      containers:
+      - name: postgresql
+        image: timescale/timescaledb-ha:pg14-latest
+        ports:
+        - containerPort: 5432
+        args:
+        - postgres
+        - -c
+        - listen_addresses=*
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: POSTGRES_INITDB_ARGS
+          value: --auth-host=scram-sha-256
+        # CRITICAL: Force PostgreSQL to use the mounted persistent volume
+        # The TimescaleDB HA image defaults to /home/postgres/pgdata/data
+        # We must override PGDATA to use the mounted volume
+        # This ensures data persists across pod recreations and deployments
+        - name: PGDATA
+          value: /home/postgres/pgdata/data
+        volumeMounts:
+        - name: postgresql-storage
+          mountPath: /home/postgres/pgdata/data
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - nekazari
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - nekazari
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+      volumes:
+      - name: postgresql-storage
+        persistentVolumeClaim:
+          claimName: postgresql-storage
+      # Nota: El PVC ahora apunta a un PV con HostPath en /home/nkz-data/postgres
+      # con política Retain para evitar pérdida de datos
+      - name: init-scripts
+        configMap:
+          name: postgresql-init-scripts
+      - name: migrations
+        configMap:
+          name: postgresql-migrations
+          optional: true
+      restartPolicy: Always

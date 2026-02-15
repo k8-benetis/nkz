@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-gateway-sa
+  namespace: nekazari
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: api-gateway-role
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# Secrets access is handled via namespace-scoped Role below (api-gateway-secrets-role)
+---
+# Namespace-scoped Role for secrets (more secure than ClusterRole)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-gateway-secrets-role
+  namespace: nekazari
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # Allow access to specific platform credentials secrets
+  resourceNames: ["copernicus-cdse-secret", "aemet-secret"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-secrets-binding
+  namespace: nekazari
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: api-gateway-secrets-role
+subjects:
+- kind: ServiceAccount
+  name: api-gateway-sa
+  namespace: nekazari
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: api-gateway-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: api-gateway-role
+subjects:
+- kind: ServiceAccount
+  name: api-gateway-sa
+  namespace: nekazari

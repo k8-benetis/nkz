@@ -1,0 +1,210 @@
+{
+  "id": null,
+  "uid": "nekazari-tenants",
+  "title": "Nekazari - Uso por Tenant",
+  "tags": ["nekazari", "tenants", "admin"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+      "type": "text",
+      "title": "",
+      "options": {
+        "mode": "markdown",
+        "content": "# 📊 Panel de Administración de Tenants\n\nEste dashboard muestra el uso de recursos por cada tenant (explotación agrícola) registrado en la plataforma.\n\n**Nota:** Para ver los datos, necesitas estar autenticado. Configura un datasource JSON con tu token JWT."
+      }
+    },
+    {
+      "id": 2,
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 3},
+      "type": "table",
+      "title": "Tenants - Información General",
+      "description": "Lista de todos los tenants con su información básica y plan activo",
+      "datasource": {
+        "type": "infinity",
+        "uid": "tenants-datasource"
+      },
+      "targets": [{
+        "refId": "A",
+        "type": "json",
+        "source": "url",
+        "url": "http://farmer-auth-api:5000/admin/tenants",
+        "method": "GET",
+        "headers": [
+          {"key": "Authorization", "value": "Bearer YOUR_TOKEN_HERE"}
+        ],
+        "root_selector": "tenants",
+        "columns": [
+          {"selector": "tenant", "text": "Tenant ID", "type": "string"},
+          {"selector": "name", "text": "Nombre", "type": "string"},
+          {"selector": "email", "text": "Email", "type": "string"},
+          {"selector": "plan", "text": "Plan", "type": "string"},
+          {"selector": "created_at", "text": "Fecha Registro", "type": "timestamp"},
+          {"selector": "days_remaining", "text": "Días Restantes", "type": "number"}
+        ]
+      }],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "sortBy": [{"displayName": "Fecha Registro", "desc": true}]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Plan"},
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                {"type": "value", "value": "basic", "text": "Basic", "color": "blue"},
+                {"type": "value", "value": "premium", "text": "Premium", "color": "yellow"},
+                {"type": "value", "value": "enterprise", "text": "Enterprise", "color": "purple"}
+              ]
+            }]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Días Restantes"},
+            "properties": [{
+              "id": "custom.cellOptions",
+              "value": {"type": "color-background"}
+            }, {
+              "id": "thresholds",
+              "value": {
+                "mode": "absolute",
+                "steps": [
+                  {"value": 0, "color": "red"},
+                  {"value": 7, "color": "orange"},
+                  {"value": 30, "color": "green"}
+                ]
+              }
+            }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 15},
+      "type": "table",
+      "title": "Uso de Robots por Tenant",
+      "datasource": {
+        "type": "infinity",
+        "uid": "tenants-datasource"
+      },
+      "targets": [{
+        "refId": "A",
+        "type": "json",
+        "source": "url",
+        "url": "http://farmer-auth-api:5000/admin/tenants",
+        "method": "GET",
+        "root_selector": "tenants",
+        "columns": [
+          {"selector": "tenant", "text": "Tenant", "type": "string"},
+          {"selector": "name", "text": "Nombre", "type": "string"},
+          {"selector": "robots_count", "text": "Robots Activos", "type": "number"},
+          {"selector": "max_robots", "text": "Límite Robots", "type": "number"},
+          {"selector": "robots_usage_percent", "text": "Uso %", "type": "number"}
+        ]
+      }],
+      "fieldConfig": {
+        "overrides": [{
+          "matcher": {"id": "byName", "options": "Uso %"},
+          "properties": [{
+            "id": "custom.cellOptions",
+            "value": {"type": "gauge"}
+          }, {
+            "id": "max",
+            "value": 100
+          }, {
+            "id": "thresholds",
+            "value": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 70, "color": "yellow"},
+                {"value": 90, "color": "red"}
+              ]
+            }
+          }]
+        }]
+      }
+    },
+    {
+      "id": 4,
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 15},
+      "type": "table",
+      "title": "Uso de Sensores por Tenant",
+      "datasource": {
+        "type": "infinity",
+        "uid": "tenants-datasource"
+      },
+      "targets": [{
+        "refId": "A",
+        "type": "json",
+        "source": "url",
+        "url": "http://farmer-auth-api:5000/admin/tenants",
+        "method": "GET",
+        "root_selector": "tenants",
+        "columns": [
+          {"selector": "tenant", "text": "Tenant", "type": "string"},
+          {"selector": "name", "text": "Nombre", "type": "string"},
+          {"selector": "sensors_count", "text": "Sensores Activos", "type": "number"},
+          {"selector": "max_sensors", "text": "Límite Sensores", "type": "number"},
+          {"selector": "sensors_usage_percent", "text": "Uso %", "type": "number"}
+        ]
+      }],
+      "fieldConfig": {
+        "overrides": [{
+          "matcher": {"id": "byName", "options": "Uso %"},
+          "properties": [{
+            "id": "custom.cellOptions",
+            "value": {"type": "gauge"}
+          }, {
+            "id": "max",
+            "value": 100
+          }, {
+            "id": "thresholds",
+            "value": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 70, "color": "yellow"},
+                {"value": 90, "color": "red"}
+              ]
+            }
+          }]
+        }]
+      }
+    },
+    {
+      "id": 5,
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 25},
+      "type": "table",
+      "title": "Actividad de Tenants",
+      "datasource": {
+        "type": "infinity",
+        "uid": "tenants-datasource"
+      },
+      "targets": [{
+        "refId": "A",
+        "type": "json",
+        "source": "url",
+        "url": "http://farmer-auth-api:5000/admin/tenants",
+        "method": "GET",
+        "root_selector": "tenants",
+        "columns": [
+          {"selector": "tenant", "text": "Tenant", "type": "string"},
+          {"selector": "name", "text": "Nombre", "type": "string"},
+          {"selector": "total_actions", "text": "Total Acciones", "type": "number"},
+          {"selector": "robots_count", "text": "Robots", "type": "number"},
+          {"selector": "sensors_count", "text": "Sensores", "type": "number"},
+          {"selector": "parcels_count", "text": "Parcelas", "type": "number"}
+        ]
+      }]
+    }
+  ]
+}

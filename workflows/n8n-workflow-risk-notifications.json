@@ -1,0 +1,221 @@
+{
+  "name": "Risk Notifications Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cron Trigger (Hourly)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.email, r.risk_name, s.probability_score, s.severity, s.entity_id, s.risk_code, s.timestamp FROM risk_notifications_pending s JOIN admin_platform.risk_catalog r ON s.risk_code = r.risk_code WHERE s.timestamp >= CURRENT_DATE - INTERVAL '1 hour' ORDER BY s.probability_score DESC",
+        "options": {}
+      },
+      "id": "postgres-query",
+      "name": "Query Risk Notifications",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "email-condition",
+              "leftValue": "={{ $json.notification_channels.email }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-email",
+      "name": "Filter Email Notifications",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@nekazari.robotika.cloud",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Alerta de Riesgo: {{ $json.risk_name }}",
+        "text": "Se ha detectado un riesgo en su sistema:\n\nRiesgo: {{ $json.risk_name }}\nProbabilidad: {{ $json.probability_score }}%\nSeveridad: {{ $json.severity }}\nEntidad: {{ $json.entity_id }}\nFecha: {{ $json.timestamp }}\n\nPor favor, revise la plataforma para más detalles.",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "push-condition",
+              "leftValue": "={{ $json.notification_channels.push }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-push",
+      "name": "Filter Push Notifications",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fcm.googleapis.com/v1/projects/YOUR_PROJECT_ID/messages:send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $credentials.firebase.accessToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ { \"token\": $json.fcm_token, \"notification\": { \"title\": \"Alerta de Riesgo\", \"body\": $json.risk_name }, \"data\": { \"risk_code\": $json.risk_code, \"probability\": $json.probability_score } } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-push",
+      "name": "Send Push Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 400],
+      "credentials": {
+        "firebase": {
+          "id": "firebase-credentials",
+          "name": "Firebase Cloud Messaging"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron Trigger (Hourly)": {
+      "main": [
+        [
+          {
+            "node": "Query Risk Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Risk Notifications": {
+      "main": [
+        [
+          {
+            "node": "Filter Email Notifications",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Push Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Email Notifications": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Push Notifications": {
+      "main": [
+        [
+          {
+            "node": "Send Push Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
+

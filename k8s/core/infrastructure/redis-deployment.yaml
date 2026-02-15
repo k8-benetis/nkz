@@ -1,0 +1,182 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: nekazari
+  labels:
+    app: redis
+    layer: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        layer: infrastructure
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        securityContext:
+          allowPrivilegeEscalation: false
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: redis
+          containerPort: 6379
+        command:
+          - /bin/sh
+          - -c
+          - |
+            # Start Redis with password from environment variable
+            # Use --requirepass flag to set password directly (avoids sed/awk issues with special chars)
+            if [ -z "${REDIS_PASSWORD}" ]; then
+              echo "ERROR: REDIS_PASSWORD environment variable is not set"
+              exit 1
+            fi
+            # Create minimal config without requirepass (password set via flag)
+            cat > /tmp/redis.conf <<EOF
+            save 60 1000
+            save 300 100
+            save 3600 1
+            appendonly yes
+            appendfsync everysec
+            maxmemory 256mb
+            maxmemory-policy allkeys-lru
+            loglevel notice
+            bind 0.0.0.0
+            protected-mode yes
+            stream-node-max-bytes 4096
+            stream-node-max-entries 100
+            EOF
+            # Start Redis with password flag (takes precedence over config file)
+            exec redis-server /tmp/redis.conf --requirepass "${REDIS_PASSWORD}"
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        volumeMounts:
+        - name: redis-config
+          mountPath: /etc/redis/redis.conf.template
+          subPath: redis.conf
+          readOnly: true
+        - name: redis-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+              - redis-cli
+              - --no-auth-warning
+              - -a
+              - $(REDIS_PASSWORD)
+              - ping
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+              - redis-cli
+              - --no-auth-warning
+              - -a
+              - $(REDIS_PASSWORD)
+              - ping
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: nekazari
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: nekazari
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: nekazari
+data:
+  redis.conf: |
+    # Redis configuration for Nekazari
+    # Enable persistence
+    save 60 1000
+    save 300 100
+    save 3600 1
+    
+    # AOF persistence
+    appendonly yes
+    appendfsync everysec
+    
+    # Memory management
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+    
+    # Require password
+    # Password will be set via --requirepass flag in command
+    # requirepass is commented out to avoid substitution issues
+    
+    # Logging
+    loglevel notice
+    
+    # Network
+    bind 0.0.0.0
+    protected-mode yes
+    
+    # Streams enabled
+    stream-node-max-bytes 4096
+    stream-node-max-entries 100
+
+---
+# NOTE: The redis-secret must be created BEFORE applying this deployment
+# Run: ./scripts/create-redis-secret.sh
+# Or manually: kubectl create secret generic redis-secret --from-literal=password=$(openssl rand -base64 24) -n nekazari
+# This secret definition is NOT included here to avoid hardcoded passwords
+

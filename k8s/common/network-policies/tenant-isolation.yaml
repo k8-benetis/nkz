@@ -1,0 +1,295 @@
+# =============================================================================
+# Network Policies para Aislamiento de Tenants
+# =============================================================================
+# Políticas de red para garantizar que cada tenant solo pueda acceder
+# a sus propios recursos y no a los de otros tenants
+# =============================================================================
+
+---
+# =============================================================================
+# Network Policy: Aislamiento por Tenant
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation
+  namespace: nekazari
+  labels:
+    app: nekazari
+    component: security
+spec:
+  podSelector: {}  # Aplicar a todos los pods
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Solo permitir tráfico entre pods del mismo tenant
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant1"
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant2"
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant3"
+  
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant1"
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant2"
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant3"
+
+---
+# =============================================================================
+# Network Policy: Tenant1 - Solo acceso a sus recursos
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant1-isolation
+  namespace: nekazari
+  labels:
+    app: nekazari
+    component: security
+    tenant-id: "tenant1"
+spec:
+  podSelector:
+    matchLabels:
+      tenant-id: "tenant1"
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Solo permitir tráfico desde/hacia tenant1
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant1"
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system  # Permitir acceso a servicios del sistema
+  
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant1"
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system  # Permitir acceso a servicios del sistema
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-ros2    # Permitir acceso a ROS2
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-vpn     # Permitir acceso a VPN
+
+---
+# =============================================================================
+# Network Policy: Tenant2 - Solo acceso a sus recursos
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant2-isolation
+  namespace: nekazari
+  labels:
+    app: nekazari
+    component: security
+    tenant-id: "tenant2"
+spec:
+  podSelector:
+    matchLabels:
+      tenant-id: "tenant2"
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Solo permitir tráfico desde/hacia tenant2
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant2"
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+  
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant2"
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-ros2
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-vpn
+
+---
+# =============================================================================
+# Network Policy: Tenant3 - Solo acceso a sus recursos
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant3-isolation
+  namespace: nekazari
+  labels:
+    app: nekazari
+    component: security
+    tenant-id: "tenant3"
+spec:
+  podSelector:
+    matchLabels:
+      tenant-id: "tenant3"
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Solo permitir tráfico desde/hacia tenant3
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant3"
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+  
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          tenant-id: "tenant3"
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-ros2
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-vpn
+
+---
+# =============================================================================
+# Network Policy: ROS2 - Solo acceso desde tenants autorizados
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ros2-tenant-access
+  namespace: nekazari-ros2
+  labels:
+    app: nekazari
+    component: security
+spec:
+  podSelector: {}  # Aplicar a todos los pods ROS2
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Solo permitir acceso desde tenants autorizados
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+  
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-vpn
+
+---
+# =============================================================================
+# Network Policy: VPN - Solo acceso desde tenants autorizados
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vpn-tenant-access
+  namespace: nekazari-vpn
+  labels:
+    app: nekazari
+    component: security
+spec:
+  podSelector: {}  # Aplicar a todos los pods VPN
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Solo permitir acceso desde tenants autorizados
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-ros2
+  
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-system
+    - namespaceSelector:
+        matchLabels:
+          name: nekazari-ros2
+
+---
+# =============================================================================
+# Network Policy: Sistema - Acceso completo para administración
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: system-full-access
+  namespace: nekazari-system
+  labels:
+    app: nekazari
+    component: security
+spec:
+  podSelector: {}  # Aplicar a todos los pods del sistema
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Permitir acceso completo desde/hacia todos los namespaces
+  ingress:
+  - from: []  # Permitir desde cualquier namespace
+  
+  egress:
+  - to: []    # Permitir hacia cualquier namespace

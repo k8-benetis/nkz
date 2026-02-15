@@ -1,0 +1,107 @@
+# =============================================================================
+# MODULE_DISPLAY_NAME Backend Deployment
+# =============================================================================
+# Backend API service for MODULE_DISPLAY_NAME module
+# =============================================================================
+
+---
+# Deployment: MODULE_DISPLAY_NAME Backend Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: MODULE_NAME-backend
+  namespace: nekazari
+  labels:
+    app: MODULE_NAME-backend
+    component: backend
+    module: MODULE_NAME
+    nekazari.io/profile: addon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: MODULE_NAME-backend
+  template:
+    metadata:
+      labels:
+        app: MODULE_NAME-backend
+        component: backend
+        module: MODULE_NAME
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: backend
+          image: ghcr.io/YOUR_ORG/MODULE_NAME-backend:v1.0.0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: APP_NAME
+              value: "MODULE_DISPLAY_NAME"
+            - name: DEBUG
+              value: "false"
+            - name: API_PREFIX
+              value: "/api/MODULE_NAME"
+            # Keycloak Configuration
+            - name: KEYCLOAK_URL
+              value: "https://auth.robotika.cloud/auth"
+            - name: KEYCLOAK_REALM
+              value: "nekazari"
+            - name: JWT_AUDIENCE
+              value: "account"
+            # Service-to-service auth (optional)
+            - name: MODULE_MANAGEMENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: module-secrets
+                  key: management-key
+                  optional: true
+          # Database (if needed - uncomment and configure)
+          # - name: DATABASE_URL
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: postgresql-secret
+          #       key: connection-string
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+---
+# Service: MODULE_DISPLAY_NAME Backend API
+apiVersion: v1
+kind: Service
+metadata:
+  name: MODULE_NAME-api-service
+  namespace: nekazari
+  labels:
+    app: MODULE_NAME-backend
+    module: MODULE_NAME
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: MODULE_NAME-backend

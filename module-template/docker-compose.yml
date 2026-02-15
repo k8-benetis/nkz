@@ -1,0 +1,90 @@
+# =============================================================================
+# MODULE_DISPLAY_NAME - Local Development with Docker Compose
+# =============================================================================
+# Use this for local development with all services
+#
+# Usage:
+#   docker-compose up        # Start all services
+#   docker-compose up -d     # Start in background
+#   docker-compose down      # Stop all services
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # Frontend development server
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "5003:80"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=MODULE_DISPLAY_NAME
+      - DEBUG=true
+      - API_PREFIX=/api/MODULE_NAME
+      - KEYCLOAK_URL=https://auth.robotika.cloud/auth
+      - KEYCLOAK_REALM=nekazari
+      - JWT_AUDIENCE=account
+      - CORS_ORIGINS=["http://localhost:5003","http://localhost:5173","http://localhost:8000"]
+    volumes:
+      - ./backend/app:/app/app:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+
+# =============================================================================
+# Optional Services - Uncomment if needed
+# =============================================================================
+
+  # PostgreSQL database (uncomment if needed)
+  # db:
+  #   image: postgres:15-alpine
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_USER=module
+  #     - POSTGRES_PASSWORD=modulepass
+  #     - POSTGRES_DB=module_db
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U module"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # Redis (uncomment if using Celery or caching)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+# volumes:
+#   postgres_data:

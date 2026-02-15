@@ -1,0 +1,257 @@
+# =============================================================================
+# Template de Namespace por Tenant
+# =============================================================================
+# Este template se usa para crear un namespace aislado para cada tenant
+# con ResourceQuotas y LimitRanges configurados
+# =============================================================================
+
+---
+# =============================================================================
+# Namespace del Tenant
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+    tenant-name: "${TENANT_NAME}"
+    plan-type: "${PLAN_TYPE}"
+    managed-by: nekazari-platform
+  annotations:
+    description: "Namespace aislado para tenant ${TENANT_ID}"
+    tenant-id: "${TENANT_ID}"
+    created-at: "${CREATED_AT}"
+    created-by: "${CREATED_BY}"
+    plan-type: "${PLAN_TYPE}"
+
+---
+# =============================================================================
+# ResourceQuota - Límites de Recursos por Plan
+# =============================================================================
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+    plan-type: "${PLAN_TYPE}"
+spec:
+  hard:
+    # Límites de Pods
+    pods: "${MAX_PODS}"
+    
+    # Límites de CPU
+    requests.cpu: "${CPU_REQUESTS}"
+    limits.cpu: "${CPU_LIMITS}"
+    
+    # Límites de Memoria
+    requests.memory: "${MEMORY_REQUESTS}"
+    limits.memory: "${MEMORY_LIMITS}"
+    
+    # Límites de Almacenamiento
+    persistentvolumeclaims: "${MAX_PVC}"
+    requests.storage: "${STORAGE_REQUESTS}"
+    
+    # Límites de Servicios
+    services: "${MAX_SERVICES}"
+    services.loadbalancers: "${MAX_LOADBALANCERS}"
+    services.nodeports: "${MAX_NODEPORTS}"
+    
+    # Límites de ConfigMaps y Secrets
+    configmaps: "${MAX_CONFIGMAPS}"
+    secrets: "${MAX_SECRETS}"
+
+---
+# =============================================================================
+# LimitRange - Límites por Contenedor/Pod
+# =============================================================================
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-limits
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+    plan-type: "${PLAN_TYPE}"
+spec:
+  limits:
+  # Límites para Contenedores
+  - type: Container
+    max:
+      cpu: "${CONTAINER_MAX_CPU}"
+      memory: "${CONTAINER_MAX_MEMORY}"
+    min:
+      cpu: "${CONTAINER_MIN_CPU}"
+      memory: "${CONTAINER_MIN_MEMORY}"
+    default:
+      cpu: "${CONTAINER_DEFAULT_CPU}"
+      memory: "${CONTAINER_DEFAULT_MEMORY}"
+    defaultRequest:
+      cpu: "${CONTAINER_DEFAULT_REQUEST_CPU}"
+      memory: "${CONTAINER_DEFAULT_REQUEST_MEMORY}"
+  
+  # Límites para Pods
+  - type: Pod
+    max:
+      cpu: "${POD_MAX_CPU}"
+      memory: "${POD_MAX_MEMORY}"
+    min:
+      cpu: "${POD_MIN_CPU}"
+      memory: "${POD_MIN_MEMORY}"
+  
+  # Límites para PersistentVolumeClaims
+  - type: PersistentVolumeClaim
+    max:
+      storage: "${PVC_MAX_STORAGE}"
+    min:
+      storage: "${PVC_MIN_STORAGE}"
+
+---
+# =============================================================================
+# NetworkPolicy - Aislamiento de Red por Tenant
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Permitir desde el namespace principal de nekazari
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari
+  
+  # Permitir desde el propio namespace
+  - from:
+    - podSelector: {}
+  
+  egress:
+  # Permitir DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Permitir al namespace principal de nekazari
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: nekazari
+  
+  # Permitir dentro del propio namespace
+  - to:
+    - podSelector: {}
+
+---
+# =============================================================================
+# Role - Permisos dentro del Namespace del Tenant
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-user-role
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+rules:
+# Lectura de recursos básicos
+- apiGroups: [""]
+  resources:
+    - pods
+    - pods/log
+    - services
+    - configmaps
+    - persistentvolumeclaims
+  verbs: ["get", "list", "watch"]
+
+# Lectura de deployments
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - statefulsets
+    - replicasets
+  verbs: ["get", "list", "watch"]
+
+# Ver métricas
+- apiGroups: ["metrics.k8s.io"]
+  resources:
+    - pods
+  verbs: ["get", "list"]
+
+---
+# =============================================================================
+# ServiceAccount - Cuenta de Servicio del Tenant
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-sa
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+
+---
+# =============================================================================
+# RoleBinding - Asignar Role a ServiceAccount
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-user-binding
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+subjects:
+- kind: ServiceAccount
+  name: tenant-sa
+  namespace: nekazari-tenant-${TENANT_ID}
+roleRef:
+  kind: Role
+  name: tenant-user-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# =============================================================================
+# ConfigMap - Información del Tenant
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-info
+  namespace: nekazari-tenant-${TENANT_ID}
+  labels:
+    app: nekazari
+    tenant-id: "${TENANT_ID}"
+data:
+  tenant-id: "${TENANT_ID}"
+  tenant-name: "${TENANT_NAME}"
+  plan-type: "${PLAN_TYPE}"
+  created-at: "${CREATED_AT}"
+  max-users: "${MAX_USERS}"
+  max-robots: "${MAX_ROBOTS}"
+  max-sensors: "${MAX_SENSORS}"
+  mqtt-topic-prefix: "${TENANT_ID}/"

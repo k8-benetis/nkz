@@ -1,0 +1,337 @@
+# =============================================================================
+# n8n Deployment with OAuth2 Proxy - Workflow Automation with Keycloak SSO
+# =============================================================================
+# n8n is used to automate risk notification workflows
+# OAuth2 Proxy provides Keycloak OIDC authentication and injects Basic Auth headers
+# Requires: n8n-pvc.yaml, n8n-secret, n8n-oauth2-proxy-configmap.yaml
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: nekazari
+  labels:
+    app: n8n
+    component: workflow-automation
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Required for PVC with ReadWriteOnce
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+        component: workflow-automation
+    spec:
+      containers:
+      # =========================================================================
+      # OAuth2 Proxy Sidecar - Validates Keycloak tokens and injects Basic Auth
+      # =========================================================================
+      - name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+        imagePullPolicy: IfNotPresent
+        # OAuth2 Proxy configuration via environment variables
+        # OAuth2 Proxy v7+ supports both command-line args and environment variables
+        # We use environment variables for better Kubernetes integration
+        ports:
+        - name: http
+          containerPort: 4180
+        env:
+        # OAuth2 Provider Configuration
+        - name: OAUTH2_PROXY_PROVIDER
+          value: "keycloak-oidc"
+        - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+          value: "https://auth.robotika.cloud/auth/realms/nekazari"
+        # Use internal URL for token requests (faster, no external routing)
+        - name: OAUTH2_PROXY_OIDC_JWKS_URL
+          value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/certs"
+        - name: OAUTH2_PROXY_OIDC_TOKEN_URL
+          value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/token"
+        - name: OAUTH2_PROXY_OIDC_AUTH_URL
+          value: "https://auth.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/auth"
+        - name: OAUTH2_PROXY_SKIP_OIDC_DISCOVERY
+          value: "true"
+        - name: OAUTH2_PROXY_CLIENT_ID
+          value: "n8n-client"
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: n8n-oauth2-secret
+              key: client-secret
+        - name: OAUTH2_PROXY_REDIRECT_URL
+          value: "https://n8n.nekazari.robotika.cloud/oauth2/callback"
+        
+        # Upstream Configuration (n8n container)
+        - name: OAUTH2_PROXY_UPSTREAM
+          value: "http://127.0.0.1:5678"
+        - name: OAUTH2_PROXY_HTTP_ADDRESS
+          value: "0.0.0.0:4180"
+        
+        # Basic Auth Header Injection (KEY FEATURE)
+        # After validating Keycloak token, inject Basic Auth header to n8n
+        # Format: username:password (will be base64 encoded automatically)
+        - name: OAUTH2_PROXY_SET_BASIC_AUTH
+          valueFrom:
+            secretKeyRef:
+              name: n8n-secret
+              key: basic-auth-credentials  # Format: "username:password"
+        
+        # Role-based Access Control
+        # Only allow users with PlatformAdmin, TenantAdmin, TechnicalConsultant, or DeviceManager roles
+        # OAuth2 Proxy v7+ supports multiple --allowed-role flags via command args
+        # We'll use a custom entrypoint script to handle multiple roles
+        - name: OAUTH2_PROXY_SCOPE
+          value: "openid profile email roles"
+        - name: OAUTH2_PROXY_USER_ID_CLAIM
+          value: "email"
+        - name: OAUTH2_PROXY_OIDC_GROUPS_CLAIM
+          value: "roles"
+        # Note: Multiple allowed roles require using --allowed-role flag multiple times
+        # OAuth2 Proxy doesn't support comma-separated roles in env var
+        # We'll handle this via a custom entrypoint or use the first role as primary
+        - name: OAUTH2_PROXY_ALLOWED_ROLE
+          value: "PlatformAdmin"
+        
+        # Cookie Configuration
+        - name: OAUTH2_PROXY_COOKIE_NAME
+          value: "_oauth2_proxy_n8n"
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: n8n-oauth2-secret
+              key: cookie-secret
+        - name: OAUTH2_PROXY_COOKIE_DOMAIN
+          value: ".nekazari.robotika.cloud"
+        - name: OAUTH2_PROXY_COOKIE_SECURE
+          value: "true"
+        - name: OAUTH2_PROXY_COOKIE_HTTPONLY
+          value: "true"
+        - name: OAUTH2_PROXY_COOKIE_SAMESITE
+          value: "lax"
+        - name: OAUTH2_PROXY_COOKIE_REFRESH
+          value: "1h"
+        - name: OAUTH2_PROXY_COOKIE_EXPIRE
+          value: "168h"
+        
+        # Email and User Configuration
+        - name: OAUTH2_PROXY_EMAIL_DOMAINS
+          value: "*"
+        
+        # Skip OAuth for health checks (but still require auth for everything else)
+        - name: OAUTH2_PROXY_SKIP_AUTH_ROUTES
+          value: "/healthz,/metrics"
+        # Whitelist routes that should bypass OAuth (empty means all routes require auth)
+        # OAuth2 Proxy will handle /oauth2/* routes internally
+        - name: OAUTH2_PROXY_WHITELIST_DOMAINS
+          value: ""
+        
+        # Security Headers
+        - name: OAUTH2_PROXY_PASS_HOST_HEADER
+          value: "true"
+        - name: OAUTH2_PROXY_PASS_USER_HEADERS
+          value: "true"
+        - name: OAUTH2_PROXY_SET_XFORWARDED_FOR
+          value: "true"
+        - name: OAUTH2_PROXY_SET_AUTHORIZATION_HEADER
+          value: "true"
+        
+        # Reverse Proxy Configuration
+        - name: OAUTH2_PROXY_REVERSE_PROXY
+          value: "true"
+        - name: OAUTH2_PROXY_TRUSTED_IPS
+          value: "127.0.0.1/32,10.0.0.0/8"
+        
+        # Logging
+        - name: OAUTH2_PROXY_LOGGING_LEVEL
+          value: "info"
+        - name: OAUTH2_PROXY_REQUEST_LOGGING
+          value: "true"
+        
+        # Skip Provider Button (show Keycloak login directly)
+        - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+          value: "false"
+        
+        # OAuth2 Proxy v7+ supports environment variables natively
+        # Multiple --allowed-role flags must be specified via args (env vars don't support multiple values)
+        # When using args, we need to specify the provider and roles there, but can still use env vars for other config
+        args:
+          - --provider=keycloak-oidc
+          - --allowed-role=PlatformAdmin
+          - --allowed-role=TenantAdmin
+          - --allowed-role=TechnicalConsultant
+          - --allowed-role=DeviceManager
+          - --upstream=http://127.0.0.1:5678
+          - --http-address=0.0.0.0:4180
+        
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 4180
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 4180
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+      # =========================================================================
+      # n8n Container - Workflow Automation Engine
+      # =========================================================================
+      - name: n8n
+        image: n8nio/n8n:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 5678
+        env:
+        # Basic Authentication (used internally, OAuth2 Proxy injects these)
+        - name: N8N_BASIC_AUTH_ACTIVE
+          value: "true"
+        - name: N8N_BASIC_AUTH_USER
+          valueFrom:
+            secretKeyRef:
+              name: n8n-secret
+              key: username
+        - name: N8N_BASIC_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-secret
+              key: password
+        
+        # Host Configuration
+        - name: N8N_HOST
+          value: "n8n.nekazari.robotika.cloud"
+        - name: N8N_PROTOCOL
+          value: "https"
+        - name: N8N_PORT
+          value: "5678"
+        - name: WEBHOOK_URL
+          value: "https://n8n.nekazari.robotika.cloud/"
+        - name: GENERIC_TIMEZONE
+          value: "Europe/Madrid"
+        
+        # Database Configuration (PostgreSQL)
+        - name: DB_TYPE
+          value: "postgresdb"
+        - name: DB_POSTGRESDB_HOST
+          value: "postgresql-service"
+        - name: DB_POSTGRESDB_PORT
+          value: "5432"
+        - name: DB_POSTGRESDB_DATABASE
+          value: "nekazari"
+        - name: DB_POSTGRESDB_USER
+          value: "postgres"
+        - name: DB_POSTGRESDB_SSL_MODE
+          value: "disable"
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        
+        # Metrics and Logging
+        - name: N8N_METRICS
+          value: "true"
+        - name: N8N_LOG_LEVEL
+          value: "info"
+        
+        # Execution Data Pruning
+        - name: EXECUTIONS_DATA_PRUNE
+          value: "true"
+        - name: EXECUTIONS_DATA_MAX_AGE
+          value: "168"  # 7 days
+        
+        volumeMounts:
+        - name: n8n-workflows
+          mountPath: /home/node/.n8n
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5678
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 5678
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+      volumes:
+      - name: n8n-workflows
+        persistentVolumeClaim:
+          claimName: n8n-workflows-pvc
+      restartPolicy: Always
+
+---
+# Service for n8n (points to OAuth2 Proxy port)
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-service
+  namespace: nekazari
+  labels:
+    app: n8n
+spec:
+  selector:
+    app: n8n
+  ports:
+  - name: http
+    port: 5678
+    targetPort: 4180  # OAuth2 Proxy port
+    protocol: TCP
+
+---
+# Ingress for n8n (subdomain)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n-ingress
+  namespace: nekazari
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - n8n.nekazari.robotika.cloud
+    secretName: n8n-tls
+  rules:
+  - host: n8n.nekazari.robotika.cloud
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: n8n-service
+            port:
+              number: 5678
+

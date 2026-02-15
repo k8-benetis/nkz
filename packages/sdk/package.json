@@ -1,0 +1,44 @@
+{
+  "name": "@nekazari/sdk",
+  "version": "1.0.3",
+  "private": false,
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react || exit 1"
+  },
+  "dependencies": {
+    "i18next": "^23.11.0",
+    "i18next-http-backend": "^2.4.2",
+    "i18next-browser-languagedetector": "^8.0.0",
+    "react-i18next": "^14.1.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "react": "^18.3.1",
+    "typescript": "^5.2.2"
+  }
+}
