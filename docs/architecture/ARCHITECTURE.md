@@ -71,7 +71,7 @@ All backend services validate JWT tokens independently using Keycloak's public k
 | **API Gateway** | Flask | Central entry point — JWT validation, FIWARE header injection, rate limiting (60 req/min), security headers |
 | **Entity Manager** | Flask | NGSI-LD entity CRUD, digital twin management, asset management, module health |
 | **Tenant User API** | Flask | Multi-tenant user management, role assignment |
-| **Tenant Webhook** | Flask | Tenant lifecycle events, Grafana provisioning, activation codes |
+| **Tenant Webhook** | Flask | Tenant lifecycle events, activation codes |
 | **Email Service** | Flask | SMTP notification delivery |
 | **SDM Integration** | FastAPI | External Smart Data Models integration |
 
@@ -102,12 +102,14 @@ All backend services validate JWT tokens independently using Keycloak's public k
 | **Redis** | Cache, job queues, rate limiting state | in-memory |
 | **MinIO** | Object storage (frontend assets, user uploads) | hostPath PV |
 
-### 5. Monitoring Layer
+### 5. Monitoring Layer (Not yet deployed)
 
-| Service | Purpose |
-|---------|---------|
-| **Prometheus** | Metrics collection and alerting |
-| **Grafana** | Dashboards (with Keycloak SSO) |
+Monitoring infrastructure manifests and configuration are prepared in `k8s/monitoring/` and `config/` but are **not currently deployed** in production. Services expose Prometheus-compatible metrics endpoints for when monitoring is enabled.
+
+| Service | Purpose | Status |
+|---------|---------|--------|
+| **Prometheus** | Metrics collection and alerting | Manifests ready, not deployed |
+| **Grafana** | Dashboards (with Keycloak SSO) | Manifests ready, not deployed |
 
 ## Multi-Tenancy
 

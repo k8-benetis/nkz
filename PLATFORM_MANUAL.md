@@ -54,7 +54,7 @@ The platform runs on Kubernetes and is composed of several functional layers:
 
 ### Tenant & User Management
 - **Tenant User API**: Manages multi-tenancy. It allows creating organizations (tenants) and assigning users to them.
-- **Tenant Webhook**: Automates the setup of new tenants, including creating dedicated database schemas and Grafana organizations.
+- **Tenant Webhook**: Automates the setup of new tenants, including creating dedicated database schemas.
 
 ---
 
@@ -73,9 +73,12 @@ Vegetation indices (NDVI) and satellite imagery are provided by external modules
 
 ## Chapter 6: Monitoring & Observability
 
-### System Monitoring
-- **Prometheus**: Collects metrics from all microservices and Kubernetes nodes.
-- **Grafana**: Provides visualization dashboards. It is integrated with Keycloak for authentication and supports multi-tenancy, allowing each organization to see only their own data.
+### System Monitoring (Planned)
+Monitoring infrastructure is prepared but **not yet deployed** in production. Kubernetes manifests and configuration exist in `k8s/monitoring/` and `config/` for:
+- **Prometheus**: Metrics collection from all microservices and Kubernetes nodes.
+- **Grafana**: Visualization dashboards with Keycloak SSO and multi-tenant organization isolation.
+
+Services already expose Prometheus-compatible metrics endpoints (`/metrics`) for when monitoring is enabled.
 
 ### API Validation
 - **API Validator**: A sidecar service that ensures all requests to the platform APIs are authenticated and authorized against Keycloak.

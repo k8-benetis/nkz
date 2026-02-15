@@ -53,7 +53,7 @@ Built on [FIWARE NGSI-LD](https://www.fiware.org/) standards, Nekazari provides 
 | Auth | Keycloak 26 (OIDC/OAuth2, RS256 JWKs, multi-tenant) |
 | Messaging | MQTT (Mosquitto), Redis queues |
 | Infrastructure | Kubernetes (K3s), Traefik, cert-manager, MinIO |
-| Monitoring | Prometheus, Grafana |
+| Monitoring | Prometheus, Grafana (manifests ready, not yet deployed) |
 | i18n | react-i18next (6 languages) |
 
 ## Repository Structure
@@ -63,7 +63,7 @@ Built on [FIWARE NGSI-LD](https://www.fiware.org/) standards, Nekazari provides 
 | `apps/` | Frontend applications (React, Cesium 3D maps) |
 | `services/` | Backend microservices (Python/Flask, FastAPI) |
 | `k8s/` | Kubernetes manifests and deployment configs |
-| `config/` | Grafana, Prometheus, TimescaleDB configuration |
+| `config/` | TimescaleDB, Prometheus, Grafana configuration |
 | `scripts/` | Deployment, build, and operations automation |
 | `docs/` | Platform documentation |
 | `module-template/` | Template for creating new addon modules |

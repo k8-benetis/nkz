@@ -106,8 +106,8 @@ Los tenants pueden registrar sus propios sensores y dispositivos desde el dashbo
 
 3. VISUALIZACIÓN Y ANÁLISIS
    └─> Dashboard web
-   └─> Grafana dashboards
    └─> Consultas NGSI-LD
+   └─> API de series temporales
 ```
 
 ---
