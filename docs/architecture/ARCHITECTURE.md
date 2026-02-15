@@ -1,220 +1,202 @@
-# Arquitectura Docker Unificada - Nekazari Platform
+# Nekazari Platform Architecture
 
-## 🏗️ **ARQUITECTURA ACTUAL**
+## Overview
 
-Todos los servicios Python ahora utilizan **Docker containers** para mantener consistencia, escalabilidad y facilidad de mantenimiento.
-
-### ✅ **SERVICIOS DOCKERIZADOS:**
-
-- **API Gateway** - Punto de entrada principal (rate limiting, CORS, JWT)
-- **Entity Manager** - Gestión de entidades NGSI-LD
-- **Tenant User API** - Gestión multi-tenant y usuarios
-- **Email Service** - Servicio de correo electrónico
-- **SDM Integration** - Integración con Smart Data Models
-- **Tenant Webhook** - Webhooks para creación dinámica de tenants
-
-### 🎯 **BENEFICIOS:**
-
-- **Consistencia** - Mismo patrón de despliegue para todos los servicios
-- **Escalabilidad** - Fácil escalado horizontal con Kubernetes
-- **Mantenibilidad** - Gestión centralizada de dependencias
-- **Portabilidad** - Funciona en cualquier entorno Kubernetes
-- **Seguridad** - Aislamiento completo entre servicios
-
-### **📊 Diagrama de Arquitectura**
+Nekazari runs as a set of microservices on a **Kubernetes (K3s)** cluster, following a layered architecture with clear separation of concerns.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Reverse Proxy Layer                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │  Traefik    │  │  Frontend   │  │   SSL/TLS   │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-└─────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────┐
-│                    Authentication Layer                     │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │  Keycloak   │  │   Admin     │  │   Auth      │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-└─────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────┐
-│                      APIs Layer                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │API Validator│  │Farmer Auth  │  │Activation   │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │API Gateway  │  │Entity Mgr   │  │  Orion-LD   │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-│  ┌─────────────┐                                            │
-│  │  Mosquitto  │                                            │
-│  └─────────────┘                                            │
-└─────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────┐
-│                    Database Layer                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │PostgreSQL   │  │ TimescaleDB │  │  MongoDB    │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-└─────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────┐
-│                   Monitoring Layer                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │ Prometheus  │  │   Grafana   │  │Node Exporter│        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-│  ┌─────────────┐                                            │
-│  │   cAdvisor  │                                            │
-│  └─────────────┘                                            │
-└─────────────────────────────────────────────────────────────┘
+                        Internet
+                           │
+                    ┌──────▼──────┐
+                    │   Traefik   │  Ingress controller
+                    │  (TLS/ACME) │  cert-manager + Let's Encrypt
+                    └──┬───┬───┬──┘
+                       │   │   │
+         ┌─────────────┘   │   └─────────────┐
+         │                 │                 │
+  ┌──────▼──────┐  ┌──────▼──────┐  ┌───────▼──────┐
+  │  Frontend   │  │ API Gateway │  │   Keycloak   │
+  │  (React/TS) │  │   (Flask)   │  │  (OIDC/JWT)  │
+  │  :80        │  │  :5000      │  │  :8080       │
+  └─────────────┘  └──────┬──────┘  └──────────────┘
+                          │
+        ┌─────────┬───────┼────────┬──────────┐
+        │         │       │        │          │
+  ┌─────▼───┐ ┌───▼───┐ ┌▼──────┐ ┌▼────────┐ ┌▼──────────┐
+  │ Entity  │ │Weather│ │Telem. │ │ Risk    │ │ Tenant    │
+  │ Manager │ │Worker │ │Worker │ │ Engine  │ │ Webhook   │
+  └────┬────┘ └───┬───┘ └──┬───┘ └───┬─────┘ └─────┬─────┘
+       │          │        │         │              │
+  ┌────▼──────────▼────────▼─────────▼──────────────▼───┐
+  │                    Data Layer                         │
+  │  ┌──────────┐  ┌──────────┐  ┌───────┐  ┌───────┐  │
+  │  │TimescaleDB│  │ MongoDB  │  │ Redis │  │ MinIO │  │
+  │  │(Postgres) │  │ (Orion)  │  │(Cache)│  │(Files)│  │
+  │  └──────────┘  └──────────┘  └───────┘  └───────┘  │
+  └─────────────────────────────────────────────────────┘
 ```
 
-## 🔧 **Capas de la Arquitectura**
+## Architecture Layers
 
-### **1. 🗄️ Database Layer**
-- **PostgreSQL + TimescaleDB**: Base de datos principal
-- **MongoDB**: Base de datos para Orion-LD
-- **Red**: `nekazari-database`
-- **Puertos**: 5432 (PostgreSQL), 27017 (MongoDB)
+### 1. Ingress Layer
 
-### **2. 🔐 Authentication Layer**
-- **Keycloak**: Gestión de identidades y acceso
-- **Red**: `nekazari-auth`
-- **Puertos**: 8080 (Keycloak)
+**Traefik** serves as the Kubernetes ingress controller, handling:
+- TLS termination with automatic Let's Encrypt certificates via cert-manager
+- Host-based routing to services
+- CORS middleware
+- Load balancing
 
-### **3. 🔌 APIs Layer**
-- **API Validator**: Validación de claves API
-- **Farmer Auth API**: Autenticación de agricultores
-- **Activation Codes API**: Gestión de códigos de activación
-- **API Gateway**: Gateway de APIs
-- **Entity Manager**: Gestión de entidades
-- **Orion-LD**: Context broker FIWARE
-- **Mosquitto**: Broker MQTT
-- **Red**: `nekazari-apis`
-- **Puertos**: 5010, 5001, 5003, 8000, 5002, 1026, 1883
+| Domain | Routes to |
+|--------|-----------|
+| `nekazari.robotika.cloud` | Frontend (React app) |
+| `nkz.robotika.cloud` | API Gateway + backend services |
+| `auth.robotika.cloud` | Keycloak authentication |
 
-### **4. 🌐 Reverse Proxy Layer**
-- **Traefik**: Ingress controller, SSL/TLS (Let's Encrypt)
-- **Frontend**: Aplicación web React
-- **SSL/TLS**: Certificados Let's Encrypt
-- **Red**: `nekazari-reverse-proxy`
-- **Puertos**: 80 (HTTP), 443 (HTTPS), 3001 (Frontend)
+### 2. Authentication Layer
 
-### **5. 📊 Monitoring Layer**
-- **Prometheus**: Métricas y alertas
-- **Grafana**: Dashboards y visualización
-- **Node Exporter**: Métricas del sistema
-- **cAdvisor**: Métricas de contenedores
-- **Red**: `nekazari-monitoring`
-- **Puertos**: 9090 (Prometheus), 3000 (Grafana), 9100 (Node Exporter), 8081 (cAdvisor)
+**Keycloak 26** provides multi-tenant identity management:
+- OIDC/OAuth2 with RS256 asymmetric JWT signing
+- Multi-tenant isolation via `tenant_id` user attribute
+- Realm: `nekazari`
+- JWKS endpoint for token verification by all services
 
-## 🚀 **Scripts de Gestión**
+All backend services validate JWT tokens independently using Keycloak's public keys. No shared symmetric secrets.
 
-### **Deploy por Capas**
+### 3. API Layer
+
+#### Core Services
+
+| Service | Framework | Purpose |
+|---------|-----------|---------|
+| **API Gateway** | Flask | Central entry point — JWT validation, FIWARE header injection, rate limiting (60 req/min), security headers |
+| **Entity Manager** | Flask | NGSI-LD entity CRUD, digital twin management, asset management, module health |
+| **Tenant User API** | Flask | Multi-tenant user management, role assignment |
+| **Tenant Webhook** | Flask | Tenant lifecycle events, Grafana provisioning, activation codes |
+| **Email Service** | Flask | SMTP notification delivery |
+| **SDM Integration** | FastAPI | External Smart Data Models integration |
+
+#### Worker Services
+
+| Service | Framework | Purpose |
+|---------|-----------|---------|
+| **Weather Worker** | FastAPI | Meteorological data ingestion (OpenMeteo, AEMET) |
+| **Telemetry Worker** | FastAPI | IoT sensor data processing, MQTT integration |
+| **Timeseries Reader** | Flask | Historical data retrieval from TimescaleDB |
+| **Risk API** | Flask | Risk query and management |
+| **Risk Orchestrator** | Python | Risk event coordination and scheduling |
+
+#### FIWARE Components
+
+| Service | Purpose |
+|---------|---------|
+| **Orion-LD** | NGSI-LD Context Broker — entity storage and subscription management |
+| **IoT Agent JSON** | Protocol translation for IoT devices |
+| **Mosquitto** | MQTT broker for device communication |
+
+### 4. Data Layer
+
+| Service | Purpose | Storage |
+|---------|---------|---------|
+| **PostgreSQL/TimescaleDB** | Primary structured data, time-series hypertables, tenant RLS | hostPath PV |
+| **MongoDB** | Orion-LD entity registry | hostPath PV |
+| **Redis** | Cache, job queues, rate limiting state | in-memory |
+| **MinIO** | Object storage (frontend assets, user uploads) | hostPath PV |
+
+### 5. Monitoring Layer
+
+| Service | Purpose |
+|---------|---------|
+| **Prometheus** | Metrics collection and alerting |
+| **Grafana** | Dashboards (with Keycloak SSO) |
+
+## Multi-Tenancy
+
+Tenant isolation is enforced at multiple levels:
+
+1. **JWT claims** — `tenant_id` attribute in Keycloak tokens
+2. **API Gateway** — Injects `Fiware-Service` header from JWT
+3. **PostgreSQL** — Row-Level Security (RLS) policies per tenant
+4. **Orion-LD** — `Fiware-Service` header for entity partitioning
+
+```
+Request → API Gateway → Validate JWT → Extract tenant_id
+                      → Inject Fiware-Service header
+                      → Forward to backend service
+```
+
+## Module System
+
+Modules extend the platform through a slot-based frontend architecture:
+
+```
+┌─────────────────────────────────────────────┐
+│                Host Application              │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│  │entity-   │ │map-layer │ │context-  │    │
+│  │tree slot │ │  slot    │ │panel slot│    │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘    │
+│       │             │            │           │
+│  ┌────▼─────────────▼────────────▼─────┐    │
+│  │         Module Registry              │    │
+│  └────┬─────────────┬──────────────┬───┘    │
+│       │             │              │         │
+│  ┌────▼───┐  ┌──────▼────┐  ┌─────▼────┐   │
+│  │ LiDAR  │  │Vegetation │  │  Odoo    │   │
+│  │ Module  │  │  Module   │  │  Module  │   │
+│  └────────┘  └───────────┘  └──────────┘   │
+└─────────────────────────────────────────────┘
+```
+
+Available frontend slots: `entity-tree`, `map-layer`, `context-panel`, `bottom-panel`, `layer-toggle`
+
+Each module is an independent repository with its own:
+- Backend service(s) deployed as K8s Deployments
+- Frontend components loaded via dynamic imports
+- Database schema with tenant-scoped migrations
+- Ingress rules for API routing
+
+## Deployment
+
+### GitOps Workflow
+
 ```bash
-# Deploy completo
-sudo ./scripts/layered-deploy.sh all
+# 1. Develop locally
+git checkout -b feature/my-change
 
-# Deploy específico
-sudo ./scripts/layered-deploy.sh layer database
-sudo ./scripts/layered-deploy.sh layer reverse-proxy
+# 2. Push and create PR
+git push && gh pr create
 
-# Estado
-sudo ./scripts/layered-deploy.sh status
+# 3. CI builds and publishes container images to GHCR
 
-# Rollback
-sudo ./scripts/layered-deploy.sh rollback
+# 4. On server: pull and apply
+cd ~/nkz && git pull
+sudo kubectl apply -f k8s/...
 ```
 
-### **Monitoreo de Salud**
+### Container Images
+
+All core service images are published to `ghcr.io/k8-benetis/nkz/<service>:latest`.
+
+Build locally with:
 ```bash
-# Verificar capas
-sudo ./scripts/health-monitor.sh layers
-
-# Verificar endpoints
-sudo ./scripts/health-monitor.sh endpoints
-
-# Monitoreo continuo
-sudo ./scripts/health-monitor.sh monitor 60
-
-# Estado detallado
-sudo ./scripts/health-monitor.sh status
+./scripts/build-images.sh
 ```
 
-### **Configuración de Redes**
+### Namespace
+
+All resources run in the `nekazari` Kubernetes namespace:
 ```bash
-# Crear redes
-sudo ./scripts/configure-networks.sh create
-
-# Listar redes
-sudo ./scripts/configure-networks.sh list
-
-# Inspeccionar red
-sudo ./scripts/configure-networks.sh inspect nekazari-database
+sudo kubectl get pods -n nekazari
 ```
 
-## 🛡️ **Ventajas de la Nueva Arquitectura**
+## Security Model
 
-### **✅ Alta Disponibilidad**
-- **Capas independientes**: Fallo en una capa no afecta otras
-- **Health checks**: Monitoreo automático de salud
-- **Rollback automático**: Recuperación rápida ante fallos
-
-### **✅ Escalabilidad**
-- **Deploy granular**: Actualizar solo lo necesario
-- **Redes aisladas**: Comunicación controlada entre capas
-- **Recursos optimizados**: Cada capa usa solo lo necesario
-
-### **✅ Mantenibilidad**
-- **Configuración modular**: Cada capa en su directorio
-- **Scripts automatizados**: Deploy, monitoreo y rollback
-- **Documentación clara**: Estructura y funcionamiento documentados
-
-### **✅ Seguridad**
-- **Redes aisladas**: Comunicación controlada
-- **SSL/TLS**: Comunicación encriptada
-- **Health checks**: Detección temprana de problemas
-
-## 🔄 **Flujo de Deploy**
-
-1. **🗄️ Database Layer**: Base de datos y migraciones
-2. **🔐 Authentication Layer**: Keycloak y configuración
-3. **🔌 APIs Layer**: Microservicios y APIs
-4. **🌐 Reverse Proxy Layer**: Nginx y frontend
-5. **📊 Monitoring Layer**: Métricas y dashboards
-
-## 🚨 **Procedimientos de Emergencia**
-
-### **Rollback Rápido**
-```bash
-sudo ./scripts/layered-deploy.sh rollback
-```
-
-### **Deploy de Emergencia**
-```bash
-sudo ./scripts/layered-deploy.sh layer database
-sudo ./scripts/layered-deploy.sh layer reverse-proxy
-```
-
-### **Monitoreo de Emergencia**
-```bash
-sudo ./scripts/health-monitor.sh monitor 10
-```
-
-## 📋 **Checklist de Deploy**
-
-- [ ] Backup de base de datos
-- [ ] Verificar variables de entorno
-- [ ] Crear redes Docker
-- [ ] Deploy por capas
-- [ ] Verificar salud de servicios
-- [ ] Probar endpoints externos
-- [ ] Documentar cambios
-
-## 🎯 **Próximos Pasos**
-
-1. **Implementar CI/CD**: Pipeline automatizado
-2. **Blue-Green Deploy**: Deploy sin downtime
-3. **Auto-scaling**: Escalado automático
-4. **Backup automático**: Respaldos programados
-5. **Alertas**: Notificaciones automáticas
+| Layer | Mechanism |
+|-------|-----------|
+| Network | UFW firewall (ports 22, 80, 443 only) |
+| Transport | TLS everywhere (Let's Encrypt, auto-renewal) |
+| Authentication | Keycloak OIDC, RS256 JWT, JWKS verification |
+| Authorization | RBAC via Keycloak roles + PostgreSQL RLS |
+| API | Rate limiting (60 req/min per tenant), security headers (CSP, HSTS, X-Frame-Options) |
+| CORS | Explicit origin whitelist |
+| Secrets | Kubernetes Secrets, no hardcoded credentials |
