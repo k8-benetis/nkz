@@ -53,8 +53,8 @@ git add -A && git commit -m "feat: description" && git push
 # On server (SSH)
 ssh user@your-server-ip "
   cd nekazari-public && git pull
-  docker build -t ghcr.io/k8-benetis/nekazari-public/SERVICE:latest -f services/SERVICE/Dockerfile services/SERVICE/
-  docker save ghcr.io/k8-benetis/nekazari-public/SERVICE:latest | sudo k3s ctr images import -
+  docker build -t ghcr.io/k8-benetis/nkz/SERVICE:latest -f services/SERVICE/Dockerfile services/SERVICE/
+  docker save ghcr.io/k8-benetis/nkz/SERVICE:latest | sudo k3s ctr images import -
   sudo kubectl rollout restart deployment/SERVICE -n nekazari
 "
 ```

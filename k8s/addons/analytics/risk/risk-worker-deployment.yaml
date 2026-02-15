@@ -35,7 +35,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: risk-worker
-            image: ghcr.io/k8-benetis/nekazari-public/risk-worker:latest
+            image: ghcr.io/k8-benetis/nkz/risk-worker:latest
             imagePullPolicy: IfNotPresent
             env:
             # PostgreSQL Configuration

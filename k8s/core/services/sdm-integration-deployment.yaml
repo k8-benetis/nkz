@@ -32,7 +32,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: sdm-integration
-          image: ghcr.io/k8-benetis/nekazari-public/sdm-integration:latest
+          image: ghcr.io/k8-benetis/nkz/sdm-integration:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

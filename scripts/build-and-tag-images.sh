@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-REGISTRY="ghcr.io/k8-benetis/nekazari-public"
+REGISTRY="ghcr.io/k8-benetis/nkz"
 
 # Generate unique tag: v<commit-sha>-<timestamp>
 COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")

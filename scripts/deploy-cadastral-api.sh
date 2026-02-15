@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 # Configuration
 NAMESPACE="nekazari"
 SERVICE="cadastral-api"
-IMAGE="ghcr.io/k8-benetis/nekazari-public/cadastral-api:latest"
+IMAGE="ghcr.io/k8-benetis/nkz/cadastral-api:latest"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Deploying ${SERVICE}${NC}"

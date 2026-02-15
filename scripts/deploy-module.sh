@@ -7,7 +7,7 @@ set -e
 NAMESPACE="nekazari"
 SERVER_IP="${NKZ_SERVER_IP:?NKZ_SERVER_IP env var is required}"
 # Registry for GHCR (override with NKZ_REGISTRY env var)
-REGISTRY_BASE="${NKZ_REGISTRY:-ghcr.io/k8-benetis/nekazari-public/}"
+REGISTRY_BASE="${NKZ_REGISTRY:-ghcr.io/k8-benetis/nkz/}"
 # Remove trailing slash if present
 REGISTRY_BASE=${REGISTRY_BASE%/}
 

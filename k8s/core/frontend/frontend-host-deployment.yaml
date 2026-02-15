@@ -5,8 +5,8 @@
 # Usa runtime config para inyectar variables de entorno sin rebuild.
 #
 # Uso:
-#   1. Build image: docker build -f apps/host/Dockerfile -t ghcr.io/k8-benetis/nekazari-public/host:latest .
-#   2. Push: docker push ghcr.io/k8-benetis/nekazari-public/host:latest
+#   1. Build image: docker build -f apps/host/Dockerfile -t ghcr.io/k8-benetis/nkz/host:latest .
+#   2. Push: docker push ghcr.io/k8-benetis/nkz/host:latest
 #   3. Deploy: kubectl apply -f k8s/k3s-optimized/frontend-host-deployment.yaml
 #   4. Verificar: kubectl get pods -n nekazari -l app=frontend-host
 # =============================================================================
@@ -72,7 +72,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: frontend
-          image: ghcr.io/k8-benetis/nekazari-public/host:latest
+          image: ghcr.io/k8-benetis/nkz/host:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

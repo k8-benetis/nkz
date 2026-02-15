@@ -3,7 +3,7 @@
 ## Estado del Despliegue
 
 ✅ **Imagen desplegada correctamente:**
-- Imagen: `ghcr.io/k8-benetis/nekazari-public/host:vd34603a-20251222-073808`
+- Imagen: `ghcr.io/k8-benetis/nkz/host:vd34603a-20251222-073808`
 - Commit: `d34603a` - "feat: Mejoras completas en sistema de zonificación de parcelas"
 - Pod: `frontend-host-59bbfcddd9-gtlvx` (Running)
 
@@ -88,7 +88,7 @@ Deberías ver un pod con edad reciente (menos de 10 minutos).
 ssh user@your-server-ip "sudo kubectl get deployment frontend-host -n nekazari -o jsonpath='{.spec.template.spec.containers[0].image}'"
 ```
 
-Debería mostrar: `ghcr.io/k8-benetis/nekazari-public/host:vd34603a-20251222-073808`
+Debería mostrar: `ghcr.io/k8-benetis/nkz/host:vd34603a-20251222-073808`
 
 ### Forzar Recarga del Pod
 
