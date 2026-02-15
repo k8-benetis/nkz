@@ -1,6 +1,6 @@
 # Nekazari Platform Documentation
 
-Welcome to the Nekazari Platform documentation. This directory contains all public documentation for users, developers, and administrators.
+Welcome to the [Nekazari Platform](https://github.com/k8-benetis/nkz) documentation. This directory contains all public documentation for users, developers, and administrators.
 
 ## Quick Start
 

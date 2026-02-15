@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/k8-benetis/nekazari-public
+    repoURL: https://github.com/k8-benetis/nkz
     targetRevision: HEAD
     path: gitops/core
   destination:
