@@ -41,7 +41,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: api-gateway
-          image: ghcr.io/k8-benetis/nekazari-public/api-gateway:latest
+          image: ghcr.io/k8-benetis/nkz/api-gateway:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -170,7 +170,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: entity-manager
-          image: ghcr.io/k8-benetis/nekazari-public/entity-manager:latest
+          image: ghcr.io/k8-benetis/nkz/entity-manager:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

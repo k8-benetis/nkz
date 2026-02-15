@@ -33,7 +33,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: risk-api
-        image: ghcr.io/k8-benetis/nekazari-public/risk-api:latest
+        image: ghcr.io/k8-benetis/nkz/risk-api:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false

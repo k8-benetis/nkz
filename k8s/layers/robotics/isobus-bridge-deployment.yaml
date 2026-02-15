@@ -32,7 +32,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: isobus-bridge
-        image: ghcr.io/k8-benetis/nekazari-public/isobus-bridge:latest
+        image: ghcr.io/k8-benetis/nkz/isobus-bridge:latest
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

@@ -36,7 +36,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: risk-orchestrator
-        image: ghcr.io/k8-benetis/nekazari-public/risk-orchestrator:latest
+        image: ghcr.io/k8-benetis/nkz/risk-orchestrator:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false

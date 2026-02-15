@@ -72,7 +72,7 @@ We follow a **GitOps** approach with ArgoCD. We prioritize:
 1.  **Build & Push to Registry (Production):**
     - Images are automatically built via GitHub Actions on push
     - Check `.github/workflows/docker-build.yml` for build configuration
-    - Images are tagged as `ghcr.io/k8-benetis/nekazari-public/<service-name>:latest`
+    - Images are tagged as `ghcr.io/k8-benetis/nkz/<service-name>:latest`
     - **For fresh deployments:** Images are automatically pulled from registry (no manual build needed)
 
 2.  **Local Development (Not Recommended for Production):**
@@ -172,13 +172,13 @@ pnpm build    # Build the host application
 **For Kubernetes Deployment:**
 1. Build and push the image to your registry:
    ```bash
-   docker build -f apps/host/Dockerfile -t ghcr.io/k8-benetis/nekazari-public/host:latest .
-   docker push ghcr.io/k8-benetis/nekazari-public/host:latest
+   docker build -f apps/host/Dockerfile -t ghcr.io/k8-benetis/nkz/host:latest .
+   docker push ghcr.io/k8-benetis/nkz/host:latest
    ```
 
 2. Update the deployment YAML to use the new image:
    ```yaml
-   image: ghcr.io/k8-benetis/nekazari-public/host:latest
+   image: ghcr.io/k8-benetis/nkz/host:latest
    imagePullPolicy: Always
    ```
 
@@ -932,7 +932,7 @@ This script checks:
 **Symptom:** Pods stuck waiting for image or showing `ErrImagePull`/`ImagePullBackOff`.
 
 **Causes & Fixes:**
-1.  **Images in GitHub Container Registry:** All images are now in `ghcr.io/k8-benetis/nekazari-public/`
+1.  **Images in GitHub Container Registry:** All images are now in `ghcr.io/k8-benetis/nkz/`
     *   *Verify:* Check deployment has `imagePullSecrets: [name: ghcr-secret]`
     *   *Verify:* Check `imagePullPolicy: Always` is set
     *   *Fix:* Ensure `ghcr-secret` exists: `kubectl get secret ghcr-secret -n nekazari`

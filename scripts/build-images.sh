@@ -40,7 +40,7 @@ SERVICES=(
     "apps/host/Dockerfile:host:latest"
 )
 
-GHCR_PREFIX="ghcr.io/k8-benetis/nekazari-public"
+GHCR_PREFIX="ghcr.io/k8-benetis/nkz"
 
 build_and_import() {
     local dockerfile_path=$1

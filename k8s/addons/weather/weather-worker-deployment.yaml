@@ -44,7 +44,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: weather-worker
-        image: ghcr.io/k8-benetis/nekazari-public/weather-worker:latest
+        image: ghcr.io/k8-benetis/nkz/weather-worker:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false

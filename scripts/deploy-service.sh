@@ -24,7 +24,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 NAMESPACE="nekazari"
-DOCKER_IMAGE_PREFIX="ghcr.io/k8-benetis/nekazari-public"
+DOCKER_IMAGE_PREFIX="ghcr.io/k8-benetis/nkz"
 
 # Parse arguments
 SERVICE=$1
