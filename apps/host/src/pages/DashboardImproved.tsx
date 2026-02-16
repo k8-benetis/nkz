@@ -7,8 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Layout } from '@/components/Layout';
-import { CesiumMap } from '@/components/CesiumMap';
-import { useViewer } from '@/context/ViewerContext';
+// CesiumMap removed from Dashboard to avoid WebGL context conflicts with UnifiedViewer
 import { GrafanaAccess } from '@/components/GrafanaAccess';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { WeatherAgroPanel } from '@/components/WeatherAgroPanel';
@@ -45,7 +44,7 @@ export const DashboardImproved: React.FC = () => {
   const navigate = useNavigate();
   const { hasAnyRole } = useAuth();
   const { t } = useI18n();
-  const { mapMode, pickingCallback, cancelPicking } = useViewer();
+  // useViewer() removed — no longer needed without CesiumMap
 
   // Check permissions
   const canManageDevices = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
@@ -239,41 +238,14 @@ export const DashboardImproved: React.FC = () => {
               </button>
             )}
           </div>
-          <div className="p-0">
-            <CesiumMap
-              title={t('dashboard.overview')}
-              height="h-[500px]"
-              showControls={false}
-              robots={robots}
-              sensors={sensors}
-              parcels={parcels}
-              machines={machines}
-              livestock={livestock}
-              weatherStations={weatherStations}
-              enable3DTerrain={true}
-              terrainProvider="auto"
-              enable3DTiles={true}
-              tilesetUrl="https://idena.navarra.es/3dtiles/Pamplona2025/tileset.json"
-              mode={mapMode === 'PICK_LOCATION' ? 'picker' : 'view'}
-              onMapClick={(lat, lon) => {
-                if (mapMode === 'PICK_LOCATION' && pickingCallback) {
-                  pickingCallback(lat, lon);
-                  cancelPicking();
-                }
-              }}
-            />
-            {mapMode === 'PICK_LOCATION' && (
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-lg z-50 animate-pulse font-medium flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Haga clic en el mapa para seleccionar ubicación
-                <button
-                  onClick={cancelPicking}
-                  className="ml-2 bg-white/20 hover:bg-white/30 rounded-full p-1"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+          <div className="p-6 flex items-center justify-center h-[200px] text-gray-500 dark:text-gray-400">
+            <button
+              onClick={() => navigate('/entities')}
+              className="flex items-center gap-3 px-6 py-3 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 rounded-xl transition text-green-700 dark:text-green-400 font-medium"
+            >
+              <MapPin className="w-5 h-5" />
+              {t('dashboard.overview')} →
+            </button>
           </div>
         </div>
       </div>
