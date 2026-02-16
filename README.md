@@ -4,6 +4,10 @@
 
 Built on [FIWARE NGSI-LD](https://www.fiware.org/) standards, Nekazari provides a complete operating system for IoT-driven operations with digital twins, real-time telemetry, geospatial analysis, and a curated module marketplace.
 
+<p align="center">
+  <img src="images/NKZ_landing_Page_1.png" alt="Nekazari landing" width="800" />
+</p>
+
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
 ## Key Features
@@ -17,6 +21,46 @@ Built on [FIWARE NGSI-LD](https://www.fiware.org/) standards, Nekazari provides 
 - **Risk management** — Automated agronomic and energy risk evaluation
 - **Weather integration** — OpenMeteo and AEMET data ingestion
 - **Multi-language** — 6 languages (ES, EN, CA, EU, FR, PT)
+
+## Platform Overview
+
+Screenshots below show the main areas of the platform. All images are from the current UI.
+
+| Area | Description |
+|------|--------------|
+| **Landing** | Entry point, authentication, and platform positioning (architecture overview). |
+| **Command Center** | Unified viewer with 3D map (CesiumJS), entity tree, and layer management. |
+| **Modules** | Marketplace and per-tenant module management. |
+| **Admin** | System administration, tenants, users, and configuration. |
+
+<p align="center">
+  <strong>Landing</strong><br />
+  <img src="images/nkz_landing_page_2.png" alt="Landing" width="700" />
+</p>
+
+<p align="center">
+  <strong>Landing — platform architecture &amp; positioning</strong><br />
+  <img src="images/nkz_landing_page_3.png" alt="Landing — architecture overview" width="700" />
+</p>
+
+<p align="center">
+  <strong>Command Center — Entities &amp; map</strong><br />
+  <img src="images/nkz_entities_4.png" alt="Command Center" width="700" />
+</p>
+
+<p align="center">
+  <img src="images/nkz_entities_5.png" alt="Map and layers" width="700" />
+</p>
+
+<p align="center">
+  <strong>Modules</strong><br />
+  <img src="images/nkz_modules_6.png" alt="Module management" width="700" />
+</p>
+
+<p align="center">
+  <strong>Admin panel</strong><br />
+  <img src="images/nkz_admin_panel_7.png" alt="Admin panel" width="700" />
+</p>
 
 ## Architecture
 
