@@ -229,7 +229,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           infoBox: false,
           selectionIndicator: false,
           imageryProvider: false, // No default ION imagery — we add OSM manually below
-          terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Start with ellipsoid, will be updated
+          terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+          orderIndependentTranslucency: false,
+          shadows: false,
+          contextOptions: {
+            requestWebgl1: true, // Allow fallback to WebGL1 if WebGL2 fails
+            webgl: {
+              alpha: false,
+              depth: true,
+              stencil: false,
+              powerPreference: 'default',
+            },
+          },
         });
 
         // Hide Cesium ION credits completely
