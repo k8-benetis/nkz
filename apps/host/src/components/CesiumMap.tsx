@@ -211,6 +211,19 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         return;
       }
 
+      // Diagnostic: test WebGL availability before Cesium tries
+      const testCanvas = document.createElement('canvas');
+      const gl2 = testCanvas.getContext('webgl2');
+      const gl1 = testCanvas.getContext('webgl');
+      console.log('[CesiumMap] WebGL diagnostic:', {
+        webgl2: !!gl2,
+        webgl1: !!gl1,
+        containerSize: `${containerRef.current.clientWidth}x${containerRef.current.clientHeight}`,
+      });
+      // Release test contexts immediately
+      if (gl2) { const ext = gl2.getExtension('WEBGL_lose_context'); ext?.loseContext(); }
+      if (gl1) { const ext = gl1.getExtension('WEBGL_lose_context'); ext?.loseContext(); }
+
       console.log('[CesiumMap] Creating Cesium viewer');
 
       // Initialize Cesium Viewer with error handling
@@ -233,12 +246,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           orderIndependentTranslucency: false,
           shadows: false,
           contextOptions: {
-            requestWebgl1: true, // Allow fallback to WebGL1 if WebGL2 fails
+            requestWebgl1: true,
             webgl: {
-              alpha: false,
-              depth: true,
-              stencil: false,
-              powerPreference: 'default',
+              failIfMajorPerformanceCaveat: false,
             },
           },
         });
