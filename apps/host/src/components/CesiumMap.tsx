@@ -229,6 +229,16 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           infoBox: false,
           selectionIndicator: false,
           terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Start with ellipsoid, will be updated
+          // Phase 1 Fix: Compatibility Mode for WebGL initialization
+          contextOptions: {
+            requestWebgl1: true, // Allow fallback to WebGL 1
+            webgl: {
+              alpha: false,
+              antialias: false,
+              depth: true,
+              stencil: false,
+            },
+          },
         });
 
         // Hide Cesium ION credits completely
