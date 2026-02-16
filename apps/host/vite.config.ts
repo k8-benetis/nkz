@@ -96,7 +96,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     target: 'esnext',
-    minify: 'esbuild', // Re-enabled: esbuild minifier handles Cesium correctly (terser caused "T is not a function")
+    minify: false, // Disabled: esbuild minification causes "RuntimeError: The browser supports WebGL, but initialization failed" in Cesium
     cssCodeSplit: false,
     rollupOptions: {
       output: {
