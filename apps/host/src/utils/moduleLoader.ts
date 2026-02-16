@@ -55,6 +55,7 @@ export function loadModuleScript(bundleUrl: string, moduleId: string): Promise<v
         const script = document.createElement('script');
         script.src = fullUrl;
         script.async = true;
+        script.type = 'module'; // CRITICAL: Required for Vite-built ESM bundles using import.meta
         script.setAttribute('data-nkz-module', moduleId);
 
         script.onload = () => {
