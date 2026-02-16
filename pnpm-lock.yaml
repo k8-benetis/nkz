@@ -257,6 +257,15 @@ importers:
         specifier: ^5.3.1
         version: 5.4.21(@types/node@25.0.2)
 
+  packages/module-builder:
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.0
+        version: 5.4.21(@types/node@25.0.2)
+
   packages/sdk:
     dependencies:
       i18next:
