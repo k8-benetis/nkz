@@ -11,7 +11,11 @@ import cesium from 'vite-plugin-cesium'
 export default defineConfig({
   plugins: [
     react(),
-    cesium(),
+    cesium({
+      // Explicitly set the base URL for Cesium assets in production
+      // This matches the Nginx location /cesium/ -> minio/nekazari-frontend/host/cesium/
+      rebuildCesium: true,
+    }),
     // Plugin para preservar scripts inline en index.html
     // IMPORTANTE: Este plugin debe ejecutarse ANTES de que Vite procese el HTML
     // para que Vite pueda inyectar el script del bundle correctamente
@@ -117,5 +121,8 @@ export default defineConfig({
   define: {
     // Make environment variables available at build time
     __APP_ENV__: JSON.stringify(process.env.NODE_ENV),
+    // CRITICAL FIX: Explicitly set Cesium base URL
+    // Nginx proxies /cesium/ to MinIO
+    CESIUM_BASE_URL: JSON.stringify('/cesium/'),
   },
 })
