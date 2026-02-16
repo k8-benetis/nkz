@@ -154,6 +154,80 @@ const getEntityGeometryType = (entity: any): string | undefined => {
   return undefined;
 };
 
+// Detect WebGL support once at module level (avoids re-checking on every render)
+const detectWebGL = (): { supported: boolean; version: number } => {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl2 = canvas.getContext('webgl2');
+    if (gl2) {
+      const ext = gl2.getExtension('WEBGL_lose_context');
+      ext?.loseContext();
+      return { supported: true, version: 2 };
+    }
+    const gl1 = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (gl1) {
+      const ext = (gl1 as WebGLRenderingContext).getExtension('WEBGL_lose_context');
+      ext?.loseContext();
+      return { supported: true, version: 1 };
+    }
+  } catch (_) { /* ignore */ }
+  return { supported: false, version: 0 };
+};
+
+const webglStatus = detectWebGL();
+
+/** Fallback UI shown when the browser cannot create a WebGL context */
+const WebGLFallback: React.FC = () => {
+  const isFirefox = navigator.userAgent.includes('Firefox');
+  const isChrome = navigator.userAgent.includes('Chrome');
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full bg-slate-900 text-slate-300 p-8 gap-4">
+      <MapIcon className="w-16 h-16 text-slate-500" />
+      <h3 className="text-lg font-semibold text-white">Mapa 3D no disponible</h3>
+      <p className="text-sm text-center max-w-md text-slate-400">
+        Tu navegador no tiene WebGL activado, que es necesario para el visor 3D.
+      </p>
+
+      <div className="bg-slate-800 rounded-lg p-4 text-sm max-w-md w-full space-y-3 border border-slate-700">
+        {isFirefox && (
+          <>
+            <p className="font-medium text-amber-400">Firefox — pasos para activar WebGL:</p>
+            <ol className="list-decimal list-inside space-y-1 text-slate-300">
+              <li>Escribe <code className="bg-slate-700 px-1 rounded">about:config</code> en la barra de direcciones</li>
+              <li>Busca <code className="bg-slate-700 px-1 rounded">webgl.disabled</code> y ponlo a <strong>false</strong></li>
+              <li>Busca <code className="bg-slate-700 px-1 rounded">webgl.enable-webgl2</code> y ponlo a <strong>true</strong></li>
+              <li>Reinicia Firefox</li>
+            </ol>
+          </>
+        )}
+        {isChrome && (
+          <>
+            <p className="font-medium text-amber-400">Chrome — pasos para activar WebGL:</p>
+            <ol className="list-decimal list-inside space-y-1 text-slate-300">
+              <li>Escribe <code className="bg-slate-700 px-1 rounded">chrome://flags</code> en la barra de direcciones</li>
+              <li>Busca &quot;WebGL&quot; y activa las opciones</li>
+              <li>Reinicia Chrome</li>
+            </ol>
+          </>
+        )}
+        {!isFirefox && !isChrome && (
+          <p className="text-slate-300">Prueba con un navegador diferente (Chrome, Edge) o comprueba la configuración de aceleración por hardware de tu navegador.</p>
+        )}
+
+        <p className="text-xs text-slate-500 pt-2 border-t border-slate-700">
+          Tambien puedes comprobar tu GPU en{' '}
+          {isFirefox
+            ? <code className="bg-slate-700 px-1 rounded">about:support</code>
+            : <code className="bg-slate-700 px-1 rounded">chrome://gpu</code>
+          }
+          {' '}→ Graphics
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export const CesiumMap = React.memo<CesiumMapProps>(({
   title = 'Mapa 3D',
   height = 'h-96',
@@ -187,6 +261,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const viewerRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isViewerReady, setIsViewerReady] = useState(false);
+  const [webglFailed, setWebglFailed] = useState(!webglStatus.supported);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
   const viewerContext = useViewerOptional();
@@ -198,7 +273,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   }, [terrainProvider]);
 
   useEffect(() => {
-    if (!containerRef.current || viewerRef.current) return;
+    if (!containerRef.current || viewerRef.current || webglFailed) return;
 
     console.log('[CesiumMap] Initializing Cesium viewer');
 
@@ -211,19 +286,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         return;
       }
 
-      // Diagnostic: test WebGL availability before Cesium tries
-      const testCanvas = document.createElement('canvas');
-      const gl2 = testCanvas.getContext('webgl2');
-      const gl1 = testCanvas.getContext('webgl');
-      console.log('[CesiumMap] WebGL diagnostic:', {
-        webgl2: !!gl2,
-        webgl1: !!gl1,
-        containerSize: `${containerRef.current.clientWidth}x${containerRef.current.clientHeight}`,
-      });
-      // Release test contexts immediately
-      if (gl2) { const ext = gl2.getExtension('WEBGL_lose_context'); ext?.loseContext(); }
-      if (gl1) { const ext = gl1.getExtension('WEBGL_lose_context'); ext?.loseContext(); }
-
+      console.log('[CesiumMap] WebGL status:', webglStatus);
       console.log('[CesiumMap] Creating Cesium viewer');
 
       // Initialize Cesium Viewer with error handling
@@ -318,6 +381,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
       } catch (error) {
         console.error('[CesiumMap] Error creating viewer:', error);
+        // If viewer creation fails (likely WebGL), show the fallback
+        setWebglFailed(true);
         return;
       }
 
@@ -326,6 +391,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     } catch (error) {
       console.error('[CesiumMap] Critical error during initialization:', error);
       viewerRef.current = null;
+      setWebglFailed(true);
     }
 
     // Cleanup
@@ -1370,6 +1436,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
   // Handle 3D Model Preview (PREVIEW_MODEL mode) (extracted hook)
   useModelPreview(viewerRef, isViewerReady, viewerContext);
+
+  // Show fallback if WebGL is not available
+  if (webglFailed) {
+    return (
+      <div
+        ref={wrapperRef}
+        className="relative w-full h-full rounded-xl overflow-hidden shadow-lg border border-slate-700 bg-slate-900"
+      >
+        <WebGLFallback />
+      </div>
+    );
+  }
 
   return (
     <div
