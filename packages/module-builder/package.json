@@ -1,0 +1,31 @@
+{
+    "name": "@nekazari/module-builder",
+    "version": "1.0.0",
+    "private": false,
+    "license": "Apache-2.0",
+    "description": "Vite preset for building Nekazari module IIFE bundles",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "type": "module",
+    "files": [
+        "src",
+        "README.md",
+        "LICENSE"
+    ],
+    "peerDependencies": {
+        "vite": ">=5.0.0"
+    },
+    "scripts": {
+        "build": "tsc"
+    },
+    "devDependencies": {
+        "vite": "^5.4.0",
+        "typescript": "^5.5.0"
+    }
+}

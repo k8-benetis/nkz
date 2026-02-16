@@ -42,7 +42,12 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
     'default': Puzzle,
 };
 
-export const ViewerHeader: React.FC = () => {
+export interface ViewerHeaderProps {
+    /** Optional content to show in the right strip (e.g. layer toggle button) to avoid crowding */
+    rightContent?: React.ReactNode;
+}
+
+export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
     const { user, logout, hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useTranslation(['common', 'navigation']);
@@ -109,8 +114,13 @@ export const ViewerHeader: React.FC = () => {
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                {/* Logo Button */}
+                {/* Logo Button: click → dashboard, hover opens menu */}
                 <button
+                    type="button"
+                    onClick={() => {
+                        setIsMenuOpen(false);
+                        navigate('/dashboard');
+                    }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${glassStyles.base} ${glassStyles.hover} transition-all duration-300 group`}
                 >
                     <span className="text-2xl">🌾</span>
@@ -263,16 +273,12 @@ export const ViewerHeader: React.FC = () => {
                 </div>
             </div>
 
-            {/* Right: Controls */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-                {/* Theme Toggle */}
-                <div className={`rounded-xl ${glassStyles.base} p-1`}>
-                    <ThemeToggle variant="compact" />
-                </div>
-
-                {/* Language Selector */}
-                <div className={`rounded-xl ${glassStyles.base} p-1`}>
-                    <LanguageSelector variant="compact" />
+            {/* Right: Single strip – optional rightContent (e.g. Layers) + theme + language, icon-only to avoid crowding */}
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3">
+                {rightContent}
+                <div className={`rounded-xl ${glassStyles.base} p-1.5 flex items-center gap-2`}>
+                    <ThemeToggle variant="default" />
+                    <LanguageSelector variant="iconOnly" />
                 </div>
             </div>
         </>

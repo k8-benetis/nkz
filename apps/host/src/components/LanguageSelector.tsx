@@ -8,7 +8,7 @@ import { useTranslation, changeLanguage, getCurrentLanguage, getSupportedLanguag
 
 interface LanguageSelectorProps {
   className?: string;
-  variant?: 'default' | 'compact';
+  variant?: 'default' | 'compact' | 'iconOnly';
 }
 
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ 
@@ -53,6 +53,39 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     await changeLanguage(lang as SupportedLanguage);
     setShowMenu(false);
   };
+
+  if (variant === 'iconOnly') {
+    return (
+      <div className={`relative inline-block ${className}`} ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setShowMenu(!showMenu)}
+          title={supportedLanguages[language] || supportedLanguages['es']}
+          aria-label={supportedLanguages[language] || 'Idioma'}
+          className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-gray-300 dark:border-gray-600 shadow-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        >
+          <Globe className="h-4 w-4" />
+        </button>
+        {showMenu && (
+          <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-20">
+            {Object.entries(supportedLanguages).map(([code, name]) => (
+              <button
+                key={code}
+                onClick={() => handleLanguageChange(code)}
+                className={`block w-full text-left px-4 py-2 text-sm ${
+                  language === code
+                    ? 'bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-400'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (variant === 'compact') {
     return (

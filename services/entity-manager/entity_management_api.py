@@ -5796,70 +5796,7 @@ def delete_asset(asset_id):
         logger.error(f"Error deleting asset: {e}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
-@app.route('/api/assets/public', methods=['GET'])
-@app.route('/entity-manager/api/assets/public', methods=['GET'])
-@require_auth(require_hmac=False)
-def list_public_assets():
-    """
-    List all public (global) assets.
-    """
-    try:
-        s3_client = get_assets_s3_client()
-        if not s3_client:
-            return jsonify({'error': 'Asset storage not configured'}), 503
 
-        prefix = f"{PUBLIC_ASSETS_PREFIX}/"
-        
-        try:
-            response = s3_client.list_objects_v2(Bucket=ASSETS_BUCKET, Prefix=prefix)
-            assets = []
-            
-            s3_endpoint = os.getenv('S3_ENDPOINT_URL', 'http://minio-service:9000')
-            public_endpoint = os.getenv('ASSETS_PUBLIC_URL', s3_endpoint)
-
-            for obj in response.get('Contents', []):
-                key = obj['Key']
-                # Skip folders
-                if key.endswith('/'):
-                    continue
-                    
-                # Parse metadata from key: public/{type}/{filename}
-                parts = key.split('/')
-                if len(parts) < 3:
-                     continue
-                
-                asset_type = parts[1] # 'model' or 'icon'
-                filename = parts[-1]
-                
-                # Get metadata (head_object) to get meaningful name if possible
-                # For performance, we might skip this or cache it, but for now we do it
-                try:
-                    head = s3_client.head_object(Bucket=ASSETS_BUCKET, Key=key)
-                    meta = head.get('Metadata', {})
-                    original_name = meta.get('original_filename', filename)
-                except:
-                    original_name = filename
-
-                url = f"{public_endpoint}/{ASSETS_BUCKET}/{key}"
-                
-                assets.append({
-                    'key': key,
-                    'url': url,
-                    'type': asset_type,
-                    'filename': original_name,
-                    'size': obj['Size'],
-                    'last_modified': obj['LastModified'].isoformat()
-                })
-                
-            return jsonify({'assets': assets}), 200
-
-        except ClientError as e:
-            logger.error(f"Failed to list public assets: {e}")
-            return jsonify({'error': 'Failed to list assets'}), 500
-
-    except Exception as e:
-        logger.error(f"Error listing public assets: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/assets/public', methods=['POST'])

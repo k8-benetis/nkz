@@ -1,0 +1,9 @@
+#!/bin/sh
+# Remove any Co-authored-by lines from commit messages (e.g. added by Cursor/Claude).
+# Keeps public repo contributor list clean. See CONTRIBUTING.md.
+MSG_FILE="$1"
+[ -f "$MSG_FILE" ] || exit 0
+# Strip lines that look like Co-authored-by (any case); portable (no sed -i)
+tmp=$(mktemp)
+sed '/[Cc]o-[Aa]uthored-[Bb]y:/d' "$MSG_FILE" > "$tmp" && mv "$tmp" "$MSG_FILE"
+exit 0

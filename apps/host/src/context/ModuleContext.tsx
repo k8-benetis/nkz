@@ -1,8 +1,9 @@
 // =============================================================================
-// Module Context - Dynamic Module Federation Registry
+// Module Context — Runtime Module Registry (IIFE Script Injection)
 // =============================================================================
-// Manages loading and state of remote modules for the tenant.
-// Fetches module list from backend and provides hooks for components to access.
+// Manages loading and state of modules for the tenant.
+// Remote modules are loaded via <script> tags (IIFE bundles) that self-register
+// through window.__NKZ__.register(). See utils/nkzRuntime.ts.
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { NekazariClient } from '@nekazari/sdk';
@@ -282,109 +283,68 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         }
       });
 
-      // Load viewerSlots from remote modules asynchronously
-      const loadRemoteViewerSlots = async (module: ModuleDefinition) => {
-        if (!module.remoteEntry || module.viewerSlots) {
-          return; // Skip if no remoteEntry or already has viewerSlots
-        }
+      // =============================================================================
+      // Load IIFE bundles for remote modules
+      // =============================================================================
+      // Instead of Module Federation dynamic imports, we inject <script> tags.
+      // Each script is an IIFE that calls window.__NKZ__.register({ id, viewerSlots }).
+      // We subscribe to registration events to update module state reactively.
 
-        try {
-          const remoteEntryUrl = module.remoteEntry.startsWith('http')
-            ? module.remoteEntry
-            : `${window.location.origin}${module.remoteEntry}`;
-
-          console.log(`[ModuleContext] Loading viewerSlots from ${module.id} at ${remoteEntryUrl}`);
-
-          // Load remote container
-          const container = await import(/* @vite-ignore */ remoteEntryUrl);
-
-          if (!container || !container.get) {
-            console.warn(`[ModuleContext] Remote entry for ${module.id} does not export 'get' function`);
-            return;
+      // Subscribe to runtime registrations BEFORE loading scripts
+      // so we catch modules that register synchronously on script load.
+      // Note: unsubscribe is intentionally not called — we want the listener
+      // active for the entire lifecycle so late-registering modules work.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _unsubscribe = window.__NKZ__?.onRegister((registeredId, registration) => {
+        const existingModule = moduleMap.get(registeredId);
+        if (existingModule) {
+          // Merge runtime registration into the module definition
+          if (registration.viewerSlots) {
+            existingModule.viewerSlots = registration.viewerSlots;
           }
-
-          // Get viewerSlots export - container.get() may return a function OR a Promise
-          let result: any = container.get('./viewerSlots');
-          if (!result) {
-            console.warn(`[ModuleContext] Module ${module.id} does not expose './viewerSlots'`);
-            return;
-          }
-
-          console.log(`[ModuleContext] Step 0 - container.get for ${module.id}:`, typeof result);
-
-          // Unwrap the factory/promise chain fully
-          // Pattern can be: function → Promise → function → module
-          // Or: Promise → function → module
-          // Keep unwrapping until we get an object (the actual module)
-          let iterations = 0;
-          const maxIterations = 5; // Safety limit
-
-          while (iterations < maxIterations) {
-            iterations++;
-
-            // If it's a function, call it
-            if (typeof result === 'function') {
-              result = result();
-              console.log(`[ModuleContext] Step ${iterations}a - Called function for ${module.id}:`, typeof result);
-            }
-
-            // If it's a Promise, await it
-            if (result && typeof result.then === 'function') {
-              result = await result;
-              console.log(`[ModuleContext] Step ${iterations}b - Awaited promise for ${module.id}:`, typeof result);
-            }
-
-            // If result is now an object (not a function or promise), we're done
-            if (typeof result === 'object' && result !== null && typeof result.then !== 'function') {
-              break;
-            }
-          }
-
-          let viewerSlots = result;
-          console.log(`[ModuleContext] Final result for ${module.id}:`, typeof viewerSlots, viewerSlots ? Object.keys(viewerSlots) : 'null');
-
-          // Extract viewerSlots from result - handle both { viewerSlots: {...} } and direct export
-          if (viewerSlots?.viewerSlots) {
-            console.log(`[ModuleContext] Extracting nested viewerSlots for ${module.id}`);
-            viewerSlots = viewerSlots.viewerSlots;
-          } else if (viewerSlots?.default?.viewerSlots) {
-            console.log(`[ModuleContext] Extracting from default.viewerSlots for ${module.id}`);
-            viewerSlots = viewerSlots.default.viewerSlots;
-          } else if (viewerSlots?.default && typeof viewerSlots.default === 'object') {
-            console.log(`[ModuleContext] Extracting from default for ${module.id}`);
-            viewerSlots = viewerSlots.default;
-          }
-
-          if (viewerSlots && typeof viewerSlots === 'object') {
-            // Update module with viewerSlots
-            const updatedModule = moduleMap.get(module.id);
-            if (updatedModule) {
-              updatedModule.viewerSlots = viewerSlots as ModuleViewerSlots;
-              // Use functional update to avoid unnecessary re-renders
-              setModules(prevModules => {
-                const updated = prevModules.map(m =>
-                  m.id === module.id ? { ...m, viewerSlots: viewerSlots as ModuleViewerSlots } : m
-                );
-                return updated;
-              });
-              console.log(`[ModuleContext] ✅ Loaded viewerSlots for ${module.id}:`, Object.keys(viewerSlots));
-            }
-          } else {
-            console.warn(`[ModuleContext] Invalid viewerSlots format for ${module.id}:`, viewerSlots);
-          }
-        } catch (err) {
-          console.warn(`[ModuleContext] Could not load viewerSlots from ${module.id}:`, err);
-        }
-      };
-
-      // Load viewerSlots for all remote modules in parallel (non-blocking)
-      remoteModules
-        .filter(m => m.remoteEntry && !m.viewerSlots)
-        .forEach(m => {
-          loadRemoteViewerSlots(m).catch(err => {
-            console.error(`[ModuleContext] Error loading viewerSlots for ${m.id}:`, err);
+          // Update state with the new viewerSlots
+          setModules(prevModules => {
+            const updated = prevModules.map(m =>
+              m.id === registeredId
+                ? { ...m, viewerSlots: registration.viewerSlots || m.viewerSlots }
+                : m
+            );
+            return updated;
           });
+          console.log(`[ModuleContext] ✅ Applied runtime registration for "${registeredId}":`,
+            registration.viewerSlots ? Object.keys(registration.viewerSlots) : []);
+        } else {
+          console.debug(`[ModuleContext] Runtime registration for unknown module "${registeredId}" (not in /api/modules/me)`);
+        }
+      });
+
+      // Load scripts for remote modules that have a bundle URL
+      const { loadModuleScripts } = await import('@/utils/moduleLoader');
+      const modulesToLoad = remoteModules
+        .filter(m => m.remoteEntry && !m.isLocal)
+        .map(m => ({ id: m.id, bundleUrl: m.remoteEntry! }));
+
+      if (modulesToLoad.length > 0) {
+        console.log(`[ModuleContext] Loading ${modulesToLoad.length} remote module bundles...`);
+        const results = await loadModuleScripts(modulesToLoad);
+        results.forEach(r => {
+          if (!r.success) {
+            console.warn(`[ModuleContext] Failed to load bundle for "${r.id}":`, r.error?.message);
+          }
         });
+      }
+
+      // Also check if any modules were registered before we subscribed
+      // (e.g., if scripts were cached and executed instantly)
+      if (window.__NKZ__) {
+        window.__NKZ__.getRegisteredIds().forEach(registeredId => {
+          const reg = window.__NKZ__.getRegistered(registeredId);
+          const mod = moduleMap.get(registeredId);
+          if (reg && mod && !mod.viewerSlots && reg.viewerSlots) {
+            mod.viewerSlots = reg.viewerSlots;
+          }
+        });
+      }
 
       const allModules = Array.from(moduleMap.values());
       console.log('[ModuleContext] Total modules:', allModules.length);

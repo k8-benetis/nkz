@@ -574,8 +574,20 @@ const UnifiedViewerInner: React.FC = () => {
 
     return (
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900">
-            {/* Floating Header - Logo with dropdown menu + controls */}
-            <ViewerHeader />
+            {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
+            <ViewerHeader
+                rightContent={
+                    <button
+                        type="button"
+                        onClick={() => setIsLayerManagerOpen(!isLayerManagerOpen)}
+                        className={`p-2.5 rounded-xl ${glassPanel.base} hover:bg-white transition-all shadow-lg`}
+                        title="Gestionar capas"
+                        aria-label="Gestionar capas"
+                    >
+                        <Layers className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+                    </button>
+                }
+            />
 
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (
@@ -647,18 +659,9 @@ const UnifiedViewerInner: React.FC = () => {
                 )}
             </div>
 
-            {/* Layer Manager Button */}
-            <button
-                onClick={() => setIsLayerManagerOpen(!isLayerManagerOpen)}
-                className={`absolute top-16 right-16 z-40 p-3 rounded-xl ${glassPanel.base} hover:bg-white transition-all shadow-lg`}
-                title="Gestionar capas"
-            >
-                <Layers className="w-5 h-5 text-slate-700" />
-            </button>
-
-            {/* Layer Manager Dropdown - Now uses SlotRenderer */}
+            {/* Layer Manager Dropdown - below the header right strip */}
             {isLayerManagerOpen && (
-                <div className={`absolute top-28 right-16 z-40 w-64 rounded-xl ${glassPanel.base} overflow-hidden`}>
+                <div className={`absolute top-16 right-4 z-40 w-64 rounded-xl ${glassPanel.base} overflow-hidden`}>
                     <div className={`px-4 py-3 ${glassPanel.header} border-b border-slate-200/50 flex items-center justify-between`}>
                         <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                             <Layers className="w-4 h-4" />

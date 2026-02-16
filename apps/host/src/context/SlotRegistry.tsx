@@ -8,7 +8,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, React
 import { useModules, SlotType, SlotWidgetDefinition, ModuleViewerSlots } from './ModuleContext';
 import { useViewer } from './ViewerContext';
 import { getLocalModuleSlots, isLocalModule } from '@/modules/registry';
-import { preloadActiveModules } from '@/utils/moduleLoader';
+
 
 // =============================================================================
 // Core Widgets - Built-in widgets that are always available
@@ -131,13 +131,7 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
         console.log(`[SlotRegistry] LOCAL_MODULES keys:`, Object.keys(LOCAL_MODULES));
         setActiveModuleIds(active);
 
-        // Preload active modules in background (low priority)
-        // This improves perceived performance without blocking initial load
-        const activeArray = Array.from(active);
-        preloadActiveModules(activeArray, { priority: 'low', checkEnabled: false })
-            .catch(error => {
-                console.warn('[SlotRegistry] Error preloading modules:', error);
-            });
+
     }, [modules]);
 
     // Toggle module activation
