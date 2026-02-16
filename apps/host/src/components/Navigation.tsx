@@ -148,16 +148,16 @@ export const Navigation: React.FC = () => {
                   />
                 </button>
 
-                {/* Dropdown Menu Content - Vertical List with Collapsible Modules */}
+                {/* Dropdown Menu Content - Mega menu in columns so all modules are visible */}
                 <div
-                  className={`absolute top-full left-0 mt-2 flex flex-col rounded-xl ${glassStyles.dropdown} overflow-hidden transition-all duration-200 origin-top-left ${isMenuOpen
+                  className={`absolute top-full left-0 mt-2 flex rounded-xl ${glassStyles.dropdown} overflow-hidden transition-all duration-200 origin-top-left ${isMenuOpen
                     ? 'opacity-100 scale-100 translate-y-0 visible'
                     : 'opacity-0 scale-95 -translate-y-2 invisible pointer-events-none'
                     }`}
-                  style={{ minWidth: '280px', maxHeight: '80vh', overflowY: 'auto' }}
+                  style={{ minWidth: '320px', maxWidth: 'min(90vw, 720px)' }}
                 >
-                  {/* Section 1: Principal */}
-                  <div className="py-2 border-b border-gray-100 dark:border-gray-700/50">
+                  {/* Column 1: Principal */}
+                  <div className="flex flex-col py-2 border-r border-gray-100 dark:border-gray-700/50 min-w-[140px]">
                     <div className="px-4 py-1">
                       <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                         Principal
@@ -185,62 +185,59 @@ export const Navigation: React.FC = () => {
                     })}
                   </div>
 
-                  {/* Section 2: Módulos (Collapsible Accordion) */}
+                  {/* Column 2: Módulos - all modules, scrollable when many */}
                   {safeModules.length > 0 && (
-                    <div className="py-2 border-b border-gray-100 dark:border-gray-700/50">
-                      <details className="group" open>
-                        <summary className="px-4 py-1 flex items-center justify-between cursor-pointer list-none">
-                          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                            Módulos ({safeModules.length})
-                          </span>
-                          <ChevronDown className="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180" />
-                        </summary>
-                        <div className="mt-1 max-h-[300px] overflow-y-auto custom-scrollbar">
-                          {safeModules.map((module) => {
-                            const Icon = moduleIconMap[module.icon || 'default'] || Puzzle;
-                            const active = isActive(module.routePath);
-                            const emoji = module.metadata?.icon;
-                            const hasEmoji = emoji && typeof emoji === 'string' && emoji.length <= 2;
+                    <div className="flex flex-col py-2 border-r border-gray-100 dark:border-gray-700/50 min-w-[180px] max-w-[240px]">
+                      <div className="px-4 py-1 flex-shrink-0">
+                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                          Módulos
+                        </span>
+                      </div>
+                      <div className="overflow-y-auto overflow-x-hidden py-1 max-h-[min(60vh,320px)]" style={{ minHeight: '80px' }}>
+                        {safeModules.map((module) => {
+                          const Icon = moduleIconMap[module.icon || 'default'] || Puzzle;
+                          const active = isActive(module.routePath);
+                          const emoji = module.metadata?.icon;
+                          const hasEmoji = emoji && typeof emoji === 'string' && emoji.length <= 2;
 
-                            return (
-                              <Link
-                                key={module.id}
-                                to={module.routePath}
-                                onClick={() => setIsMenuOpen(false)}
-                                className={`flex items-center gap-3 px-4 py-2 mx-2 rounded-lg transition-all ${active
-                                  ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
-                                  : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                  }`}
-                              >
-                                {hasEmoji ? (
-                                  <span className="w-5 h-5 flex items-center justify-center text-base flex-shrink-0">{emoji}</span>
-                                ) : (
-                                  <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`} />
-                                )}
-                                <span className="font-medium truncate text-sm">
-                                  {module.label || module.displayName || module.name}
-                                </span>
-                              </Link>
-                            );
-                          })}
-                          {isAdmin && (
+                          return (
                             <Link
-                              to="/admin/modules"
+                              key={module.id}
+                              to={module.routePath}
                               onClick={() => setIsMenuOpen(false)}
-                              className="flex items-center gap-2 px-4 py-2 mx-2 mt-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                              className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
+                                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
                             >
-                              <ExternalLink className="w-4 h-4" />
-                              {t('navigation.manage_modules', { defaultValue: 'Gestionar módulos' })}
+                              {hasEmoji ? (
+                                <span className="w-5 h-5 flex items-center justify-center text-base flex-shrink-0">{emoji}</span>
+                              ) : (
+                                <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`} />
+                              )}
+                              <span className="font-medium truncate">
+                                {module.label || module.displayName || module.name}
+                              </span>
                             </Link>
-                          )}
-                        </div>
-                      </details>
+                          );
+                        })}
+                      </div>
+                      {isAdmin && (
+                        <Link
+                          to="/admin/modules"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 mx-2 mt-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex-shrink-0"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          {t('navigation.manage_modules', { defaultValue: 'Gestionar módulos' })}
+                        </Link>
+                      )}
                     </div>
                   )}
 
-                  {/* Section 3: Admin / Settings */}
+                  {/* Column 3: Admin / Settings */}
                   {adminItems.length > 0 && (
-                    <div className="py-2">
+                    <div className="flex flex-col py-2 min-w-[140px]">
                       <div className="px-4 py-1">
                         <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                           Admin

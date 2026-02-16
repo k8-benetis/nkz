@@ -229,20 +229,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           infoBox: false,
           selectionIndicator: false,
           terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Start with ellipsoid, will be updated
-          // Phase 1.5 Fix: Ultra-Compatibility Mode
-          orderIndependentTranslucency: false, // Critical for WebGL1/Low-end
-          shadows: false,
-          hdr: false, // High Dynamic Range requires extensions
-          contextOptions: {
-            requestWebgl1: true, // Allow fallback to WebGL 1
-            webgl: {
-              alpha: false,
-              antialias: false,
-              depth: true,
-              stencil: false,
-              powerPreference: 'high-performance', // Try to force discrete GPU if available
-            },
-          },
         });
 
         // Hide Cesium ION credits completely
