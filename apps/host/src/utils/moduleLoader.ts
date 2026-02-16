@@ -1,126 +1,144 @@
 // =============================================================================
-// Module Loader - Intelligent Lazy Loading
+// Module Loader — IIFE Script Injection
 // =============================================================================
-// Implements on-demand loading of modules to improve initial load time.
-// Modules are only loaded when they're actually needed (active and visible).
-
-import type { ModuleDefinition } from '@/context/ModuleContext';
-
+// Loads module bundles by injecting <script> tags into the document.
+// Each module is a self-contained IIFE that calls window.__NKZ__.register().
+//
+// Flow:
+// 1. loadModuleScript(bundleUrl) → creates <script src="...">
+// 2. Script executes → IIFE calls window.__NKZ__.register({ id, viewerSlots })
+// 3. ModuleContext listens via window.__NKZ__.onRegister() and updates state
 // =============================================================================
-// Module Loading Cache
-// =============================================================================
-// Cache for loaded modules to avoid re-loading
-
-const moduleCache = new Map<string, Promise<ModuleDefinition>>();
 
 // =============================================================================
-// Preload Strategy
+// Script Loading Cache
 // =============================================================================
-// Preload modules that are likely to be needed soon
 
-interface PreloadOptions {
-    /** Priority: 'high' = preload immediately, 'low' = preload when idle */
-    priority?: 'high' | 'low';
-    /** Only preload if module is enabled for tenant */
-    checkEnabled?: boolean;
-}
+/** Track loading state per URL to avoid duplicate script tags */
+const scriptLoadCache = new Map<string, Promise<void>>();
+
+/** Track which scripts have been injected (by URL) */
+const injectedScripts = new Set<string>();
+
+// =============================================================================
+// Core Loading Function
+// =============================================================================
 
 /**
- * Preload a module in the background
- * Uses requestIdleCallback for low-priority preloads
+ * Load a module bundle by injecting a <script> tag.
+ * Returns a promise that resolves when the script has loaded (not necessarily registered).
+ * Registration happens asynchronously via window.__NKZ__.register().
+ *
+ * @param bundleUrl - URL to the IIFE bundle (e.g., "/modules/catastro-spain/nkz-module.js")
+ * @param moduleId - Module ID (for logging and cache-busting)
+ * @returns Promise that resolves when the script is loaded
  */
-export const preloadModule = async (
-    moduleId: string,
-    options: PreloadOptions = {}
-): Promise<void> => {
-    const { priority = 'low', checkEnabled = true } = options;
+export function loadModuleScript(bundleUrl: string, moduleId: string): Promise<void> {
+    // Resolve relative URLs
+    const fullUrl = bundleUrl.startsWith('http')
+        ? bundleUrl
+        : `${window.location.origin}${bundleUrl}`;
 
-    // Skip if already cached
-    if (moduleCache.has(moduleId)) {
-        return;
+    // Return cached promise if already loading/loaded
+    if (scriptLoadCache.has(fullUrl)) {
+        console.debug(`[ModuleLoader] Script already loading/loaded: ${moduleId} (${fullUrl})`);
+        return scriptLoadCache.get(fullUrl)!;
     }
 
-    // For high priority, load immediately
-    if (priority === 'high') {
-        await loadModule(moduleId, checkEnabled);
-        return;
+    // Check if script tag already exists in DOM
+    if (injectedScripts.has(fullUrl)) {
+        console.debug(`[ModuleLoader] Script already injected: ${moduleId}`);
+        return Promise.resolve();
     }
 
-    // For low priority, use requestIdleCallback
-    if ('requestIdleCallback' in window) {
-        requestIdleCallback(async () => {
-            await loadModule(moduleId, checkEnabled);
-        });
-    } else {
-        // Fallback: use setTimeout for browsers without requestIdleCallback
-        setTimeout(async () => {
-            await loadModule(moduleId, checkEnabled);
-        }, 2000);
-}
-};
+    const loadPromise = new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = fullUrl;
+        script.async = true;
+        script.setAttribute('data-nkz-module', moduleId);
 
-/**
- * Load a module on-demand
- * Returns cached promise if already loading
- */
-export const loadModule = async (
-    moduleId: string,
-    checkEnabled: boolean = true
-): Promise<ModuleDefinition | null> => {
-    // Return cached promise if already loading
-    if (moduleCache.has(moduleId)) {
-        return moduleCache.get(moduleId)!;
-}
+        script.onload = () => {
+            injectedScripts.add(fullUrl);
+            console.log(`[ModuleLoader] ✅ Script loaded: ${moduleId} (${fullUrl})`);
+            resolve();
+        };
 
-    // Create loading promise
-    const loadPromise = (async (): Promise<ModuleDefinition | null> => {
-        try {
-            // For remote modules, load via Module Federation
-            // Note: Actual module loading happens in ModuleContext.tsx via loadRemoteViewerSlots
-            // This loader is for on-demand preloading and can be safely skipped
-            console.debug(`[ModuleLoader] Skipping preload for remote module: ${moduleId}`);
-            return null;
-        } catch (error) {
-            console.error(`[ModuleLoader] Failed to load module ${moduleId}:`, error);
-            moduleCache.delete(moduleId); // Remove from cache on error
-            return null;
-        }
-    })();
+        script.onerror = (event) => {
+            console.error(`[ModuleLoader] ❌ Failed to load script: ${moduleId} (${fullUrl})`, event);
+            scriptLoadCache.delete(fullUrl);
+            reject(new Error(`Failed to load module script: ${moduleId} from ${fullUrl}`));
+        };
 
-    // Cache the promise
-    moduleCache.set(moduleId, loadPromise);
+        document.head.appendChild(script);
+        console.log(`[ModuleLoader] Injecting script: ${moduleId} → ${fullUrl}`);
+    });
+
+    scriptLoadCache.set(fullUrl, loadPromise);
     return loadPromise;
-};
-
-/**
- * Preload all active modules
- * Called when modules list is available
- */
-export const preloadActiveModules = async (
-    activeModuleIds: string[],
-    options: PreloadOptions = {}
-): Promise<void> => {
-    const preloadPromises = activeModuleIds
-        .filter(moduleId => moduleId !== 'core') // Core is always loaded
-        .map(moduleId => preloadModule(moduleId, options));
-
-    await Promise.allSettled(preloadPromises);
-};
-
-/**
- * Clear module cache (useful for testing or hot-reload)
- */
-export const clearModuleCache = (moduleId?: string): void => {
-    if (moduleId) {
-        moduleCache.delete(moduleId);
-    } else {
-        moduleCache.clear();
 }
-};
+
+// =============================================================================
+// Bulk Loading
+// =============================================================================
+
+interface ModuleLoadSpec {
+    id: string;
+    bundleUrl: string;
+}
 
 /**
- * Get loading status of a module
+ * Load multiple module scripts in parallel.
+ * Errors are caught per-module to prevent one failure from blocking others.
+ *
+ * @returns Array of results with module ID and success/error status
  */
-export const isModuleLoading = (moduleId: string): boolean => {
-    return moduleCache.has(moduleId);
-};
+export async function loadModuleScripts(
+    modules: ModuleLoadSpec[]
+): Promise<Array<{ id: string; success: boolean; error?: Error }>> {
+    const results = await Promise.allSettled(
+        modules.map(async (mod) => {
+            await loadModuleScript(mod.bundleUrl, mod.id);
+            return mod.id;
+        })
+    );
+
+    return results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+            return { id: result.value, success: true };
+        } else {
+            return {
+                id: modules[index].id,
+                success: false,
+                error: result.reason instanceof Error
+                    ? result.reason
+                    : new Error(String(result.reason)),
+            };
+        }
+    });
+}
+
+// =============================================================================
+// Cleanup
+// =============================================================================
+
+/**
+ * Remove a module's script tag from the DOM (for hot-reload or module uninstall).
+ */
+export function unloadModuleScript(moduleId: string): void {
+    const scripts = document.querySelectorAll(`script[data-nkz-module="${moduleId}"]`);
+    scripts.forEach(script => {
+        const src = (script as HTMLScriptElement).src;
+        script.remove();
+        scriptLoadCache.delete(src);
+        injectedScripts.delete(src);
+        console.log(`[ModuleLoader] Removed script: ${moduleId}`);
+    });
+}
+
+/**
+ * Clear all cached state (for testing or full reload).
+ */
+export function clearScriptCache(): void {
+    scriptLoadCache.clear();
+    injectedScripts.clear();
+}

@@ -405,17 +405,6 @@ class ApiService {
   // Translations are loaded from /locales/*.json files
   // No backend service needed
 
-  // Farmer API Key Management
-  async getApiKeyInfo(): Promise<any> {
-    const response = await this.client.get('/auth/api-key');
-    return response.data;
-  }
-
-  async regenerateApiKey(): Promise<any> {
-    const response = await this.client.post('/auth/api-key/regenerate');
-    return response.data;
-  }
-
   // User Profile Management - Uses tenant-user-api service
   async updateUserProfile(firstName: string, lastName?: string): Promise<any> {
     const response = await this.client.put('/api/tenant/users/me', {
@@ -1277,51 +1266,6 @@ class ApiService {
       linear,
       angular
     });
-  }
-
-  // =============================================================================
-  // VPN Configuration Methods
-  // =============================================================================
-
-  async getVPNConfig(): Promise<any> {
-    try {
-      const response = await this.client.get('/entity-manager/api/vpn/config');
-      return response.data;
-    } catch (error) {
-      console.warn('Error fetching VPN config:', error);
-      return null;
-    }
-  }
-
-  async generateVPNClientConfig(clientName: string): Promise<any> {
-    const response = await this.client.post('/entity-manager/api/vpn/generate-client-config', {
-      client_name: clientName
-    });
-    return response.data;
-  }
-
-  // =============================================================================
-  // Tenant Services Management (ROS2 & VPN Activation)
-  // =============================================================================
-
-  async activateROS2Service(): Promise<any> {
-    const response = await this.client.post('/api/tenant/services/ros2/activate');
-    return response.data;
-  }
-
-  async getROS2ServiceStatus(): Promise<any> {
-    const response = await this.client.get('/api/tenant/services/ros2/status');
-    return response.data;
-  }
-
-  async activateVPNService(): Promise<any> {
-    const response = await this.client.post('/api/tenant/services/vpn/activate');
-    return response.data;
-  }
-
-  async getVPNServiceStatus(): Promise<any> {
-    const response = await this.client.get('/api/tenant/services/vpn/status');
-    return response.data;
   }
 
   async createParcel(parcel: Partial<Parcel>): Promise<Parcel> {

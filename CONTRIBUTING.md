@@ -12,6 +12,16 @@ Thank you for your interest in contributing to Nekazari. This guide will help yo
 
 ## Development Setup
 
+### Git hooks (recommended)
+
+To avoid accidentally adding Co-authored-by lines (e.g. from Cursor/Claude) to commits—which would show up as contributors on the public repo—enable the project hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Or run once: `./scripts/setup-hooks.sh` if available. The `prepare-commit-msg` hook strips any Co-authored-by line from commit messages before the commit is created.
+
 ### Prerequisites
 
 - Node.js 18+ and pnpm
@@ -40,7 +50,7 @@ pip install -r requirements.txt
 
 - **Python**: Follow PEP 8. Use type hints where practical.
 - **TypeScript**: Use strict mode. Avoid `any` types.
-- **Commits**: Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, etc.)
+- **Commits**: Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, etc.). Do not add Co-authored-by lines for AI/agents; the project hook removes them automatically if enabled.
 - **Security**: Never hardcode credentials, API keys, or secrets. Use environment variables.
 - **Logging**: Use appropriate log levels. No `console.log()` or `print()` in production code.
 
