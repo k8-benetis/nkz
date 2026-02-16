@@ -6,6 +6,8 @@ import * as UIKit from '@nekazari/ui-kit';
 import App from './App.tsx';
 import './index.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import * as Cesium from 'cesium';
+(window as any).Cesium = Cesium;
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initNKZRuntime } from './utils/nkzRuntime';
 

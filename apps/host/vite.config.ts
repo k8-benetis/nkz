@@ -14,7 +14,7 @@ export default defineConfig({
     cesium({
       // Explicitly set the base URL for Cesium assets in production
       // This matches the Nginx location /cesium/ -> minio/nekazari-frontend/host/cesium/
-      rebuildCesium: true,
+      // rebuildCesium: true, // REVERTED: May cause missing script injection
     }),
     // Plugin para preservar scripts inline en index.html
     // IMPORTANTE: Este plugin debe ejecutarse ANTES de que Vite procese el HTML
