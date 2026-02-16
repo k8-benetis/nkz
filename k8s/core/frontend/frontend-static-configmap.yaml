@@ -118,7 +118,7 @@ data:
 
                 # CRITICAL: Inject Runtime Configuration (window.__ENV__)
                 # This fixes the Keycloak URL without rebuilding the static assets in MinIO
-                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth", VITE_API_URL: "https://nkz.robotika.cloud/api", VITE_KEYCLOAK_REALM: "nekazari", VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend" };</script></head>';
+                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth", VITE_API_URL: "https://nkz.robotika.cloud", VITE_KEYCLOAK_REALM: "nekazari", VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend" };</script></head>';
                 sub_filter_once on;
             }
 
@@ -128,17 +128,17 @@ data:
                 proxy_set_header Host minio-service:9000;
                 proxy_hide_header x-amz-id-2;
                 proxy_hide_header x-amz-request-id;
-                
+
                 # CRITICAL: Intercept MinIO 404 errors to handle SPA routing
                 # Without this, F5 on /ndvi returns MinIO's 404 XML instead of index.html
                 proxy_intercept_errors on;
                 error_page 404 = /index.html;
-                
+
                 # Don't cache dynamic routes
                 add_header Cache-Control "no-cache, no-store, must-revalidate";
 
                 # CRITICAL: Inject Runtime Configuration (for SPA deep links)
-                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth", VITE_API_URL: "https://nkz.robotika.cloud/api", VITE_KEYCLOAK_REALM: "nekazari", VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend" };</script></head>';
+                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth", VITE_API_URL: "https://nkz.robotika.cloud", VITE_KEYCLOAK_REALM: "nekazari", VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend" };</script></head>';
                 sub_filter_once on;
             }
         }
