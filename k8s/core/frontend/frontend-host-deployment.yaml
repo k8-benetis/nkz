@@ -29,7 +29,7 @@ data:
   VITE_KEYCLOAK_REALM: "nekazari"
   VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend"
   VITE_MODULES_CDN_URL: "/modules"
-
+  
   # Feature Flags
   VITE_ENABLE_ROS2: "false"
   VITE_ENABLE_NDVI: "true"
@@ -65,7 +65,7 @@ spec:
         component: frontend
       annotations:
         # Forzar redeploy cuando cambie el ConfigMap
-        checksum/config: '{{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}'
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
     spec:
       securityContext:
         seccompProfile:
@@ -73,7 +73,7 @@ spec:
       containers:
         - name: frontend
           image: ghcr.io/k8-benetis/nkz/host:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
               name: http
