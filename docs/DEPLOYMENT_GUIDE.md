@@ -139,6 +139,67 @@ Bootstrap user credentials (from `bootstrap-secret`):
 ./scripts/build-images.sh
 ```
 
+## Frontend Deployment (MinIO)
+
+The frontend is served as static files from a MinIO bucket (`nekazari-frontend/host/`) via an nginx reverse proxy (`frontend-static`).
+
+> **CRITICAL**: Never write files directly to MinIO's filesystem (`/data/...` via `kubectl exec`). MinIO tracks objects through internal metadata — bypassing the S3 API corrupts this metadata, causing 404s, permission errors, and wrong MIME types. Always use the S3 API (`mc`, `boto3`, `curl`).
+
+### Standard Procedure
+
+```bash
+# 1. Build frontend
+cd ~/nkz
+git pull
+pnpm --filter nekazari-frontend build   # → apps/host/dist/
+
+# 2. Upload to MinIO via port-forward + mc
+sudo kubectl port-forward -n nekazari svc/minio-service 9000:9000 &
+sleep 3
+mc alias set minio http://localhost:9000 minioadmin minioadmin
+mc mirror --overwrite apps/host/dist/ minio/nekazari-frontend/host/
+kill %1
+
+# 3. Verify (all should return HTTP 200)
+curl -s -o /dev/null -w "%{http_code}" https://nekazari.robotika.cloud/
+curl -s -o /dev/null -w "%{http_code}" https://nekazari.robotika.cloud/cesium/Cesium.js
+curl -s -o /dev/null -w "%{http_code}" https://nekazari.robotika.cloud/locales/es.json
+```
+
+### Fallback: Python S3 Upload
+
+If `mc mirror` fails due to unstable port-forward (common with 400+ files including Cesium assets), use boto3:
+
+```bash
+sudo kubectl port-forward -n nekazari svc/minio-service 9000:9000 &
+sleep 3
+python3 -c "
+import boto3, os, mimetypes
+from botocore.config import Config
+s3 = boto3.client('s3', endpoint_url='http://localhost:9000',
+    aws_access_key_id='minioadmin', aws_secret_access_key='minioadmin',
+    config=Config(signature_version='s3v4'), region_name='us-east-1')
+DIST = os.path.expanduser('~/nkz/apps/host/dist')
+n = 0
+for root, _, files in os.walk(DIST):
+    for f in files:
+        path = os.path.join(root, f)
+        key = 'host/' + os.path.relpath(path, DIST)
+        ct, _ = mimetypes.guess_type(f)
+        s3.put_object(Bucket='nekazari-frontend', Key=key,
+            Body=open(path,'rb').read(), ContentType=ct or 'application/octet-stream')
+        n += 1
+print(f'{n} files uploaded')
+"
+kill %1
+```
+
+### Notes
+
+- `mc alias` config is stored in `/tmp/.mc/` inside the MinIO pod — it is lost on every pod restart. Re-run `mc alias set` after restarts.
+- The `.npmrc` file with `shamefully-hoist=true` is gitignored. It must exist at `~/nkz/.npmrc` on the server for pnpm builds to work.
+- The nginx `sub_filter` in `frontend-static` injects `window.__ENV__` into `index.html` at serve time. The `config.js` in MinIO can be empty — runtime config comes from the ConfigMap.
+
 ## Service Architecture
 
 ### Active Services
