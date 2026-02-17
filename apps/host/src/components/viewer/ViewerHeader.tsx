@@ -136,8 +136,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                 {/* Dropdown Menu */}
                 <div
                     className={`absolute top-full left-0 mt-2 min-w-[280px] rounded-xl ${glassStyles.base} overflow-hidden transition-all duration-300 origin-top-left ${isMenuOpen
-                            ? 'opacity-100 scale-100 translate-y-0'
-                            : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
+                        ? 'opacity-100 scale-100 translate-y-0'
+                        : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
                         }`}
                 >
                     {/* User Info */}
@@ -173,8 +173,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                                     to={item.path}
                                     onClick={() => setIsMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                         }`}
                                 >
                                     <Icon className={`w-5 h-5 ${active ? 'text-green-600 dark:text-green-400' : 'text-slate-500'}`} />
@@ -206,8 +206,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                                         to={module.routePath}
                                         onClick={() => setIsMenuOpen(false)}
                                         className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                             }`}
                                     >
                                         {hasEmoji ? (
@@ -246,8 +246,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                                         to={item.path}
                                         onClick={() => setIsMenuOpen(false)}
                                         className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                             }`}
                                     >
                                         <Icon className={`w-5 h-5 ${active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`} />
@@ -274,7 +274,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
             </div>
 
             {/* Right: Single strip – optional rightContent (e.g. Layers) + theme + language, icon-only to avoid crowding */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-3">
+            {/* Moved to right-24 to avoid overlapping with Cesium Navigation controls (top-right) */}
+            <div className="absolute top-4 right-24 z-50 flex items-center gap-3">
                 {rightContent}
                 <div className={`rounded-xl ${glassStyles.base} p-1.5 flex items-center gap-2`}>
                     <ThemeToggle variant="default" />

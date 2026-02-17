@@ -640,6 +640,14 @@ const UnifiedViewerInner: React.FC = () => {
                     onMapClick={mapMode === 'SELECT_CADASTRAL' ? handleMapClickForCadastral : mapMode === 'PICK_LOCATION' ? handleMapClickForPicking : undefined}
                     onEntitySelect={handleEntityMapSelect}
                 />
+
+                {/* Map Layer Slot - Dynamic widgets overlaying the map (Search, Controls, etc.) */}
+                <div className="absolute inset-0 pointer-events-none z-10">
+                    <Suspense fallback={null}>
+                        <SlotRenderer slot="map-layer" className="w-full h-full pointer-events-auto" inline={true} />
+                    </Suspense>
+                </div>
+
                 {/* Drawing Overlay - Only active in DRAW_PARCEL mode */}
                 {mapMode === 'DRAW_PARCEL' && (
                     <MapDrawingOverlay
