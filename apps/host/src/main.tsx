@@ -1,6 +1,7 @@
 import React from 'react';
-import ReactDOMClient from 'react-dom/client';
-import ReactDOM from 'react-dom';
+import * as ReactDOMClient from 'react-dom/client';
+import * as ReactDOM from 'react-dom';
+import * as ReactRouterDOM from 'react-router-dom';
 import * as NKZSdk from '@nekazari/sdk';
 import * as UIKit from '@nekazari/ui-kit';
 import App from './App.tsx';
@@ -19,6 +20,7 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 // React (modules use: external "react" → window.React)
 (window as any).React = React;
 (window as any).ReactDOM = { ...ReactDOM, ...ReactDOMClient };
+(window as any).ReactRouterDOM = ReactRouterDOM;
 
 // SDK & UI Kit (modules use: external "@nekazari/sdk" → window.__NKZ_SDK__)
 (window as any).__NKZ_SDK__ = NKZSdk;
@@ -30,6 +32,7 @@ initNKZRuntime();
 console.log('[main.tsx] ✅ Shared dependencies exposed:', {
   React: !!window.React,
   ReactDOM: !!(window as any).ReactDOM,
+  ReactRouterDOM: !!(window as any).ReactRouterDOM,
   __NKZ_SDK__: !!window.__NKZ_SDK__,
   __NKZ_UI__: !!window.__NKZ_UI__,
   __NKZ__: !!window.__NKZ__,
