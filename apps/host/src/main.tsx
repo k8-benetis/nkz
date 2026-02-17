@@ -20,7 +20,6 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 // React (modules use: external "react" → window.React)
 (window as any).React = React;
 (window as any).ReactDOM = { ...ReactDOM, ...ReactDOMClient };
-console.log('[main.tsx] RRD module:', RRD);
 (window as any).ReactRouterDOM = RRD;
 
 // SDK & UI Kit (modules use: external "@nekazari/sdk" → window.__NKZ_SDK__)
@@ -30,40 +29,26 @@ console.log('[main.tsx] RRD module:', RRD);
 // Initialize the module registration runtime (window.__NKZ__)
 initNKZRuntime();
 
-console.log('[main.tsx] ✅ Shared dependencies exposed:', {
-  React: !!window.React,
-  ReactDOM: !!(window as any).ReactDOM,
-  ReactRouterDOM: !!(window as any).ReactRouterDOM,
-  ReactRouterDOMops: Object.keys((window as any).ReactRouterDOM || {}),
-  __NKZ_SDK__: !!window.__NKZ_SDK__,
-  __NKZ_UI__: !!window.__NKZ_UI__,
-  __NKZ__: !!window.__NKZ__,
-});
-
 // =============================================================================
 // Global Error Handlers
 // =============================================================================
 
 window.onerror = (message, source, lineno, colno, error) => {
-  console.error('[GLOBAL ERROR]', { message, source, lineno, colno, error });
+  console.error('[NKZ] Uncaught error:', message, { source, lineno, colno, error });
   return false;
 };
 window.onunhandledrejection = (event) => {
-  console.error('[UNHANDLED REJECTION]', event.reason);
+  console.error('[NKZ] Unhandled rejection:', event.reason);
 };
 
 // =============================================================================
 // Application Bootstrap
 // =============================================================================
 
-console.log('[main.tsx] Starting application initialization...');
-
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element #root not found');
 }
-
-console.log('[main.tsx] Root element found, creating React root...');
 
 const root = ReactDOMClient.createRoot(rootElement);
 

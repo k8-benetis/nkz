@@ -97,41 +97,19 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
     // Sync active modules when modules list changes
     // Modules from ModuleContext are already filtered by backend (is_enabled = true)
     useEffect(() => {
-        console.log(`[SlotRegistry] useEffect triggered. Processing ${modules.length} modules...`);
-        const active = new Set<string>(['core']); // Core is always active
+        const active = new Set<string>(['core']);
 
-        // Add modules that are in the modules list (they're already filtered by backend to only include enabled ones)
         modules.forEach(module => {
             const isLocal = isLocalModule(module.id);
             const isInLocalModules = !!LOCAL_MODULES[module.id];
             const hasViewerSlots = !!module.viewerSlots;
-            const slotKeys = module.viewerSlots ? Object.keys(module.viewerSlots) : [];
 
-            console.log(`[SlotRegistry] Checking module: ${module.id}`, {
-                isLocal,
-                isInLocalModules,
-                hasViewerSlots,
-                slotKeys,
-                remoteEntry: module.remoteEntry || 'N/A'
-            });
-
-            // For local bundled modules, check if they're in the modules list
-            // If a module is in the modules list, it means it's enabled for this tenant
-            // Use centralized registry to check if it's a local module
-            // Also activate remote modules that have viewerSlots defined
             if (isLocal || isInLocalModules || hasViewerSlots) {
                 active.add(module.id);
-                console.log(`[SlotRegistry] ✅ Activated module: ${module.id}`);
-            } else {
-                console.log(`[SlotRegistry] ⏳ Module ${module.id} NOT activated (no viewerSlots yet)`);
             }
         });
 
-        console.log(`[SlotRegistry] Active modules:`, Array.from(active));
-        console.log(`[SlotRegistry] LOCAL_MODULES keys:`, Object.keys(LOCAL_MODULES));
         setActiveModuleIds(active);
-
-
     }, [modules]);
 
     // Toggle module activation
@@ -176,10 +154,8 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
         // These take precedence because they have the actual React components
         Object.entries(LOCAL_MODULES).forEach(([moduleId, moduleSlots]) => {
             if (activeModuleIds.has(moduleId) && moduleSlots[slot]) {
-                const slotWidgets = moduleSlots[slot]!;
-                console.log(`[SlotRegistry] Adding ${slotWidgets.length} widgets from LOCAL_MODULES[${moduleId}].${slot}`);
-                widgets.push(...slotWidgets);
-                processedModuleIds.add(moduleId); // Mark as processed to avoid duplication
+                widgets.push(...moduleSlots[slot]!);
+                processedModuleIds.add(moduleId);
             }
         });
 
@@ -192,63 +168,36 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
             }
 
             if (activeModuleIds.has(module.id) && module.viewerSlots?.[slot]) {
-                const slotWidgets = module.viewerSlots[slot]!;
-                console.log(`[SlotRegistry] Adding ${slotWidgets.length} widgets from module ${module.id}.viewerSlots.${slot}`);
-                widgets.push(...slotWidgets);
+                widgets.push(...module.viewerSlots[slot]!);
             }
         });
 
-        // Sort by priority (lower = first)
-        const sorted = widgets.sort((a, b) => a.priority - b.priority);
-        if (sorted.length > 0) {
-            console.log(`[SlotRegistry] getWidgetsForSlot(${slot}) returning ${sorted.length} widgets:`, sorted.map(w => w.id));
-        }
-        return sorted;
+        return widgets.sort((a, b) => a.priority - b.priority);
     }, [modules, activeModuleIds]);
 
     // Get visible widgets based on current viewer state
     const getVisibleWidgets = useCallback((slot: SlotType): SlotWidgetDefinition[] => {
         const allWidgets = getWidgetsForSlot(slot);
-        console.log(`[SlotRegistry] getVisibleWidgets(${slot}) - allWidgets from getWidgetsForSlot:`, allWidgets.length, allWidgets.map(w => w.id));
 
-        // Filter based on showWhen conditions
-        const visible = allWidgets.filter(widget => {
-            if (!widget.showWhen) {
-                console.log(`[SlotRegistry] Widget ${widget.id} has no showWhen, including`);
-                return true;
-            }
+        return allWidgets.filter(widget => {
+            if (!widget.showWhen) return true;
 
             const { entityType, layerActive } = widget.showWhen;
-            console.log(`[SlotRegistry] Widget ${widget.id} showWhen:`, { entityType, layerActive });
 
-            // Check entity type condition
             if (entityType && entityType.length > 0) {
-                if (!viewerContext.selectedEntityType) {
-                    console.log(`[SlotRegistry] Widget ${widget.id} filtered out: no selectedEntityType`);
-                    return false;
-                }
-                if (!entityType.includes(viewerContext.selectedEntityType)) {
-                    console.log(`[SlotRegistry] Widget ${widget.id} filtered out: entityType mismatch`);
-                    return false;
-                }
+                if (!viewerContext.selectedEntityType) return false;
+                if (!entityType.includes(viewerContext.selectedEntityType)) return false;
             }
 
-            // Check layer active condition
             if (layerActive && layerActive.length > 0) {
                 const hasActiveLayer = layerActive.some(layer =>
                     viewerContext.activeLayers.has(layer as any)
                 );
-                if (!hasActiveLayer) {
-                    console.log(`[SlotRegistry] Widget ${widget.id} filtered out: no active layer`);
-                    return false;
-                }
+                if (!hasActiveLayer) return false;
             }
 
             return true;
         });
-
-        console.log(`[SlotRegistry] getVisibleWidgets(${slot}) returning ${visible.length} widgets`);
-        return visible;
     }, [getWidgetsForSlot, viewerContext.selectedEntityType, viewerContext.activeLayers]);
 
     const value = useMemo<SlotRegistryContextType>(() => ({

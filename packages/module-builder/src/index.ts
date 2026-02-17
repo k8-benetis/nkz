@@ -28,8 +28,7 @@ const NKZ_EXTERNALS: Record<string, string> = {
     'react': 'React',
     'react-dom': 'ReactDOM',
     'react-dom/client': 'ReactDOM',
-    'react/jsx-runtime': 'React',
-    'react/jsx-dev-runtime': 'React',
+    'react-router-dom': 'ReactRouterDOM',
     '@nekazari/sdk': '__NKZ_SDK__',
     '@nekazari/ui-kit': '__NKZ_UI__',
 };
@@ -89,7 +88,10 @@ export function nkzModulePreset(options: NKZModulePresetOptions): UserConfig {
 
     const config: UserConfig = {
         plugins: [
-            react(),
+            // Use 'classic' runtime to emit React.createElement() calls.
+            // The 'automatic' runtime emits _jsx() which doesn't exist on
+            // window.React (UMD global). Classic runtime is required for IIFE modules.
+            react({ jsxRuntime: 'classic' }),
             // Banner plugin to add module metadata comment
             {
                 name: 'nkz-module-banner',

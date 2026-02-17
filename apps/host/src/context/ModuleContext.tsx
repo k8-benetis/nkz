@@ -197,27 +197,16 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         });
         if (manifestResponse.ok) {
           const contentType = manifestResponse.headers.get('content-type');
-          // Verify we're getting JSON, not HTML (SPA fallback)
           if (contentType && contentType.includes('application/json')) {
             const manifest = await manifestResponse.json();
             localModules = (manifest.modules || []).map((m: any) => ({
               ...m,
               isLocal: true,
             }));
-            console.log('[ModuleContext] Loaded local modules from manifest:', localModules.length);
-          } else {
-            // Server returned HTML (SPA fallback) - manifest doesn't exist, skip silently
-            console.debug('[ModuleContext] Manifest not found (returned HTML), skipping local manifest');
           }
-        } else if (manifestResponse.status === 404) {
-          // Manifest doesn't exist - this is normal in production
-          console.debug('[ModuleContext] Manifest not found (404), skipping local manifest');
-        } else {
-          console.warn('[ModuleContext] Manifest request failed:', manifestResponse.status, manifestResponse.statusText);
         }
-      } catch (manifestError) {
-        // Silently ignore - manifest is optional, modules come from backend
-        console.debug('[ModuleContext] Could not load local manifest (this is normal):', manifestError);
+      } catch {
+        // Manifest is optional — modules come from backend
       }
 
       // Load remote modules from backend
@@ -230,9 +219,8 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         });
         const data = await client.get<ModuleDefinition[]>('/api/modules/me');
         remoteModules = Array.isArray(data) ? data : [];
-        console.log('[ModuleContext] Loaded remote modules:', remoteModules.length);
       } catch (remoteError) {
-        console.warn('[ModuleContext] Could not load remote modules:', remoteError);
+        console.warn('[ModuleContext] Failed to load remote modules:', remoteError);
       }
 
       // Merge modules - for local modules, use local definition (which has viewerSlots)
@@ -245,9 +233,8 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         Object.values(LOCAL_MODULE_REGISTRY).forEach(m => {
           moduleMap.set(m.id, m);
         });
-        console.log('[ModuleContext] Loaded local modules from registry:', Object.keys(LOCAL_MODULE_REGISTRY).length);
-      } catch (e) {
-        console.warn('[ModuleContext] Could not load local modules from registry:', e);
+      } catch {
+        // Local module registry not available
       }
 
       // Then add local modules from manifest (if any)
@@ -292,29 +279,21 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
       // Subscribe to runtime registrations BEFORE loading scripts
       // so we catch modules that register synchronously on script load.
-      // Note: unsubscribe is intentionally not called — we want the listener
-      // active for the entire lifecycle so late-registering modules work.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _unsubscribe = window.__NKZ__?.onRegister((registeredId, registration) => {
+      // Unsubscribe is intentionally not called — listener stays active for
+      // the entire lifecycle so late-registering modules work.
+      window.__NKZ__?.onRegister((registeredId, registration) => {
         const existingModule = moduleMap.get(registeredId);
         if (existingModule) {
-          // Merge runtime registration into the module definition
           if (registration.viewerSlots) {
             existingModule.viewerSlots = registration.viewerSlots;
           }
-          // Update state with the new viewerSlots
-          setModules(prevModules => {
-            const updated = prevModules.map(m =>
+          setModules(prevModules =>
+            prevModules.map(m =>
               m.id === registeredId
                 ? { ...m, viewerSlots: registration.viewerSlots || m.viewerSlots }
                 : m
-            );
-            return updated;
-          });
-          console.log(`[ModuleContext] ✅ Applied runtime registration for "${registeredId}":`,
-            registration.viewerSlots ? Object.keys(registration.viewerSlots) : []);
-        } else {
-          console.debug(`[ModuleContext] Runtime registration for unknown module "${registeredId}" (not in /api/modules/me)`);
+            )
+          );
         }
       });
 
@@ -325,11 +304,10 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         .map(m => ({ id: m.id, bundleUrl: m.remoteEntry! }));
 
       if (modulesToLoad.length > 0) {
-        console.log(`[ModuleContext] Loading ${modulesToLoad.length} remote module bundles...`);
         const results = await loadModuleScripts(modulesToLoad);
         results.forEach(r => {
           if (!r.success) {
-            console.warn(`[ModuleContext] Failed to load bundle for "${r.id}":`, r.error?.message);
+            console.warn(`[ModuleContext] Failed to load module "${r.id}":`, r.error?.message);
           }
         });
       }
@@ -346,16 +324,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         });
       }
 
-      const allModules = Array.from(moduleMap.values());
-      console.log('[ModuleContext] Total modules:', allModules.length);
-      // Log all modules for debugging
-      allModules.forEach(m => {
-        console.log(`[ModuleContext] Module loaded: ${m.id}, routePath: ${m.routePath}, remoteEntry: ${m.remoteEntry || 'N/A'}, isLocal: ${m.isLocal}`);
-        if (m.viewerSlots) {
-          console.log(`[ModuleContext] Module ${m.id} has slots:`, Object.keys(m.viewerSlots));
-        }
-      });
-      setModules(allModules);
+      setModules(Array.from(moduleMap.values()));
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
       console.error('[ModuleContext] Error loading modules:', error);
