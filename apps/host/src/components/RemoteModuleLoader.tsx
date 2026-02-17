@@ -108,22 +108,22 @@ export const loadRemoteContainer = async (remoteEntryUrl: string): Promise<any> 
 
   remoteContainerCache[remoteEntryUrl] = (async () => {
     console.log(`[RemoteModuleLoader] ⚡ Importing remote entry: ${remoteEntryUrl}`);
-    
+
     // CRITICAL: Populate globalThis.__federation_shared__ BEFORE importing the remote entry
     // This ensures that when the remote module's importShared() is called, the shared modules are already available
     // This is required when remote modules use import: false in their vite.config.ts shared configuration
-    
+
     // Force ensure window globals are available (they should be set in main.tsx before any module loading)
     if (typeof window === 'undefined') {
       throw new Error('[RemoteModuleLoader] window is undefined - cannot load remote modules');
     }
-    
+
     // Wait a tick to ensure window.React is set (if main.tsx hasn't run yet)
     if (!window.React || !window.ReactDOM || !window.ReactRouterDOM) {
       console.warn('[RemoteModuleLoader] ⚠️ window.React/ReactDOM/ReactRouterDOM not immediately available, waiting...');
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    
+
     if (!window.React || !window.ReactDOM || !window.ReactRouterDOM) {
       const missing = [];
       if (!window.React) missing.push('React');
@@ -131,9 +131,9 @@ export const loadRemoteContainer = async (remoteEntryUrl: string): Promise<any> 
       if (!window.ReactRouterDOM) missing.push('ReactRouterDOM');
       throw new Error(`[RemoteModuleLoader] ❌ Cannot load module: window.${missing.join(', window.')} not available. Ensure main.tsx exposes React globals.`);
     }
-    
+
     console.log('[RemoteModuleLoader] ✅ Window globals available, populating globalThis.__federation_shared__');
-    
+
     // Initialize globalThis.__federation_shared__ structure
     if (!globalThis.__federation_shared__) {
       globalThis.__federation_shared__ = {};
@@ -142,7 +142,7 @@ export const loadRemoteContainer = async (remoteEntryUrl: string): Promise<any> 
     if (!globalThis.__federation_shared__[scope]) {
       globalThis.__federation_shared__[scope] = {};
     }
-    
+
     // Store React shared modules in the format expected by vite-plugin-federation
     // Format: globalThis.__federation_shared__[scope][name][version] = { get: () => Promise<() => module> }
     // When importShared('react') is called, it does: await (await versionValue.get())()
@@ -158,31 +158,53 @@ export const loadRemoteContainer = async (remoteEntryUrl: string): Promise<any> 
         },
       },
     };
-    
+
     globalThis.__federation_shared__[scope]['react-dom'] = {
       '18.3.1': {
         get: () => Promise.resolve(() => window.ReactDOM),
       },
     };
-    
+
     globalThis.__federation_shared__[scope]['react-router-dom'] = {
       '6.26.0': {
         get: () => Promise.resolve(() => window.ReactRouterDOM),
       },
     };
-    
+
     console.log('[RemoteModuleLoader] ✅ Shared modules stored:', Object.keys(globalThis.__federation_shared__[scope]));
     console.log('[RemoteModuleLoader] 🔍 Verification:', {
       react: !!globalThis.__federation_shared__[scope]['react'],
       'react-dom': !!globalThis.__federation_shared__[scope]['react-dom'],
       'react-router-dom': !!globalThis.__federation_shared__[scope]['react-router-dom'],
     });
-    
+
     // Dynamic import of the ES module remoteEntry
     const container = await import(/* @vite-ignore */ remoteEntryUrl);
-    
+
     if (!container || !container.get) {
-      throw new Error(`Remote entry does not export 'get' function: ${remoteEntryUrl}`);
+      console.warn(`[RemoteModuleLoader] Remote entry ${remoteEntryUrl} does not export 'get'. Assuming IIFE/Global registration via window.__NKZ__.`);
+
+      // Fallback: Return a Mock Container that delegates to the NKZ registry
+      return {
+        get: (moduleName: string) => {
+          console.log(`[RemoteModuleLoader] IIFE Fallback: looking for '${moduleName}' in registry`);
+          // Return a factory-producing promise (matching Federation interface)
+          return Promise.resolve(() => {
+            // Try exact name, or clean ID (handling ./ prefix if present)
+            const id = moduleName.startsWith('./') ? moduleName.substring(2) : moduleName;
+            const registered = window.__NKZ__?.getRegistered(id) || window.__NKZ__?.getRegistered(moduleName);
+
+            if (!registered) {
+              console.error(`[RemoteModuleLoader] Module '${moduleName}' (ID: ${id}) not found in __NKZ__ registry. Available:`, window.__NKZ__?.getRegisteredIds());
+              // Don't throw here, allow factory to return undefined so caller handles it?
+              // Federation get() returns Promise<()=>Module>. If factory returns undefined...
+              return undefined;
+            }
+            return registered;
+          });
+        },
+        init: () => { /* no-op for IIFE */ }
+      };
     }
 
     // Also call container.init() if it exists, in case the remote entry expects it
@@ -212,9 +234,9 @@ export const loadRemoteModule = async (
   remoteEntryUrl: string
 ): Promise<any> => {
   const container = await loadRemoteContainer(remoteEntryUrl);
-  
+
   console.log(`[RemoteModuleLoader] Getting module: ${moduleName} from ${remoteEntryUrl}`);
-  
+
   // Get the module factory using vite-plugin-federation's get() function
   const factory = await container.get(moduleName);
   if (!factory) {
@@ -223,33 +245,33 @@ export const loadRemoteModule = async (
 
   console.log(`[RemoteModuleLoader] Factory type:`, typeof factory);
   console.log(`[RemoteModuleLoader] Factory:`, factory);
-  
+
   // vite-plugin-federation can return different formats:
   // 1. Direct component: factory() returns the component
   // 2. Wrapped component: factory() returns { default: Component }
   // 3. Module object: factory() returns { ComponentName: Component }
   // 4. Promise: factory() returns a Promise that resolves to the module
-  
+
   let module = null;
-  
+
   if (typeof factory === 'function') {
     let result = factory();
-    
+
     // Handle Promise if factory returns one
     if (result && typeof result.then === 'function') {
       console.log(`[RemoteModuleLoader] Factory returned a Promise, awaiting...`);
       result = await result;
     }
-    
+
     console.log(`[RemoteModuleLoader] Factory result type:`, typeof result);
     console.log(`[RemoteModuleLoader] Factory result:`, result);
     console.log(`[RemoteModuleLoader] Factory result keys:`, result && typeof result === 'object' && !Array.isArray(result) ? Object.keys(result) : 'N/A');
-    
+
     // Handle different return formats
     if (!result) {
       throw new Error(`Factory returned null or undefined for module '${moduleName}'`);
     }
-    
+
     if (result.default) {
       // Format: { default: Component }
       module = result.default;
@@ -262,7 +284,7 @@ export const loadRemoteModule = async (
       // Format: { ComponentName: Component } - try to find the component
       const keys = Object.keys(result);
       console.log(`[RemoteModuleLoader] Object with keys:`, keys);
-      
+
       if (keys.length > 0) {
         // Try to find a function/component in the object
         const componentKey = keys.find(key => typeof result[key] === 'function');
@@ -287,19 +309,19 @@ export const loadRemoteModule = async (
     module = factory;
     console.log(`[RemoteModuleLoader] Factory is not a function, using directly`);
   }
-  
+
   console.log(`[RemoteModuleLoader] Final module type:`, typeof module);
   console.log(`[RemoteModuleLoader] Final module:`, module);
   console.log(`[RemoteModuleLoader] Module is React component:`, module && typeof module === 'function');
-  
+
   if (!module) {
     throw new Error(`Failed to extract component from module '${moduleName}'. Factory returned: ${factory}`);
   }
-  
+
   if (typeof module !== 'function') {
     throw new Error(`Module '${moduleName}' does not export a React component. Got type: ${typeof module}, value: ${module}`);
   }
-  
+
   return module;
 };
 
@@ -333,11 +355,11 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
         // STRATEGY 1: Check local registry (bundled modules)
         // Prioritize: module.isLocal from DB, or check localAddonRegistry
         const shouldLoadLocal = module.isLocal || isLocalAddon(module.id);
-        
+
         if (shouldLoadLocal && isLocalAddon(module.id)) {
           console.log(`[ModuleLoader] Loading from local registry: ${module.id}`);
           const localAddon = getLocalAddon(module.id);
-          
+
           if (localAddon && isMounted) {
             setIsLocal(true);
             setComponent(() => localAddon.component);
@@ -353,19 +375,20 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
         }
 
         console.log(`[ModuleLoader] Loading remotely: ${module.remoteEntry}`);
-        
-        const remoteEntryUrl = module.remoteEntry.startsWith('http') 
-          ? module.remoteEntry 
+
+        const remoteEntryUrl = module.remoteEntry.startsWith('http')
+          ? module.remoteEntry
           : `${window.location.origin}${module.remoteEntry}`;
 
         const remoteModule = await loadRemoteModule(
-          module.module || './App',
+          // Prioritize strict module ID for IIFE lookups, fallback to ./App for legacy Federation
+          module.module || module.id || './App',
           remoteEntryUrl
         );
 
         if (isMounted) {
           let RemoteComponent = null;
-          
+
           // Handle different export formats
           if (typeof remoteModule === 'function') {
             // Direct component export
@@ -391,7 +414,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
               }
             }
           }
-          
+
           if (!RemoteComponent || typeof RemoteComponent !== 'function') {
             console.error(`[RemoteModuleLoader] Module structure:`, remoteModule);
             throw new Error(`Module ${module.module || module.id} does not export a valid React component. Got: ${typeof remoteModule}`);
@@ -457,10 +480,10 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
     // CRITICAL: Isolate remote module CSS to prevent it from affecting host layout
     // This uses CSS containment and scoping to prevent global CSS leaks
     return (
-      <div 
+      <div
         className="remote-module-container"
         data-module-id={module.id}
-        style={{ 
+        style={{
           isolation: 'isolate',
           contain: 'layout style paint',
           position: 'relative',
