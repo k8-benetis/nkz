@@ -21,6 +21,8 @@ export interface NKZModuleRegistration {
     viewerSlots?: ModuleViewerSlots;
     /** Optional React provider for module-level context */
     provider?: React.ComponentType<{ children: React.ReactNode }>;
+    /** Optional main component for routing (e.g., /modules/my-module) */
+    main?: React.ComponentType<any>;
     /** Optional module version */
     version?: string;
 }

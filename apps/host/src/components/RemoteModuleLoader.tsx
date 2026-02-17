@@ -125,11 +125,57 @@ export const loadRemoteModule = async (
   moduleName: string,
   _remoteEntryUrl: string
 ): Promise<any> => {
+  // Direct registry lookup by ID (preferred for IIFE)
+  // moduleName is often "./App" (legacy) or the module ID
+  const possibleIds = [
+    moduleName,
+    moduleName.replace('./', ''),
+    // If we can't find it by name, we might need to rely on the module ID passed in props
+  ];
+
+  let registered: any = undefined;
+  for (const id of possibleIds) {
+    if (window.__NKZ__?.getRegistered(id)) {
+      registered = window.__NKZ__.getRegistered(id);
+      break;
+    }
+  }
+
+  // If found in registry
+  if (registered) {
+    // If the module has a 'main' component registered, use it
+    if (registered.main) {
+      return registered.main;
+    }
+
+    // If it's a valid module but has no main component (e.g. only slots),
+    // return a placeholder instead of crashing
+    console.warn(`[RemoteModuleLoader] Module "${registered.id}" found but has no 'main' component. Returning fallback.`);
+    return () => (
+      <div className="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-700 mb-2">Module Active: {registered.id}</h3>
+        <p className="text-gray-500">This module is active and has registered its widgets.</p>
+        <p className="text-gray-400 text-sm mt-2">No main view component provided.</p>
+      </div>
+    );
+  }
+
+  // Fallback to legacy container loading (rarely used now)
   const container = await loadRemoteContainer(_remoteEntryUrl);
   const factory = await container.get(moduleName);
 
   if (!factory) {
-    throw new Error(`Module "${moduleName}" not found in remote entry.`);
+    // Last ditch effort: check registry one more time in case script loaded
+    // and registered with an ID we didn't guess
+    const ids = window.__NKZ__?.getRegisteredIds() || [];
+    // Try to find a loose match
+    const match = ids.find(id => _remoteEntryUrl.includes(id) || moduleName.includes(id));
+    if (match) {
+      const reg = window.__NKZ__?.getRegistered(match);
+      if (reg?.main) return reg.main;
+    }
+
+    throw new Error(`Module "${moduleName}" not found in remote entry or registry.`);
   }
 
   const module = typeof factory === 'function' ? factory() : factory;
@@ -199,7 +245,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
           : `${window.location.origin}${module.remoteEntry}`;
 
         const remoteModule = await loadRemoteModule(
-          module.module || module.id || './App',
+          module.id || module.module || './App', // Prefer ID for IIFE lookup
           remoteEntryUrl
         );
 
