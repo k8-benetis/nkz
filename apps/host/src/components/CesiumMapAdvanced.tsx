@@ -13,7 +13,7 @@ import { Layers, Calendar, MapPin, Loader2, Eye, EyeOff, Expand, Minimize } from
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { useAuth } from '@/context/KeycloakAuthContext';
-import { DEFAULT_LAYER_CONFIGS, LayerType, LayerConfig, EntityData } from './cesium/CesiumLayerConfig';
+import { DEFAULT_LAYER_CONFIGS, LayerType, EntityData } from './cesium/CesiumLayerConfig';
 import { LAYER_RENDERERS } from './cesium/CesiumLayerRenderers';
 
 // Import Cesium CSS
@@ -63,7 +63,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
   const viewerRef = useRef<any>(null);
   const entitiesRef = useRef<Map<string, any>>(new Map());
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const { getToken } = useAuth();
+  useAuth(); // auth context for API
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // State
@@ -266,7 +266,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
 
     try {
       setIsLoading(true);
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
 
       // Load NDVI for each parcel
       const ndviMap = new Map<string, NDVIData[]>();

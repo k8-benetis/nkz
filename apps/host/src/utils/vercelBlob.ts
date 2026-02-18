@@ -27,7 +27,6 @@ export interface UploadOptions {
  */
 export async function uploadToVercelBlob(
   file: File,
-  options: UploadOptions = {}
 ): Promise<string> {
   try {
     // 1. Get authorization from backend

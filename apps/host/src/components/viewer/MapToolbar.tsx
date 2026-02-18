@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { useViewer, MapMode } from '@/context/ViewerContext';
-import { CheckCircle2, X, Undo2, Eraser, Grid } from 'lucide-react';
+import { CheckCircle2, X, Undo2, Eraser } from 'lucide-react';
 
 interface MapToolbarProps {
     /** Callback when user accepts (completes) the current operation */

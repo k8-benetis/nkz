@@ -9,7 +9,6 @@ import { X, Save, MapPin, Cloud, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
-import type { WeatherStation } from '@/types';
 
 const config = getConfig();
 

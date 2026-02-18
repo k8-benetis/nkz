@@ -4,7 +4,7 @@
 // Hook for fetching historical timeseries data from TimescaleDB Reader Service.
 // Integrates with ViewerContext for temporal synchronization.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '@/services/api';
 
 // =============================================================================

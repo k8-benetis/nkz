@@ -11,6 +11,7 @@ import { EntityWizard } from '@/components/EntityWizard';
 import { DeleteConfirmationModal } from '@/components/AssetManager/DeleteConfirmationModal';
 import { useEntityDependencies } from '@/hooks/useEntityDependencies';
 import { useToastContext } from '@/context/ToastContext';
+import { logger } from '@/utils/logger';
 import { UnifiedAsset } from '@/types/assets';
 import {
   Gauge,
@@ -19,14 +20,12 @@ import {
   RefreshCw,
   Activity,
   Battery,
-  Signal,
-  MapPin,
   Calendar,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   Trash2,
-  MoreVertical,
+  MapPin,
 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { es, enUS, eu } from 'date-fns/locale';
@@ -58,7 +57,7 @@ export const Sensors: React.FC = () => {
 
   // Pagination state
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize] = useState(25);
 
   // Wizard state
   const [showWizard, setShowWizard] = useState(false);
@@ -101,7 +100,7 @@ export const Sensors: React.FC = () => {
         setTotalCount(0);
       }
     } catch (error) {
-      console.error('Error loading sensors:', error);
+      logger.error('Error loading sensors:', error);
       // Fallback for empty state
       setSensors([]);
       setTotalCount(0);

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
-import { uploadToMinIO, isValidIconFile, formatFileSize, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
+import { uploadToMinIO, isValidIconFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
 
 interface IconUploaderProps {
   currentIconUrl?: string;

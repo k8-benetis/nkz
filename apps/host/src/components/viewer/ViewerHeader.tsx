@@ -25,7 +25,6 @@ import {
 import {
     ChevronDown,
     LogOut,
-    User,
     Puzzle,
     ExternalLink,
 } from 'lucide-react';
@@ -48,7 +47,7 @@ export interface ViewerHeaderProps {
 }
 
 export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
-    const { user, logout, hasAnyRole } = useAuth();
+    const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useTranslation(['common', 'navigation']);
     const navigate = useNavigate();

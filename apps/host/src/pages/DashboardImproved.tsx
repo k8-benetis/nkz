@@ -33,8 +33,7 @@ import {
   AlertCircle,
   Clock,
   Zap,
-  Plus,
-  X
+  Plus
 } from 'lucide-react';
 import { EntityWizard } from '@/components/EntityWizard';
 import { SlotRegistryProvider } from '@/context/SlotRegistry';

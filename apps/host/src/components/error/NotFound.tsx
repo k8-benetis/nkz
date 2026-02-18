@@ -5,7 +5,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
-import { Home, ArrowLeft, Search } from 'lucide-react';
+import { Home, ArrowLeft } from 'lucide-react';
 
 export const NotFound: React.FC = () => {
   const navigate = useNavigate();

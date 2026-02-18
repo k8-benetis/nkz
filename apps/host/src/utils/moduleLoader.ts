@@ -10,6 +10,8 @@
 // 3. ModuleContext listens via window.__NKZ__.onRegister() and updates state
 // =============================================================================
 
+import { logger } from '@/utils/logger';
+
 // =============================================================================
 // Script Loading Cache
 // =============================================================================
@@ -41,13 +43,13 @@ export function loadModuleScript(bundleUrl: string, moduleId: string): Promise<v
 
     // Return cached promise if already loading/loaded
     if (scriptLoadCache.has(fullUrl)) {
-        console.debug(`[ModuleLoader] Script already loading/loaded: ${moduleId} (${fullUrl})`);
+        logger.debug(`[ModuleLoader] Script already loading/loaded: ${moduleId} (${fullUrl})`);
         return scriptLoadCache.get(fullUrl)!;
     }
 
     // Check if script tag already exists in DOM
     if (injectedScripts.has(fullUrl)) {
-        console.debug(`[ModuleLoader] Script already injected: ${moduleId}`);
+        logger.debug(`[ModuleLoader] Script already injected: ${moduleId}`);
         return Promise.resolve();
     }
 
@@ -59,18 +61,18 @@ export function loadModuleScript(bundleUrl: string, moduleId: string): Promise<v
 
         script.onload = () => {
             injectedScripts.add(fullUrl);
-            console.log(`[ModuleLoader] ✅ Script loaded: ${moduleId} (${fullUrl})`);
+            logger.debug(`[ModuleLoader] ✅ Script loaded: ${moduleId} (${fullUrl})`);
             resolve();
         };
 
         script.onerror = (event) => {
-            console.error(`[ModuleLoader] ❌ Failed to load script: ${moduleId} (${fullUrl})`, event);
+            logger.error(`[ModuleLoader] ❌ Failed to load script: ${moduleId} (${fullUrl})`, event);
             scriptLoadCache.delete(fullUrl);
             reject(new Error(`Failed to load module script: ${moduleId} from ${fullUrl}`));
         };
 
         document.head.appendChild(script);
-        console.log(`[ModuleLoader] Injecting script: ${moduleId} → ${fullUrl}`);
+        logger.debug(`[ModuleLoader] Injecting script: ${moduleId} → ${fullUrl}`);
     });
 
     scriptLoadCache.set(fullUrl, loadPromise);
@@ -131,7 +133,7 @@ export function unloadModuleScript(moduleId: string): void {
         script.remove();
         scriptLoadCache.delete(src);
         injectedScripts.delete(src);
-        console.log(`[ModuleLoader] Removed script: ${moduleId}`);
+        logger.debug(`[ModuleLoader] Removed script: ${moduleId}`);
     });
 }
 

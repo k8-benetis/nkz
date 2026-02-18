@@ -27,9 +27,9 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
     const [activeTab, setActiveTab] = useState<Tab>('library');
     const [searchTerm, setSearchTerm] = useState('');
 
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [_selectedCategory, _setSelectedCategory] = useState<string>('all');
     const [publicAssets, setPublicAssets] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [_loading, setLoading] = useState(false);
 
     React.useEffect(() => {
         const fetchAssets = async () => {

@@ -2,21 +2,16 @@
 // Activation Component - Farmer Registration with Activation Code
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { TermsAcceptance } from '@/components/TermsAcceptance';
-import api from '@/services/api';
 import axios from 'axios';
 import { getConfig } from '@/config/environment';
 import { validateTenantId, normalizeTenantId, getTenantIdRules } from '@/utils/tenantValidation';
-import { 
-  Key, 
-  Mail, 
-  User, 
-  Building2, 
-  CheckCircle, 
+import {
+  Key,
+  CheckCircle,
   AlertTriangle,
   Loader2,
   Eye,
@@ -50,7 +45,6 @@ interface ActivationResponse {
 }
 
 export const Activation: React.FC = () => {
-  const navigate = useNavigate();
   const { login } = useAuth();
   const { t } = useI18n();
   const [formData, setFormData] = useState<ActivationFormData>({
@@ -86,7 +80,8 @@ export const Activation: React.FC = () => {
       hasDigit: /\d/.test(password),
       hasLowercase: /[a-z]/.test(password),
       hasUppercase: /[A-Z]/.test(password),
-      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+      // eslint-disable-next-line no-useless-escape -- [ and ] required as literals in character class
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password)
     };
   };
   

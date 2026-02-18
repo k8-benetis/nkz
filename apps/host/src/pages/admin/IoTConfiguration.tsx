@@ -155,7 +155,7 @@ export const IoTConfiguration: React.FC = () => {
     // State
     const [profiles, setProfiles] = useState<ProcessingProfile[]>([]);
     const [stats, setStats] = useState<TelemetryStats | null>(null);
-    const [deviceTypes, setDeviceTypes] = useState<string[]>([]);
+    const [, setDeviceTypes] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);

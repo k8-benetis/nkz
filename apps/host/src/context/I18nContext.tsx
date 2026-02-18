@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { SupportedLanguage, Translations } from '@/types';
+import { logger } from '@/utils/logger';
 
 interface I18nContextType {
   language: SupportedLanguage;
@@ -41,9 +42,9 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
     const loadTranslations = async () => {
       setIsLoading(true);
       try {
-        console.log(`[I18n] Loading translations for '${language}'`);
+        logger.debug(`[I18n] Loading translations for '${language}'`);
         const fetchUrl = `/locales/${language}.json`;
-        console.log('[I18n] Fetch URL:', fetchUrl);
+        logger.debug('[I18n] Fetch URL:', fetchUrl);
         // Añadir timeout para evitar que se quede bloqueado
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
@@ -56,42 +57,42 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
         
         if (response.ok) {
           const data = await response.json();
-          console.log(`[I18n] Successfully loaded translations for ${language}, keys:`, Object.keys(data).length);
+          logger.debug(`[I18n] Successfully loaded translations for ${language}, keys:`, Object.keys(data).length);
           setTranslations(data);
         } else {
-          console.warn(`Translations for ${language} not found (status ${response.status}), attempting dynamic import fallback`);
+          logger.warn(`Translations for ${language} not found (status ${response.status}), attempting dynamic import fallback`);
           // Fallback: try dynamic import from bundled assets
           try {
             // Note: dynamic import path must match build-time assets
             // This works when locales are bundled into the app
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
+             
             const mod = await import(/* @vite-ignore */ `/locales/${language}.json`);
             const fallbackData = mod.default || mod;
-            console.log(`[I18n] Fallback dynamic import succeeded for ${language}, keys:`, Object.keys(fallbackData).length);
+            logger.debug(`[I18n] Fallback dynamic import succeeded for ${language}, keys:`, Object.keys(fallbackData).length);
             setTranslations(fallbackData as Translations);
           } catch (impErr) {
-            console.warn('[I18n] Dynamic import fallback failed:', impErr);
+            logger.warn('[I18n] Dynamic import fallback failed:', impErr);
             // Último fallback: cargar español
             if (language !== 'es') {
-              console.log('[I18n] Attempting to load Spanish as final fallback');
+              logger.debug('[I18n] Attempting to load Spanish as final fallback');
               try {
                 const esResponse = await fetch('/locales/es.json');
                 if (esResponse.ok) {
                   const esData = await esResponse.json();
-                  console.log('[I18n] Loaded Spanish as final fallback, keys:', Object.keys(esData).length);
+                  logger.debug('[I18n] Loaded Spanish as final fallback, keys:', Object.keys(esData).length);
                   setTranslations(esData);
                 }
               } catch (esErr) {
-                console.error('[I18n] Failed to load Spanish fallback:', esErr);
+                logger.error('[I18n] Failed to load Spanish fallback:', esErr);
               }
             }
           }
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          console.warn('Translation load timeout, continuing without translations');
+          logger.warn('Translation load timeout, continuing without translations');
         } else {
-          console.error('Error loading translations:', error);
+          logger.error('Error loading translations:', error);
         }
         // Continuar sin traducciones en lugar de bloquear
       } finally {
@@ -136,19 +137,19 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
   const t = (key: string, params?: Record<string, string>): string => {
     // Si las traducciones aún no están cargadas, intentar cargar español como fallback
     if (Object.keys(translations).length === 0) {
-      console.warn(`[I18n] Translations not loaded yet, key: ${key}`);
+      logger.warn(`[I18n] Translations not loaded yet, key: ${key}`);
       // Si no hay traducciones y el idioma no es español, intentar cargar español
       if (language !== 'es' && isLoading === false) {
-        console.warn(`[I18n] Translations empty for ${language}, falling back to Spanish`);
+        logger.warn(`[I18n] Translations empty for ${language}, falling back to Spanish`);
         // Intentar cargar español como fallback
         fetch('/locales/es.json')
           .then(res => res.json())
           .then(data => {
             setTranslations(data);
-            console.log('[I18n] Loaded Spanish as fallback');
+            logger.debug('[I18n] Loaded Spanish as fallback');
           })
           .catch(err => {
-            console.error('[I18n] Failed to load Spanish fallback:', err);
+            logger.error('[I18n] Failed to load Spanish fallback:', err);
           });
       }
       // Devolver la clave con un prefijo para debugging, o la clave directamente
@@ -163,7 +164,7 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
         value = value[k];
       } else {
         // Si no se encuentra la traducción, loguear para debugging
-        console.warn(`[I18n] Translation key not found: ${key} (language: ${language})`);
+        logger.warn(`[I18n] Translation key not found: ${key} (language: ${language})`);
         // Devolver la clave para que sea visible que falta la traducción
         return key;
       }
@@ -181,7 +182,7 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
     }
 
     // Si el valor no es un string, devolver la clave
-    console.warn(`[I18n] Translation value is not a string for key: ${key}`);
+    logger.warn(`[I18n] Translation value is not a string for key: ${key}`);
     return key;
   };
 

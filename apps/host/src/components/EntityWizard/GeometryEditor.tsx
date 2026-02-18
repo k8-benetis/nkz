@@ -205,7 +205,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     let entity: any = null;
 
     switch (geometry.type) {
-      case 'Point':
+      case 'Point': {
         const point = geometry as Point;
         entity = viewer.entities.add({
           id: 'current-geometry',
@@ -219,8 +219,8 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
           }
         });
         break;
-
-      case 'Polygon':
+      }
+      case 'Polygon': {
         const polygon = geometry as Polygon;
         const polyCoords = polygon.coordinates[0];
         const polyPositions = polyCoords.map((coord: number[]) =>
@@ -228,7 +228,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         );
 
         // Add point markers
-        polyPositions.forEach((pos, index) => {
+        polyPositions.forEach((pos, _index) => {
           const pointEntity = viewer.entities.add({
             position: pos,
             point: {
@@ -259,8 +259,8 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         const areaHectares = calculatePolygonAreaHectares(polygon);
         setArea(areaHectares);
         break;
-
-      case 'LineString':
+      }
+      case 'LineString': {
         const lineString = geometry as LineString;
         const linePositions = lineString.coordinates.map((coord: number[]) =>
           Cesium.Cartesian3.fromDegrees(coord[0], coord[1])
@@ -292,8 +292,8 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
           }
         });
         break;
-
-      case 'MultiLineString':
+      }
+      case 'MultiLineString': {
         const multiLine = geometry as MultiLineString;
         multiLine.coordinates.forEach((lineCoords, lineIndex) => {
           const linePositions = lineCoords.map((coord: number[]) =>
@@ -330,6 +330,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
           }
         });
         break;
+      }
     }
 
     if (entity) {

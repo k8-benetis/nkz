@@ -28,13 +28,15 @@ export default defineConfig({
     },
   ],
 
-  // Start local dev server before running tests (only in local, not CI)
-  ...(process.env.CI ? {} : {
-    webServer: {
-      command: 'pnpm dev',
-      url: 'http://localhost:3000',
-      reuseExistingServer: true,
-      timeout: 120_000,
-    },
-  }),
+  // Start local dev server when targeting localhost (no E2E_BASE_URL)
+  ...(!process.env.E2E_BASE_URL
+    ? {
+        webServer: {
+          command: 'pnpm dev',
+          url: 'http://localhost:3000',
+          reuseExistingServer: true,
+          timeout: 120_000,
+        },
+      }
+    : {}),
 })

@@ -34,7 +34,7 @@ interface StampToolProps {
 export const StampTool: React.FC<StampToolProps> = ({
   modelUrl,
   onInstancesChange,
-  height = 'h-32', // Reduced default height since no map
+  height: _height = 'h-32', // Reduced default height since no map
   disabled = false
 }) => {
   const {

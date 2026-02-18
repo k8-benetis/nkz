@@ -19,7 +19,7 @@ export default defineConfig({
       name: 'preserve-inline-scripts',
       transformIndexHtml: {
         enforce: 'pre', // Ejecutar ANTES de que Vite procese el HTML
-        transform(html, ctx) {
+        transform(html, _ctx) {
           // Vite procesará el HTML después y añadirá el script del bundle
           // Este plugin solo preserva los scripts inline que ya existen
           return html;

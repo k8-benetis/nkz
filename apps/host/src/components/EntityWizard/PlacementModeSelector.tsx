@@ -1,7 +1,7 @@
 import React from 'react';
-import { MousePointer2, Grid3X3, Brush, Trees, AlertTriangle } from 'lucide-react';
+import { MousePointer2, Brush, AlertTriangle } from 'lucide-react';
 
-export type PlacementMode = 'single' | 'multi' | 'stamp';
+export type PlacementMode = 'single' | 'multi' | 'stamp' | 'line' | 'polygon';
 
 interface PlacementModeSelectorProps {
     mode: PlacementMode;

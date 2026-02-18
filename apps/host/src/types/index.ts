@@ -112,6 +112,10 @@ export interface Sensor {
   };
   icon2d?: string; // URL to 2D icon
   model3d?: string; // URL to 3D model (GLTF/GLB)
+  modelScale?: { type: 'Property'; value: number };
+  modelRotation?: { type: 'Property'; value: [number, number, number] };
+  /** NGSI-LD / Smart Data Models namespaced attributes (e.g. https://smartdatamodels.org/name) */
+  [key: string]: unknown;
 }
 
 export interface AgriculturalMachine {
@@ -212,8 +216,8 @@ export interface SimulationResult {
   simulation_name: string;
   entity_id: string;
   entity_type: string;
-  result_data: Record<string, any>;
-  visual_state: Record<string, any>;
+  result_data: Record<string, unknown>;
+  visual_state: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -264,14 +268,14 @@ export interface AssetType {
   model3d?: string; // URL to glTF/GLB model
   defaultScale?: number;
   category: 'trees' | 'rows' | 'parcels' | 'infrastructure';
-  defaultAttributes?: Record<string, any>;
+  defaultAttributes?: Record<string, unknown>;
 }
 
 export interface AssetProperties {
   scale?: number;
   rotation?: number;
   model3d?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface AssetCreationPayload {

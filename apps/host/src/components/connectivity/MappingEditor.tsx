@@ -8,11 +8,8 @@ import {
     Plus,
     Trash2,
     AlertCircle,
-    Check,
     ArrowRight,
     Code,
-    Save,
-    RefreshCw,
     Info,
     Sparkles
 } from 'lucide-react';
@@ -56,9 +53,9 @@ const validateJexl = (expr: string): { valid: boolean; error?: string } => {
     }
 
     // Basic pattern check
-    if (/^val\s*[\+\-\*\/]\s*[\d\.]+$/.test(expr) ||
-        /^[\d\.]+\s*[\+\-\*\/]\s*val$/.test(expr) ||
-        /^\(val\s*[\+\-]\s*[\d\.]+\)\s*\*\s*[\d\.]+\s*\/\s*[\d\.]+$/.test(expr)) {
+    if (/^val\s*[+\-*/]\s*[\d.]+$/.test(expr) ||
+        /^[\d.]+\s*[+\-*/]\s*val$/.test(expr) ||
+        /^\(val\s*[+-]\s*[\d.]+\)\s*\*\s*[\d.]+\s*\/\s*[\d.]+$/.test(expr)) {
         return { valid: true };
     }
 

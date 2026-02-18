@@ -145,6 +145,19 @@ cp env.example .env
 
 See the [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
 
+### Frontend (host) — verify build and tests
+
+From repo root after `pnpm install`:
+
+```bash
+pnpm --filter nekazari-frontend run typecheck   # TypeScript, 0 errors
+pnpm --filter nekazari-frontend run lint        # ESLint (max 774 warnings)
+pnpm --filter nekazari-frontend run test        # Unit tests (Vitest)
+pnpm --filter nekazari-frontend run test:e2e    # Playwright smoke tests (starts dev server if needed)
+```
+
+First-time E2E: `pnpm --filter nekazari-frontend exec playwright install chromium`
+
 ## Documentation
 
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Installation and operations

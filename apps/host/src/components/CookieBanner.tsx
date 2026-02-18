@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
-import { X, Cookie } from 'lucide-react';
+import { Cookie } from 'lucide-react';
 
 export const CookieBanner: React.FC = () => {
   const { t } = useI18n();

@@ -18,13 +18,10 @@ import {
   TimeScale,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import annotationPlugin, {
-  AnnotationPluginOptions,
-  AnnotationOptions,
-} from 'chartjs-plugin-annotation';
+import annotationPlugin from 'chartjs-plugin-annotation';
 import 'chartjs-adapter-date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, TrendingUp, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import { TrendingUp, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { useTimeseries } from '@/hooks/useTimeseries';
 import { useViewer } from '@/context/ViewerContext';
 
@@ -89,7 +86,7 @@ function calculatePresetTimeRange(preset: TimeRangePreset): { start_time: string
 
 export const TimelineView: React.FC<TimelineViewProps> = ({
   entityId,
-  entityType,
+  entityType: _entityType,
   entityName,
 }) => {
   const { currentDate, setCurrentDate } = useViewer();
@@ -117,7 +114,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     error,
     fetchData,
     setTimeRange: setHookTimeRange,
-    setAggregation,
+    setAggregation: _setAggregation,
     aggregation,
     getValuesForAttribute,
   } = useTimeseries({
@@ -206,7 +203,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         mode: 'index' as const,
         intersect: false,
       },
-      onClick: (event: any, elements: any[]) => {
+      onClick: (_event: any, elements: any[]) => {
         if (elements.length > 0) {
           const element = elements[0];
           const datasetIndex = element.datasetIndex;

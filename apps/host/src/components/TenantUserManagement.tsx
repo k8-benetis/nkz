@@ -8,12 +8,10 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import api from '@/services/api';
 import {
   Users,
-  Plus,
   Trash2,
   UserPlus,
   Search,
   Building2,
-  Shield,
   AlertTriangle,
   CheckCircle,
   RefreshCw

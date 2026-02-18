@@ -1,14 +1,12 @@
-import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Navigation } from '@/components/Navigation';
 import { CookieBanner } from '@/components/CookieBanner';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { LoadingBar } from '@/components/loading/LoadingBar';
-import { CORE_NAVIGATION_ITEMS } from '@/config/navigation';
 import { LogOut, User } from 'lucide-react';
 
-interface LayoutProps {
+export interface LayoutProps {
   children: React.ReactNode;
   fullWidth?: boolean;
   /** Hide breadcrumb navigation */
@@ -24,7 +22,7 @@ export const Layout: React.FC<LayoutProps> = ({
   fullWidth = false,
   hideBreadcrumb = false,
   breadcrumbItems,
-  className = ''
+  className: _className = ''
 }) => {
   const { user, logout } = useAuth();
   const { t } = useI18n();

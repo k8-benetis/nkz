@@ -6,9 +6,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  StopCircle,
-  Play,
-  Home,
   Radio,
   AlertTriangle,
   CheckCircle,
@@ -16,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Ros, Topic, Message, Service, ServiceRequest, ActionClient, Goal } from 'roslib';
 import { Robot, RobotCapabilities } from '@/types';
-import api from '@/services/api';
 import { getConfig } from '@/config/environment';
 import { useI18n } from '@/context/I18nContext';
 
@@ -233,7 +229,7 @@ export const DynamicRobotControlPanel: React.FC<DynamicRobotControlPanelProps> =
         console.log('Action feedback:', feedback);
       });
 
-      goalMessage.on('result', (result: any) => {
+      goalMessage.on('result', (_result: any) => {
         setLoading(false);
         setLastCommand(t('robots.action_completed', { actionName }));
         setTimeout(() => setLastCommand(null), 3000);

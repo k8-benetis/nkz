@@ -114,7 +114,7 @@ export const AdminPanel: React.FC = () => {
     if (isAdminUser) {
       loadSystemData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isAdminUser]);
 
   const handleLogout = () => {

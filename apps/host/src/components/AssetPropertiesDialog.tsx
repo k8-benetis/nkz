@@ -4,7 +4,7 @@
 // Dialog modal for editing asset properties (name, scale, rotation)
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, RotateCw, Maximize2 } from 'lucide-react';
+import { X, Save, RotateCw } from 'lucide-react';
 import type { AssetType, AssetProperties } from '@/types';
 import { useI18n } from '@/context/I18nContext';
 
@@ -25,7 +25,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
   onCancel,
   suggestedName,
 }) => {
-  const { t } = useI18n();
+  useI18n();
   const [name, setName] = useState('');
   const [scale, setScale] = useState(1.0);
   const [rotation, setRotation] = useState(0);

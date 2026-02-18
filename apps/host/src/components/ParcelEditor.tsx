@@ -2,9 +2,8 @@
 // Parcel Editor Component - Draw and edit agricultural parcels
 // =============================================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, X, Edit3, Trash2, Map as MapIcon, Check } from 'lucide-react';
-import api from '@/services/api';
 
 interface ParcelGeometry {
   type: 'Polygon';
@@ -45,9 +44,6 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
   );
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingCoords, setDrawingCoords] = useState<[number, number][]>([]);
-  const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<any>(null);
-  const [drawLayer, setDrawLayer] = useState<any>(null);
 
   // Initialize map (simplified - would use Leaflet in production)
   useEffect(() => {
@@ -119,7 +115,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
   };
 
   // Calculate area in hectares (simplified calculation)
-  const calculateAreaHectares = (geom: ParcelGeometry): number => {
+  const calculateAreaHectares = (_geom: ParcelGeometry): number => {
     // TODO: Implement proper area calculation using PostGIS or Turf.js
     // For now, return mock value
     return 2.5;

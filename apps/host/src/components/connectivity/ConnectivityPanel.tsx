@@ -6,21 +6,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Cable,
-    Save,
     BookmarkPlus,
     RefreshCw,
     ChevronDown,
     Check,
     AlertCircle,
-    Building2,
-    Globe,
     FileCode,
     Wifi,
     Key,
     Download,
-    Eye,
-    EyeOff,
     TriangleAlert,
     Copy,
     Server,
@@ -64,7 +58,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 }) => {
     // Profile State
     const [profiles, setProfiles] = useState<DeviceProfile[]>([]);
-    const [schemas, setSchemas] = useState<SDMSchema[]>([]);
+    const [_schemas, setSchemas] = useState<SDMSchema[]>([]);
     const [selectedProfileId, setSelectedProfileId] = useState<string | null>(currentProfileId || null);
     const [customMappings, setCustomMappings] = useState<MappingEntry[]>([]);
     const [mode, setMode] = useState<'profile' | 'custom'>('profile');
@@ -195,12 +189,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
     const globalProfiles = profiles.filter(p => p.is_public);
     const privateProfiles = profiles.filter(p => !p.is_public);
 
-    const isRobot = ['AgriculturalRobot', 'AgriculturalTractor', 'AgriculturalMachine'].includes(entityType) && entityType !== 'AgriculturalTractor'; // Tractors use IoT too now actually? 
-    // Wait, in plan we said Tractors use VPN. But in backend I added them to IOT_ENTITY_TYPES.
-    // Let's assume Tractors can use both or IoT primarily for telemetry.  
-    // Logic: If it has IoT Details showing, show IoT Tab.
-
-    // Actually, AgriculturalRobot uses VPN. AgriculturalTractor uses IoT (ISOBUS bridge usually speaks MQTT).
+    // AgriculturalRobot uses VPN. AgriculturalTractor uses IoT (ISOBUS bridge usually speaks MQTT).
     const showVpnSection = entityType === 'AgriculturalRobot';
 
     return (

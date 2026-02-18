@@ -11,7 +11,6 @@ import {
   Loader2,
   Trash2,
   AlertCircle,
-  CheckCircle,
 } from 'lucide-react';
 import { UnifiedAsset } from '@/types/assets';
 import { EntityDependency } from '@/hooks/useEntityDependencies';

@@ -80,46 +80,13 @@ const DefaultLoadingFallback: React.FC = () => (
 );
 
 // =============================================================================
-// IIFE Module Loading
+// IIFE Module Loading (single code path — no Module Federation)
 // =============================================================================
 
 /**
- * Load a remote container from the NKZ runtime registry.
- * IIFE modules register via window.__NKZ__.register() when their <script>
- * tag executes (handled by moduleLoader.ts). This function provides a
- * container-compatible interface for retrieving registered modules.
- *
- * Exported for SlotRenderer compatibility.
- */
-export const loadRemoteContainer = async (remoteEntryUrl: string): Promise<any> => {
-  // Ensure window globals are available
-  if (!window.React || !window.ReactDOM) {
-    const missing = [];
-    if (!window.React) missing.push('React');
-    if (!window.ReactDOM) missing.push('ReactDOM');
-    throw new Error(`[RemoteModuleLoader] window.${missing.join(', window.')} not available. Ensure main.tsx exposes globals.`);
-  }
-
-  return {
-    get: (moduleName: string) => {
-      return Promise.resolve(() => {
-        const id = moduleName.startsWith('./') ? moduleName.substring(2) : moduleName;
-        const registered = window.__NKZ__?.getRegistered(id) || window.__NKZ__?.getRegistered(moduleName);
-
-        if (!registered) {
-          console.error(`[RemoteModuleLoader] Module "${id}" not found in registry. Available:`, window.__NKZ__?.getRegisteredIds());
-          return undefined;
-        }
-        return registered;
-      });
-    },
-    init: () => { /* no-op for IIFE modules */ }
-  };
-};
-
-/**
  * Load a module component from the NKZ runtime registry.
- * Exported for SlotRenderer compatibility.
+ * IIFE modules register via window.__NKZ__.register() when their <script>
+ * runs (injected by ModuleContext/moduleLoader). Exported for SlotRenderer.
  */
 export const loadRemoteModule = async (
   moduleName: string,
@@ -141,16 +108,10 @@ export const loadRemoteModule = async (
     }
   }
 
-  // If found in registry
   if (registered) {
-    // If the module has a 'main' component registered, use it
     if (registered.main) {
       return registered.main;
     }
-
-    // If it's a valid module but has no main component (e.g. only slots),
-    // return a placeholder instead of crashing
-    console.warn(`[RemoteModuleLoader] Module "${registered.id}" found but has no 'main' component. Returning fallback.`);
     return () => (
       <div className="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-700 mb-2">Module Active: {registered.id}</h3>
@@ -160,42 +121,18 @@ export const loadRemoteModule = async (
     );
   }
 
-  // Fallback to legacy container loading (rarely used now)
-  const container = await loadRemoteContainer(_remoteEntryUrl);
-  const factory = await container.get(moduleName);
-
-  if (!factory) {
-    // Last ditch effort: check registry one more time in case script loaded
-    // and registered with an ID we didn't guess
-    const ids = window.__NKZ__?.getRegisteredIds() || [];
-    // Try to find a loose match
-    const match = ids.find(id => _remoteEntryUrl.includes(id) || moduleName.includes(id));
-    if (match) {
-      const reg = window.__NKZ__?.getRegistered(match);
-      if (reg?.main) return reg.main;
-    }
-
-    throw new Error(`Module "${moduleName}" not found in remote entry or registry.`);
+  // One more try: loose match by URL or name (script may have registered with different key)
+  const ids = window.__NKZ__?.getRegisteredIds() || [];
+  const match = ids.find(id => _remoteEntryUrl.includes(id) || moduleName.includes(id));
+  if (match) {
+    const reg = window.__NKZ__?.getRegistered(match);
+    if (reg?.main) return reg.main;
   }
 
-  const module = typeof factory === 'function' ? factory() : factory;
-
-  if (!module) {
-    throw new Error(`Factory returned null for module "${moduleName}"`);
-  }
-
-  // Handle different export formats
-  if (module.default) return module.default;
-  if (typeof module === 'function') return module;
-
-  if (module && typeof module === 'object' && !Array.isArray(module)) {
-    const keys = Object.keys(module);
-    const componentKey = keys.find(key => typeof module[key] === 'function');
-    if (componentKey) return module[componentKey];
-    if (keys.length > 0) return module[keys[0]];
-  }
-
-  return module;
+  const available = ids.length ? ids.join(', ') : 'none';
+  throw new Error(
+    `Module "${moduleName}" not found in registry. Ensure the module script loaded and called window.__NKZ__.register(). Available: ${available}`
+  );
 };
 
 // =============================================================================

@@ -22,6 +22,7 @@ import {
 import api from '@/services/api';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
+import { logger } from '@/utils/logger';
 
 interface WeatherObservation {
   observed_at: string;
@@ -72,10 +73,9 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   parcelId,
   onMunicipalitySelect,
 }) => {
-  const { t } = useI18n();
-  
-  // Auto-detect municipality from tenant if not provided
-  const { municipality: tenantMunicipality, loading: loadingTenantMunicipality } = useTenantMunicipality();
+  const { t: _t } = useI18n();
+
+  const { municipality: tenantMunicipality, loading: _loadingTenantMunicipality } = useTenantMunicipality();
   
   // Load saved municipality from localStorage on mount
   const getSavedMunicipality = (): { code?: string; name?: string } => {
@@ -85,7 +85,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
         return JSON.parse(saved);
       }
     } catch (e) {
-      console.warn('Error loading saved municipality:', e);
+      logger.warn('Error loading saved municipality:', e);
     }
     return {};
   };
@@ -118,7 +118,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
           name: selectedMunicipalityName,
         }));
       } catch (e) {
-        console.warn('Error saving municipality to localStorage:', e);
+        logger.warn('Error saving municipality to localStorage:', e);
       }
     }
   }, [selectedMunicipalityCode, selectedMunicipalityName]);
@@ -163,7 +163,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       if (!response.ok) throw new Error('Open-Meteo API error');
       return await response.json();
     } catch (err) {
-      console.error('[WeatherAgroPanel] Error fetching from Open-Meteo:', err);
+      logger.error('[WeatherAgroPanel] Error fetching from Open-Meteo:', err);
       return null;
     }
   };
@@ -197,7 +197,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 
       // If no data in DB, try fallback to Open-Meteo direct
       if (latest.length === 0 || !historical || historical.observations?.length === 0) {
-        console.log('[WeatherAgroPanel] No data in DB, using Open-Meteo fallback', {
+        logger.debug('[WeatherAgroPanel] No data in DB, using Open-Meteo fallback', {
           latestCount: latest.length,
           historicalCount: historical?.observations?.length || 0
         });
@@ -206,7 +206,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
         const municipalitySearch = await api.searchMunicipalities(selectedMunicipalityName || codeToUse);
         const municipality = municipalitySearch.municipalities?.[0];
         
-        console.log('[WeatherAgroPanel] Municipality found:', municipality);
+        logger.debug('[WeatherAgroPanel] Municipality found:', municipality);
         
         if (municipality && municipality.latitude && municipality.longitude) {
           const openMeteoData = await fetchOpenMeteoDirectly(
@@ -287,17 +287,17 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
             }
             
             setHistoricalWeather(historicalData);
-            console.log('[WeatherAgroPanel] Open-Meteo fallback data loaded:', {
+            logger.debug('[WeatherAgroPanel] Open-Meteo fallback data loaded:', {
               current: !!currentWeatherData,
               historicalCount: historicalData.length
             });
           } else {
-            console.warn('[WeatherAgroPanel] Open-Meteo fallback returned no data');
+            logger.warn('[WeatherAgroPanel] Open-Meteo fallback returned no data');
             setCurrentWeather(null);
             setHistoricalWeather([]);
           }
         } else {
-          console.warn('[WeatherAgroPanel] Municipality has no coordinates for Open-Meteo fallback');
+          logger.warn('[WeatherAgroPanel] Municipality has no coordinates for Open-Meteo fallback');
           setCurrentWeather(null);
           setHistoricalWeather([]);
         }
@@ -309,7 +309,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
         setHistoricalWeather((historical && historical.observations) ? historical.observations : []);
       }
     } catch (err: any) {
-      console.error('Error loading weather data:', err);
+      logger.error('Error loading weather data:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Error cargando datos meteorológicos';
       setError(errorMessage);
       // Clear data on error
@@ -332,7 +332,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       );
       setParcelSensors(soilSensors as ParcelSensor[]);
     } catch (err) {
-      console.warn('Error loading parcel sensors:', err);
+      logger.warn('Error loading parcel sensors:', err);
       // Continue without sensor data - will use Open-Meteo fallback
     }
   };
@@ -345,20 +345,20 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 
     setSearchingMunicipalities(true);
     try {
-      console.log('[WeatherAgroPanel] Searching municipalities with term:', term);
+      logger.debug('[WeatherAgroPanel] Searching municipalities with term:', term);
       const response = await api.searchMunicipalities(term);
-      console.log('[WeatherAgroPanel] Search response:', response);
+      logger.debug('[WeatherAgroPanel] Search response:', response);
       const filtered = (response.municipalities || []).map((mun: any) => ({
         code: mun.ine_code || mun.code,
         name: mun.name,
         province: mun.province,
         fullName: mun.province ? `${mun.name} (${mun.province})` : mun.name,
       }));
-      console.log('[WeatherAgroPanel] Filtered municipalities:', filtered);
+      logger.debug('[WeatherAgroPanel] Filtered municipalities:', filtered);
       setMunicipalities(filtered);
     } catch (err: any) {
-      console.error('[WeatherAgroPanel] Error searching municipalities:', err);
-      console.error('[WeatherAgroPanel] Error details:', {
+      logger.error('[WeatherAgroPanel] Error searching municipalities:', err);
+      logger.error('[WeatherAgroPanel] Error details:', {
         message: err.message,
         response: err.response?.data,
         status: err.response?.status,

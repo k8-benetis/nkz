@@ -13,7 +13,7 @@ import { getConfig } from '@/config/environment';
 const config = getConfig();
 
 export const GrafanaEmbedded: React.FC = () => {
-  const { user, getToken, hasAnyRole } = useAuth();
+  const { user: _user, getToken, hasAnyRole } = useAuth();
   
   // Check if user can edit Grafana (TechnicalConsultant or higher)
   // Farmer can only view dashboards in read-only mode
@@ -24,7 +24,7 @@ export const GrafanaEmbedded: React.FC = () => {
   const [grafanaUrl, setGrafanaUrl] = useState<string | null>(null);
   const [membershipGranted, setMembershipGranted] = useState<boolean | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [_retryCount, setRetryCount] = useState(0);
 
   const loadGrafanaLink = async () => {
     setIsLoading(true);

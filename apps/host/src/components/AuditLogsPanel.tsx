@@ -8,12 +8,9 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import api from '@/services/api';
 import {
-  Search,
   Filter,
   Download,
   RefreshCw,
-  Calendar,
-  User,
   Package,
   AlertCircle,
   CheckCircle,
@@ -52,7 +49,7 @@ interface AuditLogsResponse {
 }
 
 export const AuditLogsPanel: React.FC = () => {
-  const { t } = useTranslation(['common', 'admin']);
+  useTranslation(['common', 'admin']);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,9 +87,10 @@ export const AuditLogsPanel: React.FC = () => {
       params.append('page', pagination.page.toString());
       params.append('per_page', pagination.per_page.toString());
 
-      const response = await api.get<AuditLogsResponse>(`/api/admin/audit-logs?${params.toString()}`);
-      setLogs(response.data.logs);
-      setPagination(response.data.pagination);
+      const response = await api.get(`/api/admin/audit-logs?${params.toString()}`);
+      const data = response.data as AuditLogsResponse;
+      setLogs(data.logs);
+      setPagination(data.pagination);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load audit logs');
       console.error('Error loading audit logs:', err);

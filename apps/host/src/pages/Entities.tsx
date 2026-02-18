@@ -3,7 +3,6 @@
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { CesiumMap } from '@/components/CesiumMap';
 import { EntityList, EntityListItem } from '@/components/EntityList';
@@ -26,10 +25,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SensorInspector } from '@/components/SensorInspector';
 
 export const Entities: React.FC = () => {
-  const { t } = useI18n();
+  const { t: _t } = useI18n();
   const { hasAnyRole } = useAuth();
-  const navigate = useNavigate();
-
   // Tabs: 'crops', 'fleet', 'installations'
   const [activeTab, setActiveTab] = useState<'crops' | 'fleet' | 'installations'>('crops');
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Mail, Smartphone, AlertTriangle, Check, Sliders, Loader2 } from 'lucide-react';
+import { Mail, Smartphone, AlertTriangle, Sliders, Loader2 } from 'lucide-react';
 import api from '@/services/api';
 import { RiskCatalog, RiskSubscription } from '@/types';
 

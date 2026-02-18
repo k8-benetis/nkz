@@ -35,11 +35,9 @@ export function validateGeometryWithinParent(
 
     // Handle different child geometry types
     switch (childGeometry.type) {
-      case 'Point':
-        // For Point, check if it's within the parent polygon
+      case 'Point': {
         const point = childGeometry as Point;
         const isPointContained = booleanContains(parentGeometry, point);
-        
         if (!isPointContained) {
           return {
             valid: false,
@@ -47,12 +45,10 @@ export function validateGeometryWithinParent(
           };
         }
         break;
-
-      case 'Polygon':
-        // For Polygon, check if it's completely contained
+      }
+      case 'Polygon': {
         const polygon = childGeometry as Polygon;
         const isPolygonContained = booleanContains(parentGeometry, polygon);
-        
         if (!isPolygonContained) {
           return {
             valid: false,
@@ -60,12 +56,9 @@ export function validateGeometryWithinParent(
           };
         }
         break;
-
-      case 'LineString':
-        // For LineString, check if all points are within
+      }
+      case 'LineString': {
         const lineString = childGeometry as LineString;
-        // Convert LineString to Polygon for containment check
-        // Create a buffer or check each point
         const allPointsIn = lineString.coordinates.every(coord => {
           const point: Point = {
             type: 'Point',
@@ -73,7 +66,6 @@ export function validateGeometryWithinParent(
           };
           return booleanContains(parentGeometry, point);
         });
-        
         if (!allPointsIn) {
           return {
             valid: false,
@@ -81,9 +73,8 @@ export function validateGeometryWithinParent(
           };
         }
         break;
-
-      case 'MultiPolygon':
-        // For MultiPolygon, check each polygon
+      }
+      case 'MultiPolygon': {
         const multiPolygon = childGeometry as MultiPolygon;
         const allPolygonsContained = multiPolygon.coordinates.every(polygonCoords => {
           const polygon: Polygon = {
@@ -92,7 +83,6 @@ export function validateGeometryWithinParent(
           };
           return booleanContains(parentGeometry, polygon);
         });
-        
         if (!allPolygonsContained) {
           return {
             valid: false,
@@ -100,9 +90,8 @@ export function validateGeometryWithinParent(
           };
         }
         break;
-
-      case 'MultiLineString':
-        // For MultiLineString, check each line
+      }
+      case 'MultiLineString': {
         const multiLineString = childGeometry as MultiLineString;
         const allLinesIn = multiLineString.coordinates.every(lineCoords => {
           return lineCoords.every(coord => {
@@ -113,7 +102,6 @@ export function validateGeometryWithinParent(
             return booleanContains(parentGeometry, point);
           });
         });
-        
         if (!allLinesIn) {
           return {
             valid: false,
@@ -121,6 +109,7 @@ export function validateGeometryWithinParent(
           };
         }
         break;
+      }
 
       default:
         return {

@@ -4,7 +4,7 @@
 // Full-screen viewer with persistent CesiumMap and collapsible overlay panels.
 // Uses the Slot System to render widgets from modules dynamically.
 
-import React, { useState, useEffect, useCallback, Suspense, useRef } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { CesiumMap } from '@/components/CesiumMap';
 import { EntityWizard } from '@/components/EntityWizard';
 import { PlacementToolbar } from '@/components/EntityWizard/PlacementToolbar';
@@ -14,7 +14,7 @@ import { MapToolbar } from '@/components/viewer/MapToolbar';
 import { MapDrawingOverlay } from '@/components/viewer/MapDrawingOverlay';
 import { ParcelForm } from '@/components/parcels/ParcelForm';
 import { useViewer } from '@/context/ViewerContext';
-import { useSlotRegistry, SlotRegistryProvider } from '@/context/SlotRegistry';
+import { SlotRegistryProvider } from '@/context/SlotRegistry';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import api from '@/services/api';
@@ -22,6 +22,7 @@ import { parcelApi } from '@/services/parcelApi';
 import { cadastralApi } from '@/services/cadastralApi';
 // Removed hardcoded vegetation layer data import - modules should use slot system
 import { calculatePolygonAreaHectares } from '@/utils/geo';
+import { logger } from '@/utils/logger';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import {
     ChevronLeft,
@@ -32,7 +33,6 @@ import {
     X,
     Loader2,
     Maximize2,
-    Minimize2,
 } from 'lucide-react';
 
 // Styles for glassmorphism panels
@@ -217,7 +217,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
 
 /** Inner viewer component that uses SlotRegistry */
 const UnifiedViewerInner: React.FC = () => {
-    const { hasAnyRole } = useAuth();
+    const { hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
 
     // Combined state logic for sidebar
@@ -231,7 +231,7 @@ const UnifiedViewerInner: React.FC = () => {
         toggleBottomPanel,
         currentDate,
         selectedEntityId,
-        selectedEntityType,
+        selectedEntityType: _selectedEntityType,
         mapMode,
         setMapMode,
         resetMapMode,
@@ -298,7 +298,7 @@ const UnifiedViewerInner: React.FC = () => {
     const [trees, setTrees] = useState<any[]>([]); // OliveTree, AgriTree, FruitTree, Vine
 
     // UI state
-    const [isLoading, setIsLoading] = useState(true);
+    const [_isLoading, setIsLoading] = useState(true);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isLayerManagerOpen, setIsLayerManagerOpen] = useState(false);
 
@@ -312,14 +312,12 @@ const UnifiedViewerInner: React.FC = () => {
         address?: string;
     } | null>(null);
 
-    const canManageDevices = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant', 'Farmer']);
-
     // Log modules for debugging
     useEffect(() => {
-        console.log('[UnifiedViewer] Modules available:', modules?.length || 0);
+        logger.debug('[UnifiedViewer] Modules available:', modules?.length || 0);
         if (modules?.length > 0) {
             modules.forEach(m => {
-                console.log(`  - ${m.name}: slots=`, m.viewerSlots ? Object.keys(m.viewerSlots) : 'none');
+                logger.debug(`  - ${m.name}: slots=`, m.viewerSlots ? Object.keys(m.viewerSlots) : 'none');
             });
         }
     }, [modules]);
@@ -355,7 +353,7 @@ const UnifiedViewerInner: React.FC = () => {
             const ngsiSensors = agriSensorRes.status === 'fulfilled' ? agriSensorRes.value : [];
             const allSensors = [...pgSensors, ...ngsiSensors];
             setSensors(allSensors);
-            console.log('[UnifiedViewer] Sensors loaded:', allSensors.length, '(PG:', pgSensors.length, 'NGSI:', ngsiSensors.length, ')');
+            logger.debug('[UnifiedViewer] Sensors loaded:', allSensors.length, '(PG:', pgSensors.length, 'NGSI:', ngsiSensors.length, ')');
             setMachines(machinesRes.status === 'fulfilled' ? machinesRes.value : []);
             setLivestock(livestockRes.status === 'fulfilled' ? livestockRes.value : []);
             setWeatherStations(weatherRes.status === 'fulfilled' ? weatherRes.value : []);
@@ -372,11 +370,11 @@ const UnifiedViewerInner: React.FC = () => {
                 ...(vineRes.status === 'fulfilled' ? vineRes.value : []),
             ];
             setTrees(allTrees);
-            console.log('[UnifiedViewer] Trees loaded:', allTrees.length);
+            logger.debug('[UnifiedViewer] Trees loaded:', allTrees.length);
 
-            console.log('[UnifiedViewer] Entities loaded for map');
+            logger.debug('[UnifiedViewer] Entities loaded for map');
         } catch (error) {
-            console.error('[UnifiedViewer] Error loading entities:', error);
+            logger.error('[UnifiedViewer] Error loading entities:', error);
         } finally {
             setIsLoading(false);
         }
@@ -416,7 +414,7 @@ const UnifiedViewerInner: React.FC = () => {
         if (drawnGeometry) {
             // Form submission is handled by ParcelForm component
             // This will be called after form is submitted
-            console.log('[UnifiedViewer] Drawing accepted, form will handle save');
+            logger.debug('[UnifiedViewer] Drawing accepted, form will handle save');
         }
     }, [drawnGeometry]);
 
@@ -433,7 +431,7 @@ const UnifiedViewerInner: React.FC = () => {
         if (mapMode !== 'SELECT_CADASTRAL') return;
 
         try {
-            console.log('[UnifiedViewer] Querying cadastral service:', { lon, lat });
+            logger.debug('[UnifiedViewer] Querying cadastral service:', { lon, lat });
             const cadastralData = await cadastralApi.queryByCoordinates(lon, lat);
 
             if (cadastralData.cadastralReference) {
@@ -469,7 +467,7 @@ const UnifiedViewerInner: React.FC = () => {
                 alert('No se encontró información catastral para esta ubicación.');
             }
         } catch (error: any) {
-            console.error('[UnifiedViewer] Error querying cadastral:', error);
+            logger.error('[UnifiedViewer] Error querying cadastral:', error);
             const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
             alert(`Error al consultar el servicio catastral: ${errorMsg}`);
         }
@@ -485,7 +483,7 @@ const UnifiedViewerInner: React.FC = () => {
     }, [mapMode, pickingCallback, cancelPicking]);
 
     // Handle generic drawing completion (for EntityWizard)
-    const handleGenericDrawingComplete = useCallback((geometry: any, area: number | null) => {
+    const handleGenericDrawingComplete = useCallback((geometry: any, _area: number | null) => {
         if (drawingCallback) {
             drawingCallback(geometry);
         }
@@ -495,7 +493,7 @@ const UnifiedViewerInner: React.FC = () => {
     // Handle parcel form save
     const handleParcelFormSave = useCallback(async (data: Partial<Parcel>) => {
         if (!drawnGeometry) {
-            console.error('[UnifiedViewer] No geometry to save');
+            logger.error('[UnifiedViewer] No geometry to save');
             return;
         }
 
@@ -532,7 +530,7 @@ const UnifiedViewerInner: React.FC = () => {
                             province = municipalityData.municipality.province || province;
                         }
                     } catch (err) {
-                        console.error('[UnifiedViewer] Error calculating municipality:', err);
+                        logger.error('[UnifiedViewer] Error calculating municipality:', err);
                     }
                 }
             }
@@ -550,7 +548,7 @@ const UnifiedViewerInner: React.FC = () => {
             };
 
             await parcelApi.createParcel(newParcel);
-            console.log('[UnifiedViewer] Parcel created successfully');
+            logger.debug('[UnifiedViewer] Parcel created successfully');
 
             // Reload parcels
             await loadAllEntities();
@@ -558,7 +556,7 @@ const UnifiedViewerInner: React.FC = () => {
             // Reset state
             handleCancelDrawing();
         } catch (error: any) {
-            console.error('[UnifiedViewer] Error creating parcel:', error);
+            logger.error('[UnifiedViewer] Error creating parcel:', error);
             const errorMessage = error.response?.data?.detail || error.response?.data?.error || error.message || 'Error al guardar la parcela';
             alert(errorMessage);
             throw error;
@@ -568,7 +566,7 @@ const UnifiedViewerInner: React.FC = () => {
 
     // Handle map entity selection
     const handleEntityMapSelect = useCallback((entity: { id: string; type: string }) => {
-        console.log('[UnifiedViewer] Map entity selected:', entity);
+        logger.debug('[UnifiedViewer] Map entity selected:', entity);
         selectEntity(entity.id, entity.type);
     }, [selectEntity]);
 
@@ -607,7 +605,7 @@ const UnifiedViewerInner: React.FC = () => {
             <MapToolbar
                 onAccept={mapMode === 'DRAW_PARCEL' ? handleAcceptDrawing : undefined}
                 onCancel={handleCancelDrawing}
-                onUndo={mapMode === 'DRAW_PARCEL' ? () => console.log('Undo') : undefined}
+                onUndo={mapMode === 'DRAW_PARCEL' ? () => logger.debug('Undo') : undefined}
                 onClear={mapMode === 'DRAW_PARCEL' ? () => {
                     setDrawnGeometry(null);
                     setDrawnArea(null);

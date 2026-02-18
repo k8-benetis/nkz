@@ -110,7 +110,7 @@ export const TeamManagement: React.FC = () => {
     setSuccess(null);
 
     try {
-      const response = await api.post('/api/tenant/users', newUser);
+      await api.post('/api/tenant/users', newUser);
       setSuccess('Usuario creado exitosamente');
       setShowCreateModal(false);
       setNewUser({

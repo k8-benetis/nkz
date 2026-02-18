@@ -6,7 +6,6 @@
 
 import {
   Home,
-  Map,
   Layers,
   Settings,
   Shield,

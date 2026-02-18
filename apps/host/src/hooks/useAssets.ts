@@ -15,8 +15,6 @@ import {
   filterAssets,
   sortAssets,
   DEFAULT_FILTERS,
-  ASSET_TYPE_REGISTRY,
-  CATEGORY_REGISTRY,
 } from '@/types/assets';
 
 // =============================================================================

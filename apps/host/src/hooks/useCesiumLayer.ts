@@ -124,6 +124,3 @@ export function createCesiumLayerHook<T extends Record<string, any>>(config: {
   };
 }
 
-// Export types for modules to use
-export type { CesiumLayerResult };
-

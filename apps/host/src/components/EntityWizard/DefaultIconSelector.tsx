@@ -10,7 +10,7 @@ import {
   MapPin, Gauge, Bot, Building2, Droplets, Trees, Zap, Tractor,
   Leaf, Activity, Sun, Thermometer, Wind, CloudRain, Sprout,
   Factory, Warehouse, Fence, CircleDot, Radio, Wifi, Camera,
-  Image as ImageIcon, Check, ChevronDown, ChevronUp
+  Check, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 // Available default icons with their SVG data URIs
@@ -97,12 +97,6 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
     acc[data.category].push({ key, ...data });
     return acc;
   }, {} as Record<string, Array<{ key: string; icon: React.ComponentType<any>; label: string; category: string }>>);
-
-  // Convert icon to SVG data URI for storage
-  const getIconDataUri = (iconKey: string): string => {
-    // Return a reference that can be resolved later
-    return `icon:${iconKey}`;
-  };
 
   return (
     <div className="space-y-3">

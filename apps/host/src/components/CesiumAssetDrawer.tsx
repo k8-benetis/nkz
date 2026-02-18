@@ -27,7 +27,7 @@ export const CesiumAssetDrawer: React.FC<CesiumAssetDrawerProps> = ({
   const tempEntityRef = useRef<any>(null);
   const pointEntitiesRef = useRef<any[]>([]);
   const linePositionsRef = useRef<any[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [, setIsDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<number[][]>([]);
 
   // Cleanup on unmount

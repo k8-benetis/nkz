@@ -64,7 +64,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
   className = '',
 }) => {
   const [status, setStatus] = useState<ConnectionStatus>('waiting');
-  const [lastCheck, setLastCheck] = useState<Date | null>(null);
+  const [_lastCheck, setLastCheck] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);

@@ -68,7 +68,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
     maxAreaHectares: null
   });
   
-  const [currentPlan, setCurrentPlan] = useState<string>('basic');
+  const [, setCurrentPlan] = useState<string>('basic');
   const [hasChanges, setHasChanges] = useState(false);
 
   const isPlatformAdmin = hasRole('PlatformAdmin');

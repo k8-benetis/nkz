@@ -16,10 +16,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { 
   RotateCw, ZoomIn, ZoomOut, RefreshCw, Move,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Maximize2, Eye, EyeOff
+  Eye, EyeOff
 } from 'lucide-react';
 
-// Declare model-viewer as a custom element
+// Declare model-viewer as a custom element (namespace required for JSX intrinsic elements)
+/* eslint-disable @typescript-eslint/no-namespace */
 declare global {
   namespace JSX {
     interface IntrinsicElements {

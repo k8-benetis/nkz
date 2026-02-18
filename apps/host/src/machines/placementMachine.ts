@@ -2,11 +2,10 @@
 // Placement Machine - State Management for Entity Placement Wizard
 // Implements a finite state machine pattern using React useReducer
 
-import { EntityType } from '../components/EntityWizard/entityTypes';
 
 // --- State Definitions ---
 
-export type PlacementMode = 'single' | 'stamp' | 'line' | 'polygon';
+export type PlacementMode = 'single' | 'multi' | 'stamp' | 'line' | 'polygon';
 
 export interface PlacementState {
     mode: PlacementMode;

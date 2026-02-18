@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Network, Shield, RefreshCw, AlertCircle, CheckCircle, Power, User, Server } from 'lucide-react';
+import { RefreshCw, CheckCircle, Power, User } from 'lucide-react';
 import api from '@/services/api';
 import { useTranslation } from '@nekazari/sdk';
 

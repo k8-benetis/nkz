@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
 import type { Robot, Sensor, Parcel, TenantUsageSummary, AgriculturalMachine, LivestockAnimal, WeatherStation } from '@/types';
 
 export interface ExpirationInfo {
@@ -73,13 +74,13 @@ export function useDashboardData(): DashboardData {
 
       return null;
     } catch (error) {
-      console.error('Error loading expiration info:', error);
+      logger.error('Error loading expiration info', error);
       return null;
     }
   }, [user, getToken]);
 
   const loadData = useCallback(async () => {
-    console.log('[Dashboard] Starting loadData');
+    logger.debug('[Dashboard] Starting loadData');
     setIsLoading(true);
     const startTime = Date.now();
 
@@ -87,23 +88,23 @@ export function useDashboardData(): DashboardData {
       const withTimeout = <T,>(promise: Promise<T>, timeout: number, name: string): Promise<T> => {
         return Promise.race([
           promise.then(result => {
-            console.log(`[Dashboard] ${name} loaded in ${Date.now() - startTime}ms`);
+            logger.debug(`[Dashboard] ${name} loaded in ${Date.now() - startTime}ms`);
             return result;
           }),
           new Promise<T>((_, reject) =>
             setTimeout(() => {
-              console.warn(`[Dashboard] ${name} timed out after ${timeout}ms`);
+              logger.warn(`[Dashboard] ${name} timed out after ${timeout}ms`);
               reject(new Error(`${name} timeout`));
             }, timeout)
           )
         ]);
       };
 
-      console.log('[Dashboard] Starting parallel data loads');
+      logger.debug('[Dashboard] Starting parallel data loads');
       const results = await Promise.allSettled([
         withTimeout(
           api.getRobots().catch(err => {
-            console.warn('[Dashboard] Error loading robots:', err);
+            logger.warn('[Dashboard] Error loading robots:', err);
             return [];
           }),
           8000,
@@ -111,7 +112,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           api.getSensors().catch(err => {
-            console.warn('[Dashboard] Error loading sensors:', err);
+            logger.warn('[Dashboard] Error loading sensors:', err);
             return [];
           }),
           8000,
@@ -119,7 +120,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           api.getParcels().catch(err => {
-            console.warn('[Dashboard] Error loading parcels:', err);
+            logger.warn('[Dashboard] Error loading parcels:', err);
             return [];
           }),
           8000,
@@ -127,7 +128,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           api.getMachines().catch(err => {
-            console.warn('[Dashboard] Error loading machines:', err);
+            logger.warn('[Dashboard] Error loading machines:', err);
             return [];
           }),
           8000,
@@ -135,7 +136,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           api.getLivestock().catch(err => {
-            console.warn('[Dashboard] Error loading livestock:', err);
+            logger.warn('[Dashboard] Error loading livestock:', err);
             return [];
           }),
           8000,
@@ -143,7 +144,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           api.getWeatherStations().catch(err => {
-            console.warn('[Dashboard] Error loading weather stations:', err);
+            logger.warn('[Dashboard] Error loading weather stations:', err);
             return [];
           }),
           8000,
@@ -151,7 +152,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           loadExpirationInfo().catch(err => {
-            console.warn('[Dashboard] Error loading expiration info:', err);
+            logger.warn('[Dashboard] Error loading expiration info:', err);
             return null;
           }),
           12000,
@@ -159,7 +160,7 @@ export function useDashboardData(): DashboardData {
         ),
         withTimeout(
           api.getTenantUsage().catch(err => {
-            console.warn('[Dashboard] Error loading tenant usage:', err);
+            logger.warn('[Dashboard] Error loading tenant usage:', err);
             return null;
           }),
           8000,
@@ -168,7 +169,7 @@ export function useDashboardData(): DashboardData {
       ]);
 
       const totalTime = Date.now() - startTime;
-      console.log(`[Dashboard] All data loads completed in ${totalTime}ms`);
+      logger.debug(`[Dashboard] All data loads completed in ${totalTime}ms`);
 
       const robotsData = results[0].status === 'fulfilled' ? results[0].value : [];
       const sensorsData = results[1].status === 'fulfilled' ? results[1].value : [];
@@ -188,9 +189,9 @@ export function useDashboardData(): DashboardData {
       setExpirationInfo(expirationData);
       setTenantUsage(usageData && usageData.usage ? usageData : null);
 
-      console.log('[Dashboard] State updated with results');
+      logger.debug('[Dashboard] State updated with results');
     } catch (error) {
-      console.error('[Dashboard] Critical error loading dashboard data:', error);
+      logger.error('[Dashboard] Critical error loading dashboard data:', error);
       setRobots([]);
       setSensors([]);
       setParcels([]);
@@ -200,18 +201,18 @@ export function useDashboardData(): DashboardData {
       setExpirationInfo(null);
     } finally {
       setIsLoading(false);
-      console.log('[Dashboard] loadData completed, isLoading set to false');
+      logger.debug('[Dashboard] loadData completed, isLoading set to false');
     }
   }, [loadExpirationInfo]);
 
   useEffect(() => {
     if (user) {
-      console.log('[Dashboard] User authenticated, loading data');
+      logger.debug('[Dashboard] User authenticated, loading data');
       loadData();
       const interval = setInterval(loadData, 30000);
       return () => clearInterval(interval);
     } else {
-      console.log('[Dashboard] User not authenticated yet, waiting...');
+      logger.debug('[Dashboard] User not authenticated yet, waiting...');
       setIsLoading(false);
     }
   }, [loadData, user]);

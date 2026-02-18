@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
-import { Clock, MapPin, Cloud, Sun, CloudRain, Wind } from 'lucide-react';
+import { Clock, Cloud, Sun, CloudRain, Wind } from 'lucide-react';
 import api from '@/services/api';
 
 interface WeatherData {
@@ -25,7 +25,7 @@ export const TenantInfoWidget: React.FC = () => {
     const { t } = useI18n();
     const [time, setTime] = useState(new Date());
     const [weather, setWeather] = useState<WeatherData | null>(null);
-    const [forecast, setForecast] = useState<ForecastDay[]>([]);
+    const [forecast, _setForecast] = useState<ForecastDay[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
