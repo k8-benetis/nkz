@@ -8,6 +8,7 @@
 // =============================================================================
 
 import type { ModuleViewerSlots } from '@/context/ModuleContext';
+import { logger } from '@/utils/logger';
 
 // =============================================================================
 // Types
@@ -71,7 +72,7 @@ declare global {
 export function initNKZRuntime(): NKZRuntime {
     // Don't reinitialize if already set up
     if (window.__NKZ__?.version) {
-        console.debug('[NKZ Runtime] Already initialized, skipping');
+        logger.debug('[NKZ Runtime] Already initialized, skipping');
         return window.__NKZ__;
     }
 
@@ -83,30 +84,28 @@ export function initNKZRuntime(): NKZRuntime {
 
         register(registration: NKZModuleRegistration) {
             if (!registration?.id) {
-                console.error('[NKZ Runtime] register() called without an id:', registration);
+                logger.error('[NKZ Runtime] register() called without an id:', registration);
                 return;
             }
 
             const { id } = registration;
 
             if (registered.has(id)) {
-                console.warn(`[NKZ Runtime] Module "${id}" is already registered. Overwriting.`);
+                logger.warn(`[NKZ Runtime] Module "${id}" is already registered. Overwriting.`);
             }
 
             registered.set(id, registration);
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug(`[NKZ Runtime] Module "${id}" registered`, {
-                    slots: registration.viewerSlots ? Object.keys(registration.viewerSlots) : [],
-                    hasProvider: !!registration.provider,
-                });
-            }
+            logger.debug(`[NKZ Runtime] Module "${id}" registered`, {
+                slots: registration.viewerSlots ? Object.keys(registration.viewerSlots) : [],
+                hasProvider: !!registration.provider,
+            });
 
             // Notify all listeners
             listeners.forEach(listener => {
                 try {
                     listener(id, registration);
                 } catch (err) {
-                    console.error(`[NKZ Runtime] Error in registration listener for "${id}":`, err);
+                    logger.error(`[NKZ Runtime] Error in registration listener for "${id}":`, err);
                 }
             });
         },
@@ -119,7 +118,7 @@ export function initNKZRuntime(): NKZRuntime {
                 try {
                     callback(id, reg);
                 } catch (err) {
-                    console.error(`[NKZ Runtime] Error in catch-up notification for "${id}":`, err);
+                    logger.error(`[NKZ Runtime] Error in catch-up notification for "${id}":`, err);
                 }
             });
 
@@ -143,8 +142,6 @@ export function initNKZRuntime(): NKZRuntime {
     };
 
     window.__NKZ__ = runtime;
-    if (typeof console !== 'undefined' && console.debug) {
-        console.debug('[NKZ Runtime] Initialized (v1.0.0)');
-    }
+    logger.debug('[NKZ Runtime] Initialized (v1.0.0)');
     return runtime;
 }

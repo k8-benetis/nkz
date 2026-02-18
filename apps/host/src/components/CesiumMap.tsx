@@ -22,6 +22,7 @@ import { useEntitySelection } from '@/hooks/cesium/useEntitySelection';
 import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 import { logger } from '@/utils/logger';
+import { normalizeAssetUrl } from '@/utils/urlNormalizer';
 // Removed hardcoded vegetation layer import - modules should use slot system
 
 // Import Cesium CSS
@@ -688,8 +689,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           };
 
           if (modelUrl) {
-            // Hotfix for legacy domain in DB
-            const fixedModelUrl = modelUrl.replace('nekazari.artotxiki.com', 'nekazari.robotika.cloud');
+            // Normalize legacy domain (artotxiki -> robotika)
+            const fixedModelUrl = normalizeAssetUrl(modelUrl);
             // Render 3D Model
             entityOptions.model = {
               uri: fixedModelUrl,
@@ -728,7 +729,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             const validIcon = processedIconUrl.startsWith('http') || processedIconUrl.startsWith('data:');
 
             if (validIcon) {
-              const fixedIconUrl = processedIconUrl.replace('nekazari.artotxiki.com', 'nekazari.robotika.cloud');
+              const fixedIconUrl = normalizeAssetUrl(processedIconUrl);
               entityOptions.billboard = {
                 image: fixedIconUrl,
                 width: 32,
@@ -838,7 +839,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           const modelUrl = getEntityModel(machine, '/icons/machines/tractor.glb');
           if (modelUrl) {
             entityOptions.model = {
-              uri: modelUrl,
+              uri: normalizeAssetUrl(modelUrl),
               minimumPixelSize: 64,
               maximumScale: 20000,
               heightReference: heightReference,
@@ -850,7 +851,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             const iconUrl = getEntityIconUrl(machine, '/icons/machines/tractor.png');
             if (iconUrl) {
               entityOptions.billboard = {
-                image: iconUrl,
+                image: normalizeAssetUrl(iconUrl),
                 width: 48,
                 height: 48,
                 verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
@@ -902,7 +903,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           const modelUrl = getEntityModel(animal, species === 'Bos taurus' ? '/icons/livestock/cow.glb' : '/icons/livestock/animal.glb');
           if (modelUrl) {
             entityOptions.model = {
-              uri: modelUrl,
+              uri: normalizeAssetUrl(modelUrl),
               minimumPixelSize: 32,
               maximumScale: 20000,
               heightReference: heightReference,
@@ -914,7 +915,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             const iconUrl = getEntityIconUrl(animal, species === 'Bos taurus' ? '/icons/livestock/cow.png' : '/icons/livestock/animal.png');
             if (iconUrl) {
               entityOptions.billboard = {
-                image: iconUrl,
+                image: normalizeAssetUrl(iconUrl),
                 width: 32,
                 height: 32,
                 verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
@@ -964,7 +965,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           const modelUrl = getEntityModel(station, '/icons/weather/station.glb');
           if (modelUrl) {
             entityOptions.model = {
-              uri: modelUrl,
+              uri: normalizeAssetUrl(modelUrl),
               minimumPixelSize: 48,
               maximumScale: 20000,
               heightReference: heightReference,
@@ -976,7 +977,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             const iconUrl = getEntityIconUrl(station, '/icons/weather/station.png');
             if (iconUrl) {
               entityOptions.billboard = {
-                image: iconUrl,
+                image: normalizeAssetUrl(iconUrl),
                 width: 40,
                 height: 40,
                 verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
@@ -1181,7 +1182,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               orientation: orientation,
               name: treeName,
               model: {
-                uri: modelUrl,
+                uri: normalizeAssetUrl(modelUrl),
                 scale: modelScale,
                 minimumPixelSize: 32,
                 maximumScale: 20000,
