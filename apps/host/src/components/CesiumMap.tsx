@@ -8,8 +8,6 @@ import {
   Minimize2,
   Layers,
   Map as MapIcon,
-  Settings,
-  Info,
   Mountain
 } from 'lucide-react';
 import { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, AgriCrop, AgriBuilding, Device } from '@/types';
@@ -27,11 +25,6 @@ import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 
 // Import Cesium CSS
 import 'cesium/Build/Cesium/Widgets/widgets.css';
-
-interface GeoPolygon {
-  type: 'Polygon';
-  coordinates: number[][][];
-}
 
 interface ParcelIndexData {
   [parcelId: string]: {
@@ -229,8 +222,6 @@ const WebGLFallback: React.FC = () => {
 };
 
 export const CesiumMap = React.memo<CesiumMapProps>(({
-  title = 'Mapa 3D',
-  height = 'h-96',
   showControls = true,
   robots = [],
   sensors = [],
@@ -692,9 +683,11 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           };
 
           if (modelUrl) {
+            // Hotfix for legacy domain in DB
+            const fixedModelUrl = modelUrl.replace('nekazari.artotxiki.com', 'nekazari.robotika.cloud');
             // Render 3D Model
             entityOptions.model = {
-              uri: modelUrl,
+              uri: fixedModelUrl,
               minimumPixelSize: 64,
               maximumScale: 20000,
               scale: (sensor.modelScale?.value || 1.0),
@@ -730,8 +723,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             const validIcon = processedIconUrl.startsWith('http') || processedIconUrl.startsWith('data:');
 
             if (validIcon) {
+              const fixedIconUrl = processedIconUrl.replace('nekazari.artotxiki.com', 'nekazari.robotika.cloud');
               entityOptions.billboard = {
-                image: processedIconUrl,
+                image: fixedIconUrl,
                 width: 32,
                 height: 32,
                 heightReference: heightReference,

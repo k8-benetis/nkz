@@ -644,7 +644,7 @@ const UnifiedViewerInner: React.FC = () => {
                 {/* Map Layer Slot - Dynamic widgets overlaying the map (Search, Controls, etc.) */}
                 <div className="absolute inset-0 pointer-events-none z-10">
                     <Suspense fallback={null}>
-                        <SlotRenderer slot="map-layer" className="w-full h-full pointer-events-auto" inline={true} />
+                        <SlotRenderer slot="map-layer" className="w-full h-full pointer-events-none [&>*]:pointer-events-auto" inline={false} />
                     </Suspense>
                 </div>
 
