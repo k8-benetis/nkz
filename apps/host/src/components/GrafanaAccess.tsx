@@ -18,7 +18,7 @@ const config = getConfig();
 
 export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({ 
   embedded = false, 
-  height = '600px' 
+  height: _height = '600px' 
 }) => {
   const { user, getToken } = useAuth();
   const [isLoading, setIsLoading] = useState(false);

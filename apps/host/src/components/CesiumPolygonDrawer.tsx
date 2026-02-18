@@ -3,12 +3,13 @@
 // =============================================================================
 
 import React, { useEffect, useRef, useState, useImperativeHandle } from 'react';
-import { Compass, Eraser, MousePointer2, CheckCircle2, Expand, Minimize, Layers, Mountain, Loader2 } from 'lucide-react';
+import { Compass, Eraser, MousePointer2, CheckCircle2, Expand, Minimize, Layers, Mountain } from 'lucide-react';
 import type { GeoPolygon } from '@/types';
 import { calculatePolygonAreaHectares, toGeoPolygon } from '@/utils/geo';
 import { useI18n } from '@/context/I18nContext';
 import { detectTerrainProviderFromParcels, getTerrainProviderUrl, getTerrainProviderName, type TerrainProviderType } from '@/utils/terrain';
 import { getNDVIColor } from '@/utils/ndviColors';
+import { logger } from '@/utils/logger';
 // api y getConfig ya no son necesarios - terrain usa providers externos directamente
 
 interface CadastralParcel {
@@ -99,7 +100,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
-      console.warn('[CesiumPolygonDrawer] Cesium not available on window');
+      logger.warn('[CesiumPolygonDrawer] Cesium not available on window');
       return;
     }
 
@@ -150,10 +151,10 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
         credit: 'PNOA - IGN España',
       });
       viewer.imageryLayers.addImageryProvider(pnoaProvider);
-      console.log('[CesiumPolygonDrawer] Initial imagery provider (PNOA) configured');
+      logger.debug('[CesiumPolygonDrawer] Initial imagery provider (PNOA) configured');
       viewer.scene.requestRender?.();
     } catch (error) {
-      console.error('[CesiumPolygonDrawer] Error configuring initial imagery provider:', error);
+      logger.error('[CesiumPolygonDrawer] Error configuring initial imagery provider:', error);
     }
 
     viewerRef.current = viewer;
@@ -191,7 +192,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
 
         // Verify viewer is ready
         if (!viewer.imageryLayers) {
-          console.warn('[CesiumPolygonDrawer] Viewer imageryLayers not ready yet');
+          logger.warn('[CesiumPolygonDrawer] Viewer imageryLayers not ready yet');
           return;
         }
 
@@ -203,7 +204,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             maximumLevel: 19,
           });
           viewer.imageryLayers.addImageryProvider(osmProvider);
-          console.log('[CesiumPolygonDrawer] OSM layer added');
+          logger.debug('[CesiumPolygonDrawer] OSM layer added');
         } else if (baseLayer === 'pnoa') {
           const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
             url: 'https://www.ign.es/wms-inspire/pnoa-ma',
@@ -217,7 +218,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             maximumLevel: 19,
           });
           viewer.imageryLayers.addImageryProvider(pnoaProvider);
-          console.log('[CesiumPolygonDrawer] PNOA layer added');
+          logger.debug('[CesiumPolygonDrawer] PNOA layer added');
         } else if (baseLayer === 'cnig') {
           const cnigProvider = new Cesium.WebMapServiceImageryProvider({
             url: 'https://www.ign.es/wms-inspire/pnoa-ma',
@@ -231,13 +232,13 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             maximumLevel: 19,
           });
           viewer.imageryLayers.addImageryProvider(cnigProvider);
-          console.log('[CesiumPolygonDrawer] CNIG layer added');
+          logger.debug('[CesiumPolygonDrawer] CNIG layer added');
         }
 
         if (!viewer.isDestroyed()) viewer.scene.requestRender?.();
-        console.log(`[CesiumPolygonDrawer] Base layer updated to: ${baseLayer}`);
+        logger.debug(`[CesiumPolygonDrawer] Base layer updated to: ${baseLayer}`);
       } catch (error) {
-        console.error('[CesiumPolygonDrawer] Error updating base layer:', error);
+        logger.error('[CesiumPolygonDrawer] Error updating base layer:', error);
       }
     }, 100); // Small delay to ensure viewer is ready
 
@@ -281,7 +282,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
         viewer.zoomTo(entity);
       }
     } catch (error) {
-      console.error('[CesiumPolygonDrawer] Error handling initialGeometry:', error);
+      logger.error('[CesiumPolygonDrawer] Error handling initialGeometry:', error);
     }
   }, [initialGeometry]);
 
@@ -325,7 +326,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (terrainProvider === 'auto' && cadastralParcels.length > 0) {
       const detected = detectTerrainProviderFromParcels(cadastralParcels);
-      console.log(`[CesiumPolygonDrawer] 🗺️ Auto-detected terrain provider: ${detected} (based on parcels)`);
+      logger.debug(`[CesiumPolygonDrawer] 🗺️ Auto-detected terrain provider: ${detected} (based on parcels)`);
       // Note: We don't change terrainProvider state here, just log it
       // The actual provider will be determined when updating terrain
     }
@@ -373,8 +374,8 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
         const terrainUrl = getTerrainProviderUrl(providerToUse);
         const providerName = getTerrainProviderName(providerToUse);
 
-        console.log(`[CesiumPolygonDrawer] 🌍 Activating ${providerName} terrain provider...`);
-        console.log(`[CesiumPolygonDrawer] URL: ${terrainUrl}`);
+        logger.debug(`[CesiumPolygonDrawer] 🌍 Activating ${providerName} terrain provider...`);
+        logger.debug(`[CesiumPolygonDrawer] URL: ${terrainUrl}`);
 
         // Remove /layer.json if present for CesiumTerrainProvider
         const baseUrl = terrainUrl.replace('/layer.json', '');
@@ -390,53 +391,53 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             // Handle terrain provider errors gracefully
             terrainProviderInstance.errorEvent.addEventListener((error: any) => {
               if (viewer.isDestroyed()) return;
-              console.error(`[CesiumPolygonDrawer] ⚠️ ${providerName} terrain provider error:`, error);
-              console.warn('[CesiumPolygonDrawer] Falling back to ellipsoid terrain');
+              logger.error(`[CesiumPolygonDrawer] ⚠️ ${providerName} terrain provider error:`, error);
+              logger.warn('[CesiumPolygonDrawer] Falling back to ellipsoid terrain');
               try {
                 viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
                 viewer.scene.globe.depthTestAgainstTerrain = false;
                 viewer.scene.requestRender?.();
               } catch (e) {
-                console.error('[CesiumPolygonDrawer] Error setting fallback terrain:', e);
+                logger.error('[CesiumPolygonDrawer] Error setting fallback terrain:', e);
               }
             });
 
             // Set terrain provider
             viewer.terrainProvider = terrainProviderInstance;
             viewer.scene.globe.depthTestAgainstTerrain = true;
-            console.log(`[CesiumPolygonDrawer] ✅ ${providerName} terrain provider activated`);
+            logger.debug(`[CesiumPolygonDrawer] ✅ ${providerName} terrain provider activated`);
 
             // Force scene update
             viewer.scene.requestRender?.();
           })
           .catch((error: any) => {
             if (viewer.isDestroyed()) return;
-            console.error(`[CesiumPolygonDrawer] ❌ Failed to load ${providerName} terrain provider:`, error);
-            console.warn('[CesiumPolygonDrawer] Falling back to ellipsoid terrain');
+            logger.error(`[CesiumPolygonDrawer] ❌ Failed to load ${providerName} terrain provider:`, error);
+            logger.warn('[CesiumPolygonDrawer] Falling back to ellipsoid terrain');
             try {
               viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
               viewer.scene.globe.depthTestAgainstTerrain = false;
               viewer.scene.requestRender?.();
             } catch (e) {
-              console.error('[CesiumPolygonDrawer] Error setting fallback terrain:', e);
+              logger.error('[CesiumPolygonDrawer] Error setting fallback terrain:', e);
             }
           });
       } else {
         // Use ellipsoid when 3D is disabled
-        console.log('[CesiumPolygonDrawer] Using ellipsoid terrain (3D disabled)');
+        logger.debug('[CesiumPolygonDrawer] Using ellipsoid terrain (3D disabled)');
         viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
         viewer.scene.globe.depthTestAgainstTerrain = false;
         viewer.scene.requestRender?.();
       }
     } catch (error) {
-      console.error('[CesiumPolygonDrawer] ❌ Error updating terrain provider:', error);
+      logger.error('[CesiumPolygonDrawer] ❌ Error updating terrain provider:', error);
       // Fallback to ellipsoid on error
       try {
         viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
         viewer.scene.globe.depthTestAgainstTerrain = false;
         viewer.scene.requestRender?.();
       } catch (fallbackError) {
-        console.error('[CesiumPolygonDrawer] ❌ Failed to set fallback terrain:', fallbackError);
+        logger.error('[CesiumPolygonDrawer] ❌ Failed to set fallback terrain:', fallbackError);
       }
     }
   }, [enable3D, terrainProvider, cadastralParcels]);
@@ -445,17 +446,17 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    console.log('[CesiumPolygonDrawer] Loading cadastral parcels:', cadastralParcels.length);
+    logger.debug('[CesiumPolygonDrawer] Loading cadastral parcels:', cadastralParcels.length);
 
     if (!cadastralParcels.length) {
-      console.log('[CesiumPolygonDrawer] No cadastral parcels to display');
+      logger.debug('[CesiumPolygonDrawer] No cadastral parcels to display');
       return;
     }
 
     // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
-      console.warn('[CesiumPolygonDrawer] Cesium not available');
+      logger.warn('[CesiumPolygonDrawer] Cesium not available');
       return;
     }
 
@@ -463,24 +464,19 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     const parcelEntities: any[] = [];
     let clickHandler: any = null;
 
-    // Determine height reference based on terrain availability
-    const heightReference = enable3D
-      ? Cesium.HeightReference.CLAMP_TO_GROUND
-      : Cesium.HeightReference.NONE;
-
     cadastralParcels.forEach((parcel) => {
       if (!parcel.geometry) {
-        console.warn(`[CesiumPolygonDrawer] Parcel ${parcel.id} has no geometry`);
+        logger.warn(`[CesiumPolygonDrawer] Parcel ${parcel.id} has no geometry`);
         return;
       }
 
       const coordinates = parcel.geometry.coordinates?.[0];
       if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 3) {
-        console.warn(`[CesiumPolygonDrawer] Parcel ${parcel.id} has invalid geometry:`, parcel.geometry);
+        logger.warn(`[CesiumPolygonDrawer] Parcel ${parcel.id} has invalid geometry:`, parcel.geometry);
         return;
       }
 
-      console.log(`[CesiumPolygonDrawer] Adding parcel ${parcel.id} with ${coordinates.length} points`);
+      logger.debug(`[CesiumPolygonDrawer] Adding parcel ${parcel.id} with ${coordinates.length} points`);
 
       const positions = coordinates.map((coord: number[]) =>
         Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0)
@@ -545,7 +541,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       parcelEntities.push(entity);
     });
 
-    console.log(`[CesiumPolygonDrawer] Added ${parcelEntities.length} parcel entities to map`);
+    logger.debug(`[CesiumPolygonDrawer] Added ${parcelEntities.length} parcel entities to map`);
 
     // Set up click handler for parcel selection (only in select mode)
     if (mode === 'select' && (onParcelClick || onEmptySpaceClick)) {
@@ -580,10 +576,10 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
             const longitude = Cesium.Math.toDegrees(cartographic.longitude);
             const latitude = Cesium.Math.toDegrees(cartographic.latitude);
-            console.log(`[CesiumPolygonDrawer] Empty space clicked at (${longitude}, ${latitude}), querying cadastral service`);
+            logger.debug(`[CesiumPolygonDrawer] Empty space clicked at (${longitude}, ${latitude}), querying cadastral service`);
             onEmptySpaceClick(longitude, latitude);
           } else {
-            console.warn('[CesiumPolygonDrawer] Could not determine coordinates from click position');
+            logger.warn('[CesiumPolygonDrawer] Could not determine coordinates from click position');
           }
         }
       }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -603,9 +599,9 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     const element = wrapperRef.current;
     if (!element) return;
     if (document.fullscreenElement === element) {
-      document.exitFullscreen?.().catch((err) => console.warn('[CesiumPolygonDrawer] exitFullscreen failed', err));
+      document.exitFullscreen?.().catch((err) => logger.warn('[CesiumPolygonDrawer] exitFullscreen failed', err));
     } else {
-      element.requestFullscreen?.().catch((err) => console.warn('[CesiumPolygonDrawer] requestFullscreen failed', err));
+      element.requestFullscreen?.().catch((err) => logger.warn('[CesiumPolygonDrawer] requestFullscreen failed', err));
     }
   };
 
@@ -676,7 +672,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     const Cesium = window.Cesium;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) {
-      console.warn('[CesiumPolygonDrawer] Cannot start drawing, Cesium or viewer not ready');
+      logger.warn('[CesiumPolygonDrawer] Cannot start drawing, Cesium or viewer not ready');
       return;
     }
 
@@ -769,7 +765,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     handlerRef.current.setInputAction((event: any) => {
       // If polygon is complete (has at least 3 points), show context menu
       if (positions.length >= 3 && onContextMenu) {
-        console.log('[CesiumPolygonDrawer] Right click detected, showing context menu');
+        logger.debug('[CesiumPolygonDrawer] Right click detected, showing context menu');
         const coordinates: number[][] = positions.map((cartesian) => {
           const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
           const lon = Cesium.Math.toDegrees(cartographic.longitude);
@@ -825,7 +821,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
 
     const coordinates = geometry.coordinates?.[0];
     if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 3) {
-      console.warn('[CesiumPolygonDrawer] Invalid geometry for preview');
+      logger.warn('[CesiumPolygonDrawer] Invalid geometry for preview');
       return;
     }
 
@@ -883,18 +879,18 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   const centerOnCoordinates = (longitude: number, latitude: number) => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) {
-      console.warn('[CesiumPolygonDrawer] Viewer not available for centerOnCoordinates');
+      logger.warn('[CesiumPolygonDrawer] Viewer not available for centerOnCoordinates');
       return;
     }
 
     // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
-      console.warn('[CesiumPolygonDrawer] Cesium not available');
+      logger.warn('[CesiumPolygonDrawer] Cesium not available');
       return;
     }
 
-    console.log(`[CesiumPolygonDrawer] Centering on coordinates: (${longitude}, ${latitude})`);
+    logger.debug(`[CesiumPolygonDrawer] Centering on coordinates: (${longitude}, ${latitude})`);
     
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(longitude, latitude, 500), // 500m altitude
@@ -908,23 +904,23 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   };
 
   const centerOnParcel = (parcelId: string) => {
-    console.log(`[CesiumPolygonDrawer] centerOnParcel called for: ${parcelId}`);
+    logger.debug(`[CesiumPolygonDrawer] centerOnParcel called for: ${parcelId}`);
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) {
-      console.warn('[CesiumPolygonDrawer] Viewer not available for centerOnParcel');
+      logger.warn('[CesiumPolygonDrawer] Viewer not available for centerOnParcel');
       return;
     }
 
     // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
-      console.warn('[CesiumPolygonDrawer] Cesium not available');
+      logger.warn('[CesiumPolygonDrawer] Cesium not available');
       return;
     }
 
     // Always try to find parcel in cadastralParcels first (most reliable)
     const parcel = cadastralParcels.find(p => p.id === parcelId);
-    console.log(`[CesiumPolygonDrawer] Parcel lookup: found=${!!parcel}, hasGeometry=${!!parcel?.geometry}, cadastralParcels.length=${cadastralParcels.length}`);
+    logger.debug(`[CesiumPolygonDrawer] Parcel lookup: found=${!!parcel}, hasGeometry=${!!parcel?.geometry}, cadastralParcels.length=${cadastralParcels.length}`);
 
     let positions: any[] | null = null;
     let entity: any = null;
@@ -934,20 +930,20 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     entity = viewer.entities.getById(entityId);
     
     if (entity && entity.polygon) {
-      console.log(`[CesiumPolygonDrawer] Found existing entity in map`);
+      logger.debug(`[CesiumPolygonDrawer] Found existing entity in map`);
       try {
         const hierarchy = entity.polygon.hierarchy.getValue();
         if (hierarchy && hierarchy.length > 0) {
           positions = hierarchy;
         }
       } catch (e) {
-        console.warn(`[CesiumPolygonDrawer] Error getting hierarchy from entity:`, e);
+        logger.warn(`[CesiumPolygonDrawer] Error getting hierarchy from entity:`, e);
       }
     }
 
     // Strategy 2: If not found in map, use parcel geometry from cadastralParcels
     if (!positions && parcel && parcel.geometry) {
-      console.log(`[CesiumPolygonDrawer] Using geometry from cadastralParcels`);
+      logger.debug(`[CesiumPolygonDrawer] Using geometry from cadastralParcels`);
       const coordinates = parcel.geometry.coordinates?.[0];
       
       if (coordinates && Array.isArray(coordinates) && coordinates.length >= 3) {
@@ -957,7 +953,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
         
         // If entity doesn't exist, create it
         if (!entity) {
-          console.log(`[CesiumPolygonDrawer] Creating new entity for parcel`);
+          logger.debug(`[CesiumPolygonDrawer] Creating new entity for parcel`);
           const ndviInfo = parcelNDVIData[parcel.id];
           const ndviColor = ndviInfo ? getNDVIColor(ndviInfo.ndviMean) : '#4ade80';
           const parcelColor = Cesium.Color.fromCssColorString(ndviColor);
@@ -1001,7 +997,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       if (boundingSphere) {
         // Increase distance multiplier for better view (more padding around parcel)
         const optimalDistance = boundingSphere.radius * 3.5;
-        console.log(`[CesiumPolygonDrawer] Flying to parcel, radius: ${boundingSphere.radius.toFixed(0)}, distance: ${optimalDistance.toFixed(0)}`);
+        logger.debug(`[CesiumPolygonDrawer] Flying to parcel, radius: ${boundingSphere.radius.toFixed(0)}, distance: ${optimalDistance.toFixed(0)}`);
         
         viewer.camera.flyTo({
           destination: boundingSphere.center,
@@ -1018,10 +1014,10 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
           ),
         });
       } else {
-        console.error(`[CesiumPolygonDrawer] Could not calculate bounding sphere from ${positions.length} positions`);
+        logger.error(`[CesiumPolygonDrawer] Could not calculate bounding sphere from ${positions.length} positions`);
       }
     } else {
-      console.error(`[CesiumPolygonDrawer] No valid positions found for parcel ${parcelId}. Positions:`, positions?.length || 0);
+      logger.error(`[CesiumPolygonDrawer] No valid positions found for parcel ${parcelId}. Positions:`, positions?.length || 0);
     }
   };
 

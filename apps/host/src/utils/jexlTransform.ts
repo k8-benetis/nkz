@@ -34,13 +34,13 @@ export function evaluateExpression(expression: string, value: number): number {
         const expr = expression.replace(/\bval\b/g, String(value));
 
         // Only allow safe characters: digits, operators, parentheses, spaces, decimal points
-        if (!/^[\d\s\+\-\*\/\(\)\.]+$/.test(expr)) {
+        if (!/^[\d\s+\-*/().]+$/.test(expr)) {
             console.warn(`[JEXL] Expression contains invalid characters: ${expression}`);
             return value;
         }
 
         // Evaluate using Function (safer than eval for simple math)
-        // eslint-disable-next-line no-new-func
+         
         const result = new Function(`return ${expr}`)();
 
         if (typeof result !== 'number' || !isFinite(result)) {

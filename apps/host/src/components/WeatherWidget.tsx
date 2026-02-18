@@ -9,6 +9,7 @@ import { Cloud, Thermometer, Droplets, Wind, MapPin, Search, Loader2, AlertCircl
 import api from '@/services/api';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
+import { logger } from '@/utils/logger';
 
 interface WeatherData {
   observed_at: string;
@@ -48,8 +49,8 @@ interface WeatherWidgetProps {
 export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   municipalityCode,
   municipalityName,
-  latitude,
-  longitude,
+  latitude: _latitude,
+  longitude: _longitude,
   onMunicipalitySelect,
 }) => {
   const { t } = useI18n();
@@ -106,7 +107,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         setForecast([]);
       }
     } catch (err: any) {
-      console.error('Error loading weather from primary location:', err);
+      logger.error('Error loading weather from primary location:', err);
       // Don't show error if it's just that there's no location configured
       if (err.response?.status !== 404) {
       setError(err.message || t('weather.error_loading'));
@@ -130,7 +131,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       if (!response.ok) throw new Error('Open-Meteo API error');
       return await response.json();
     } catch (err) {
-      console.error('[WeatherWidget] Error fetching from Open-Meteo:', err);
+      logger.error('[WeatherWidget] Error fetching from Open-Meteo:', err);
       return null;
     }
   };
@@ -160,13 +161,13 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           limit: 200, // Request more observations to ensure we get 5 complete days (24 hours * 7 days = 168 hours)
         });
       } catch (forecastErr) {
-        console.warn('Error fetching forecast data:', forecastErr);
+        logger.warn('Error fetching forecast data:', forecastErr);
         // Continue without forecast - not critical
       }
 
       // If no data in DB, try fallback to Open-Meteo direct
       if (observations.length === 0 || !forecastData || forecastData.observations?.length === 0) {
-        console.log('[WeatherWidget] No data in DB, using Open-Meteo fallback', {
+        logger.debug('[WeatherWidget] No data in DB, using Open-Meteo fallback', {
           observationsCount: observations.length,
           forecastDataCount: forecastData?.observations?.length || 0
         });
@@ -175,7 +176,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         const municipalitySearch = await api.searchMunicipalities(name || targetCode);
         const municipality = municipalitySearch.municipalities?.[0];
         
-        console.log('[WeatherWidget] Municipality found:', municipality);
+        logger.debug('[WeatherWidget] Municipality found:', municipality);
         
         if (municipality && municipality.latitude && municipality.longitude) {
           const openMeteoData = await fetchOpenMeteoDirectly(
@@ -183,7 +184,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             municipality.longitude
           );
           
-          console.log('[WeatherWidget] Open-Meteo data received:', {
+          logger.debug('[WeatherWidget] Open-Meteo data received:', {
             hasCurrent: !!openMeteoData?.current,
             hasHourly: !!openMeteoData?.hourly,
             hourlyKeys: openMeteoData?.hourly ? Object.keys(openMeteoData.hourly) : []
@@ -213,7 +214,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             
             // Transform forecast from hourly data
             if (hourly && hourly.time && hourly.temperature_2m) {
-              console.log('[WeatherWidget] Processing hourly forecast data', {
+              logger.debug('[WeatherWidget] Processing hourly forecast data', {
                 timeCount: hourly.time?.length,
                 tempCount: hourly.temperature_2m?.length
               });
@@ -225,7 +226,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               const maxDate = new Date(todayForGrouping);
               maxDate.setDate(maxDate.getDate() + 5); // Today + 5 days = 6 days total (to ensure we have 5 complete days after filtering)
               
-              console.log('[WeatherWidget] Date range for forecast:', {
+              logger.debug('[WeatherWidget] Date range for forecast:', {
                 today: todayForGrouping.toISOString(),
                 maxDate: maxDate.toISOString()
               });
@@ -238,7 +239,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 // Open-Meteo returns dates in format "2025-12-13T00:00" (ISO format)
                 const obsDate = new Date(timeStr);
                 if (isNaN(obsDate.getTime())) {
-                  console.warn('[WeatherWidget] Invalid date:', timeStr);
+                  logger.warn('[WeatherWidget] Invalid date:', timeStr);
                   continue;
                 }
                 
@@ -269,7 +270,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 }
               }
               
-              console.log('[WeatherWidget] Forecast grouped by date:', {
+              logger.debug('[WeatherWidget] Forecast grouped by date:', {
                 datesCount: forecastByDate.size,
                 dates: Array.from(forecastByDate.keys()),
                 sampleDay: forecastByDate.size > 0 ? {
@@ -305,17 +306,17 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
                 .slice(0, 5); // Take exactly 5 days (today + 4 more)
               
-              console.log('[WeatherWidget] Forecast transformed:', forecastTransformed);
+              logger.debug('[WeatherWidget] Forecast transformed:', forecastTransformed);
               
               if (forecastTransformed.length > 0) {
                 setForecast(forecastTransformed);
-                console.log('[WeatherWidget] Forecast set successfully, length:', forecastTransformed.length);
+                logger.debug('[WeatherWidget] Forecast set successfully, length:', forecastTransformed.length);
               } else {
-                console.warn('[WeatherWidget] Forecast transformed but empty');
+                logger.warn('[WeatherWidget] Forecast transformed but empty');
                 setForecast([]);
               }
             } else {
-              console.warn('[WeatherWidget] No hourly data available for forecast', {
+              logger.warn('[WeatherWidget] No hourly data available for forecast', {
                 hasHourly: !!hourly,
                 hasTime: !!hourly?.time,
                 hasTemp: !!hourly?.temperature_2m
@@ -331,13 +332,13 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             setLoading(false);
             return; // Exit early, we got data from Open-Meteo
           } else {
-            console.warn('[WeatherWidget] Open-Meteo data incomplete', {
+            logger.warn('[WeatherWidget] Open-Meteo data incomplete', {
               hasData: !!openMeteoData,
               hasCurrent: !!openMeteoData?.current
             });
           }
         } else {
-          console.warn('[WeatherWidget] Municipality coordinates not found', municipality);
+          logger.warn('[WeatherWidget] Municipality coordinates not found', municipality);
         }
       }
 
@@ -384,7 +385,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           
           const obsDate = new Date(obs.observed_at);
           if (isNaN(obsDate.getTime())) {
-            console.warn('[WeatherWidget] Invalid date in forecast observation:', obs.observed_at);
+            logger.warn('[WeatherWidget] Invalid date in forecast observation:', obs.observed_at);
             return;
           }
           
@@ -456,16 +457,16 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         if (forecastTransformed.length > 0) {
           setForecast(forecastTransformed);
           forecastProcessed = true;
-          console.log('[WeatherWidget] Forecast successfully processed from DB:', forecastTransformed.length, 'days');
+          logger.debug('[WeatherWidget] Forecast successfully processed from DB:', forecastTransformed.length, 'days');
         } else {
-          console.warn(`[WeatherWidget] Forecast from DB is empty. Total observations: ${forecastData.observations.length}`);
-          console.log('[WeatherWidget] Daily data keys:', Array.from(dailyData.keys()));
+          logger.warn(`[WeatherWidget] Forecast from DB is empty. Total observations: ${forecastData.observations.length}`);
+          logger.debug('[WeatherWidget] Daily data keys:', Array.from(dailyData.keys()));
         }
       }
 
       // If forecast not processed from DB, try Open-Meteo fallback
       if (!forecastProcessed) {
-        console.log('[WeatherWidget] No forecast in DB or empty, trying Open-Meteo fallback for forecast');
+        logger.debug('[WeatherWidget] No forecast in DB or empty, trying Open-Meteo fallback for forecast');
         
         // Get municipality coordinates
         let municipality = null;
@@ -473,7 +474,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           const municipalitySearch = await api.searchMunicipalities(name || targetCode);
           municipality = municipalitySearch.municipalities?.[0];
         } catch (err) {
-          console.warn('[WeatherWidget] Error searching municipality for forecast:', err);
+          logger.warn('[WeatherWidget] Error searching municipality for forecast:', err);
         }
         
         if (municipality && municipality.latitude && municipality.longitude) {
@@ -486,7 +487,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             if (openMeteoData && openMeteoData.hourly && openMeteoData.hourly.time && openMeteoData.hourly.temperature_2m) {
               const hourly = openMeteoData.hourly;
               
-              console.log('[WeatherWidget] Processing forecast from Open-Meteo fallback', {
+              logger.debug('[WeatherWidget] Processing forecast from Open-Meteo fallback', {
                 timeCount: hourly.time?.length,
                 tempCount: hourly.temperature_2m?.length
               });
@@ -504,7 +505,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 
                 const obsDate = new Date(timeStr);
                 if (isNaN(obsDate.getTime())) {
-                  console.warn('[WeatherWidget] Invalid date in forecast:', timeStr);
+                  logger.warn('[WeatherWidget] Invalid date in forecast:', timeStr);
                   continue;
                 }
                 
@@ -562,13 +563,13 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               
               if (forecastTransformed.length > 0) {
                 setForecast(forecastTransformed);
-                console.log('[WeatherWidget] Forecast from Open-Meteo fallback set successfully:', forecastTransformed.length, 'days');
+                logger.debug('[WeatherWidget] Forecast from Open-Meteo fallback set successfully:', forecastTransformed.length, 'days');
               } else {
-                console.warn('[WeatherWidget] Forecast from Open-Meteo fallback is empty');
+                logger.warn('[WeatherWidget] Forecast from Open-Meteo fallback is empty');
                 setForecast([]);
               }
             } else {
-              console.warn('[WeatherWidget] Open-Meteo data incomplete for forecast fallback', {
+              logger.warn('[WeatherWidget] Open-Meteo data incomplete for forecast fallback', {
                 hasData: !!openMeteoData,
                 hasHourly: !!openMeteoData?.hourly,
                 hasTime: !!openMeteoData?.hourly?.time,
@@ -577,11 +578,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               setForecast([]);
             }
           } catch (err) {
-            console.warn('[WeatherWidget] Error fetching forecast from Open-Meteo fallback:', err);
+            logger.warn('[WeatherWidget] Error fetching forecast from Open-Meteo fallback:', err);
             setForecast([]);
           }
         } else {
-          console.warn('[WeatherWidget] Cannot get forecast: municipality coordinates not available', {
+          logger.warn('[WeatherWidget] Cannot get forecast: municipality coordinates not available', {
             municipality: municipality,
             hasLat: !!municipality?.latitude,
             hasLon: !!municipality?.longitude
@@ -595,7 +596,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         onMunicipalitySelect(targetCode, name);
       }
     } catch (err: any) {
-      console.error('Error loading weather by municipality:', err);
+      logger.error('Error loading weather by municipality:', err);
       const errorMessage = err.response?.data?.detail || err.message || t('weather.error_loading');
       setError(errorMessage);
       // Clear data on error
@@ -614,10 +615,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
     setSearchingMunicipalities(true);
     try {
-      console.log('[WeatherWidget] Searching municipalities with term:', term);
+      logger.debug('[WeatherWidget] Searching municipalities with term:', term);
       // Search in catalog using API endpoint (searches AEMET/INE catalog)
       const response = await api.searchMunicipalities(term);
-      console.log('[WeatherWidget] Search response:', response);
+      logger.debug('[WeatherWidget] Search response:', response);
       const municipalities = response.municipalities || [];
       
       const filtered = municipalities.map((mun: any) => ({
@@ -627,11 +628,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         fullName: mun.province ? `${mun.name} (${mun.province})` : mun.name,
       }));
       
-      console.log('[WeatherWidget] Filtered municipalities:', filtered);
+      logger.debug('[WeatherWidget] Filtered municipalities:', filtered);
       setMunicipalities(filtered);
     } catch (err: any) {
-      console.error('[WeatherWidget] Error searching municipalities:', err);
-      console.error('[WeatherWidget] Error details:', {
+      logger.error('[WeatherWidget] Error searching municipalities:', err);
+      logger.error('[WeatherWidget] Error details:', {
         message: err.message,
         response: err.response?.data,
         status: err.response?.status,
@@ -677,7 +678,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         });
       }
     } catch (err) {
-      console.warn('Error ensuring weather location exists:', err);
+      logger.warn('Error ensuring weather location exists:', err);
       // Continue anyway - the widget can still work without the location in the DB
     }
     

@@ -31,7 +31,8 @@ export type MapMode =
     | 'PICK_LOCATION'     // Picking coordinates on map
     | 'DRAW_GEOMETRY'     // Generic geometry drawing (Point, Polygon, LineString)
     | 'PREVIEW_MODEL'     // Preview single 3D model placement
-    | 'STAMP_INSTANCES';  // Brush painting multiple model instances
+    | 'STAMP_INSTANCES'   // Brush painting multiple model instances
+    | 'ZONING';           // VRA Management Zones (vegetation module)
 
 // 3D Model placement state for preview and stamp modes
 export interface ModelPlacementState {

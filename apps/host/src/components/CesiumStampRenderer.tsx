@@ -8,7 +8,7 @@ export const CesiumStampRenderer: React.FC = () => {
         mapMode,
         stampOptions,
         stampInstances,
-        startStampMode,
+        startStampMode: _startStampMode,
         addStampInstance,
         stampModelUrl
     } = useViewerOptional() || {};

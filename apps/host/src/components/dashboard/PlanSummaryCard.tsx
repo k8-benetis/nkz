@@ -16,7 +16,7 @@ const formatPlanName = (planType?: string | null): string => {
   if (!planType) return 'Plan Básico';
   
   // Normalize plan type names
-  const normalized = planType.toLowerCase().replace(/[_\-]+/g, ' ').trim();
+  const normalized = planType.toLowerCase().replace(/[-_]+/g, ' ').trim();
   
   // Map common variations to standard names
   const planMap: Record<string, string> = {

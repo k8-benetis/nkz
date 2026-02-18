@@ -21,6 +21,7 @@ import { useNdviLayer } from '@/hooks/cesium/useNdviLayer';
 import { useEntitySelection } from '@/hooks/cesium/useEntitySelection';
 import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
+import { logger } from '@/utils/logger';
 // Removed hardcoded vegetation layer import - modules should use slot system
 
 // Import Cesium CSS
@@ -266,19 +267,19 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     if (!containerRef.current || viewerRef.current || webglFailed) return;
 
-    console.log('[CesiumMap] Initializing Cesium viewer');
+    logger.debug('[CesiumMap] Initializing Cesium viewer');
 
     try {
       // @ts-ignore - Cesium types
       const Cesium = window.Cesium;
 
       if (!Cesium) {
-        console.warn('[CesiumMap] Cesium not available, skipping initialization');
+        logger.warn('[CesiumMap] Cesium not available, skipping initialization');
         return;
       }
 
-      console.log('[CesiumMap] WebGL status:', webglStatus);
-      console.log('[CesiumMap] Creating Cesium viewer');
+      logger.debug('[CesiumMap] WebGL status:', webglStatus);
+      logger.debug('[CesiumMap] Creating Cesium viewer');
 
       // Initialize Cesium Viewer with error handling
       let viewer: any;
@@ -334,7 +335,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             credit: 'OpenStreetMap Contributors',
           });
           viewer.imageryLayers.addImageryProvider(osmProvider);
-          console.log('[CesiumMap] Initial imagery provider (OSM) configured');
+          logger.debug('[CesiumMap] Initial imagery provider (OSM) configured');
 
           // Add PNOA (Plan Nacional de Ortofotografía Aérea) as base layer option
           try {
@@ -350,12 +351,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             // Add PNOA as an optional layer (can be toggled)
             viewer.imageryLayers.addImageryProvider(pnoaProvider, 0); // Add at bottom
           } catch (pnoaError) {
-            console.warn('[CesiumMap] Could not add PNOA layer:', pnoaError);
+            logger.warn('[CesiumMap] Could not add PNOA layer:', pnoaError);
           }
 
           viewer.scene.requestRender?.();
         } catch (error) {
-          console.error('[CesiumMap] Error configuring initial imagery provider:', error);
+          logger.error('[CesiumMap] Error configuring initial imagery provider:', error);
         }
 
         viewerRef.current = viewer;
@@ -371,7 +372,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         });
 
       } catch (error) {
-        console.error('[CesiumMap] Error creating viewer:', error);
+        logger.error('[CesiumMap] Error creating viewer:', error);
         // If viewer creation fails (likely WebGL), show the fallback
         setWebglFailed(true);
         return;
@@ -380,21 +381,21 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       // Terrain, 3D Tiles, and WMS logic moved to separate useEffects
 
     } catch (error) {
-      console.error('[CesiumMap] Critical error during initialization:', error);
+      logger.error('[CesiumMap] Critical error during initialization:', error);
       viewerRef.current = null;
       setWebglFailed(true);
     }
 
     // Cleanup
     return () => {
-      console.log('[CesiumMap] Cleanup function called. ViewerRef:', !!viewerRef.current);
+      logger.debug('[CesiumMap] Cleanup function called. ViewerRef:', !!viewerRef.current);
       if (viewerRef.current) {
         try {
-          console.log('[CesiumMap] Destroying viewer');
+          logger.debug('[CesiumMap] Destroying viewer');
           console.trace('[CesiumMap] Destroy stack trace');
           viewerRef.current.destroy();
         } catch (error) {
-          console.error('[CesiumMap] Error destroying viewer:', error);
+          logger.error('[CesiumMap] Error destroying viewer:', error);
         }
         viewerRef.current = null;
         setIsViewerReady(false);
@@ -408,13 +409,13 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
   // Log mount/unmount
   useEffect(() => {
-    console.log('[CesiumMap] Component Mounted');
-    return () => console.log('[CesiumMap] Component Unmounted');
+    logger.debug('[CesiumMap] Component Mounted');
+    return () => logger.debug('[CesiumMap] Component Unmounted');
   }, []);
 
   // Log to confirm refactor is active
   useEffect(() => {
-    console.log('[CesiumMap] Viewer initialized (Refactored v3 - isViewerReady)');
+    logger.debug('[CesiumMap] Viewer initialized (Refactored v3 - isViewerReady)');
   }, []);
 
   // Handle Terrain Updates (extracted hook)
@@ -524,9 +525,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     const element = wrapperRef.current;
     if (!element) return;
     if (document.fullscreenElement === element) {
-      document.exitFullscreen?.().catch((err) => console.warn('[CesiumMap] exitFullscreen failed', err));
+      document.exitFullscreen?.().catch((err) => logger.warn('[CesiumMap] exitFullscreen failed', err));
     } else {
-      element.requestFullscreen?.().catch((err) => console.warn('[CesiumMap] requestFullscreen failed', err));
+      element.requestFullscreen?.().catch((err) => logger.warn('[CesiumMap] requestFullscreen failed', err));
     }
   };
 
@@ -638,29 +639,33 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             },
           });
         } catch (e) {
-          console.warn('[CesiumMap] Error adding robot:', robot, e);
+          logger.warn('[CesiumMap] Error adding robot:', robot, e);
         }
       });
 
       // Add sensors - NGSI-LD format
-      console.log('[CesiumMap] Processing sensors:', sensors.length);
+      logger.debug('[CesiumMap] Processing sensors:', sensors.length);
       sensors.forEach((sensor) => {
         try {
           const coordinates = getEntityCoordinates(sensor);
-          console.log('[CesiumMap] Sensor', sensor.id, 'coordinates:', coordinates, 'location:', sensor.location);
+          logger.debug('[CesiumMap] Sensor', sensor.id, 'coordinates:', coordinates, 'location:', sensor.location);
           if (!coordinates) return;
           const [lon, lat] = coordinates;
 
           // Handle NGSI-LD namespaced name property
           let sensorName = 'Unknown Sensor';
-          if (typeof sensor.name === 'string') {
-            sensorName = sensor.name;
-          } else if (sensor.name?.value) {
-            sensorName = sensor.name.value;
-          } else if (sensor['https://smartdatamodels.org/name']?.value) {
-            sensorName = sensor['https://smartdatamodels.org/name'].value;
-          } else if (sensor['https://smartdatamodels.org/name']) {
-            sensorName = sensor['https://smartdatamodels.org/name'];
+          const nameProp = sensor.name;
+          if (typeof nameProp === 'string') {
+            sensorName = nameProp;
+          } else if (nameProp && typeof nameProp === 'object' && 'value' in nameProp && typeof (nameProp as { value: string }).value === 'string') {
+            sensorName = (nameProp as { value: string }).value;
+          } else {
+            const namespacedName = sensor['https://smartdatamodels.org/name'];
+            if (namespacedName && typeof namespacedName === 'object' && 'value' in namespacedName && typeof (namespacedName as { value: string }).value === 'string') {
+              sensorName = (namespacedName as { value: string }).value;
+            } else if (typeof namespacedName === 'string') {
+              sensorName = namespacedName;
+            }
           }
 
           const modelUrl = getEntityModel(sensor);
@@ -717,7 +722,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             }
 
             // DEBUG: Log icon URL
-            console.log(`[CesiumMapDebug] Sensor ${sensor.id} using icon: ${processedIconUrl} (Original: ${iconUrl})`);
+            logger.debug(`[CesiumMapDebug] Sensor ${sensor.id} using icon: ${processedIconUrl} (Original: ${iconUrl})`);
 
             // Check if it's a real URL or key
             const validIcon = processedIconUrl.startsWith('http') || processedIconUrl.startsWith('data:');
@@ -755,7 +760,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           viewer.entities.add(entityOptions);
         } catch (e) {
-          console.warn('[CesiumMap] Error adding sensor:', sensor, e);
+          logger.warn('[CesiumMap] Error adding sensor:', sensor, e);
         }
       });
 
@@ -808,8 +813,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           const operationType = typeof machine.operationType === 'string'
             ? machine.operationType
             : machine.operationType?.value;
-          const status = typeof machine.status === 'string' ? machine.status : machine.status?.value;
-
           const entityOptions: any = {
             id: `machine-${machine.id}`,
             position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
@@ -858,7 +861,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           viewer.entities.add(entityOptions);
         } catch (e) {
-          console.warn('[CesiumMap] Error adding machine:', machine, e);
+          logger.warn('[CesiumMap] Error adding machine:', machine, e);
         }
       });
 
@@ -922,7 +925,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           viewer.entities.add(entityOptions);
         } catch (e) {
-          console.warn('[CesiumMap] Error adding livestock:', animal, e);
+          logger.warn('[CesiumMap] Error adding livestock:', animal, e);
         }
       });
 
@@ -984,7 +987,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           viewer.entities.add(entityOptions);
         } catch (e) {
-          console.warn('[CesiumMap] Error adding weather station:', station, e);
+          logger.warn('[CesiumMap] Error adding weather station:', station, e);
         }
       });
 
@@ -1042,7 +1045,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             });
           }
         } catch (e) {
-          console.warn('[CesiumMap] Error adding crop:', crop, e);
+          logger.warn('[CesiumMap] Error adding crop:', crop, e);
         }
       });
 
@@ -1099,7 +1102,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             });
           }
         } catch (e) {
-          console.warn('[CesiumMap] Error adding building:', building, e);
+          logger.warn('[CesiumMap] Error adding building:', building, e);
         }
       });
 
@@ -1136,19 +1139,19 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             description: `Category: ${category}`
           });
         } catch (e) {
-          console.warn('[CesiumMap] Error adding device:', device, e);
+          logger.warn('[CesiumMap] Error adding device:', device, e);
         }
       });
 
       // Add trees (OliveTree, AgriTree, FruitTree, Vine) - with 3D model support
       if (trees.length > 0) {
-        console.log('[CesiumMap] Rendering trees:', trees.length);
+        logger.debug('[CesiumMap] Rendering trees:', trees.length);
       }
       trees.forEach((tree) => {
         try {
           const coordinates = getEntityCoordinates(tree);
           if (!coordinates) {
-            console.warn('[CesiumMap] Tree without coordinates:', tree.id);
+            logger.warn('[CesiumMap] Tree without coordinates:', tree.id);
             return;
           }
 
@@ -1160,7 +1163,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           if (modelUrl) {
             // Render with 3D model
-            console.log('[CesiumMap] Adding tree with model:', tree.id, modelUrl);
+            logger.debug('[CesiumMap] Adding tree with model:', tree.id, modelUrl);
 
             // Get rotation from entity
             const modelRotation = tree.modelRotation?.value || tree.modelRotation || [0, 0, 0];
@@ -1221,7 +1224,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             });
           }
         } catch (e) {
-          console.warn('[CesiumMap] Error adding tree:', tree, e);
+          logger.warn('[CesiumMap] Error adding tree:', tree, e);
         }
       });
 
@@ -1266,7 +1269,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               }
             }
           } catch (e) {
-            console.warn('[CesiumMap] Error calculating center for parcel:', parcel.id, e);
+            logger.warn('[CesiumMap] Error calculating center for parcel:', parcel.id, e);
           }
         });
 
@@ -1288,14 +1291,14 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             });
           }
         } catch (error) {
-          console.warn('[CesiumMap] Error centering on parcels:', error);
+          logger.warn('[CesiumMap] Error centering on parcels:', error);
         }
       }
 
       // Add parcels as polygons
-      parcels.forEach((parcel, index) => {
+      parcels.forEach((parcel, _index) => {
         try {
-          // if (index === 0) console.log('[CesiumMap] Processing first parcel:', parcel);
+          // if (index === 0) logger.debug('[CesiumMap] Processing first parcel:', parcel);
 
           const coordinates = getEntityCoordinates(parcel);
           if (!coordinates) return;
@@ -1321,7 +1324,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           // Validate positions before adding
           if (positions.length < 3) {
-            console.warn(`[CesiumMap] Skipping parcel ${parcel.id}: Invalid geometry (less than 3 points)`);
+            logger.warn(`[CesiumMap] Skipping parcel ${parcel.id}: Invalid geometry (less than 3 points)`);
             return;
           }
 
@@ -1397,14 +1400,14 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           });
 
         } catch (e) {
-          console.warn('[CesiumMap] Error adding parcel:', parcel.id, e);
+          logger.warn('[CesiumMap] Error adding parcel:', parcel.id, e);
         }
       });
 
       // Force a render
       viewer.scene.requestRender();
     } catch (error) {
-      console.error('[CesiumMap] Critical error updating entities:', error);
+      logger.error('[CesiumMap] Critical error updating entities:', error);
     }
   }, [
     isViewerReady, // Critical dependency: wait for viewer to be ready
@@ -1478,7 +1481,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             onClick={() => {
               // Toggle logic would go here if we had a setEnable3DTerrain prop or state
               // For now, just a visual toggle if we can't change the prop from here
-              console.log('Toggle 3D Terrain clicked');
+              logger.debug('Toggle 3D Terrain clicked');
             }}
             className={`p-2 rounded-lg shadow-lg backdrop-blur-sm transition-all border border-slate-600 ${enable3DTerrain ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white' : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'}`}
             title={enable3DTerrain ? 'Desactivar relieve 3D' : 'Activar relieve 3D'}

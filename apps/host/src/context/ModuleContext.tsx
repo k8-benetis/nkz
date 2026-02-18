@@ -86,6 +86,8 @@ export interface ModuleDefinition {
   remoteEntry?: string;
   scope?: string;
   module?: string;
+  // Module classification
+  moduleType?: 'CORE' | 'ADDON_FREE' | 'ADDON_PAID' | 'ADDON_ENTERPRISE';
   // Optional metadata
   icon?: string;
   metadata?: Record<string, any>;

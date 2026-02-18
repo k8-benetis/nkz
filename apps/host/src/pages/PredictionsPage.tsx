@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { parcelApi } from '@/services/parcelApi';
 import { Parcel } from '@/types';
-import { Brain, TrendingUp, AlertTriangle, Battery, Sprout, Bug } from 'lucide-react';
+import { Brain, TrendingUp, Battery, Sprout, Bug } from 'lucide-react';
 
 interface Algorithm {
     id: string;
@@ -20,10 +20,10 @@ const ALGORITHMS: Algorithm[] = [
 ];
 
 export const PredictionsPage: React.FC = () => {
-    const { user } = useAuth();
+    const { user: _user } = useAuth();
     const [parcels, setParcels] = useState<Parcel[]>([]);
     const [selectedAlgo, setSelectedAlgo] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [_loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadParcels = async () => {

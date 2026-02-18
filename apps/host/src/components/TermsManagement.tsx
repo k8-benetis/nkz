@@ -5,14 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
-import { FileText, Save, Loader2, CheckCircle, AlertCircle, Globe } from 'lucide-react';
+import { FileText, Save, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { sanitizeTermsHtml } from '@/utils/sanitize';
-
-interface TermsData {
-  content: string;
-  last_updated: string;
-  language: string;
-}
 
 const SUPPORTED_LANGUAGES = {
   es: 'Español',
@@ -24,7 +18,7 @@ const SUPPORTED_LANGUAGES = {
 };
 
 export const TermsManagement: React.FC = () => {
-  const { t, supportedLanguages } = useI18n();
+  const { t, supportedLanguages: _supportedLanguages } = useI18n();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('es');
   const [termsContent, setTermsContent] = useState<string>('');
   const [loading, setLoading] = useState(false);

@@ -45,7 +45,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
         const loadSchema = async () => {
             try {
                 // Fetch all schemas or try to find one
-                const response = await api.client.get('/sdm/schemas');
+                const response = await api.get('/sdm/schemas');
 
                 // Handle both array response (find by type) and object response
                 let entitySchema = response.data;
@@ -100,7 +100,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             });
 
             // API call to update attributes
-            await api.client.patch(`/ngsi-ld/v1/entities/${entity.id}/attrs`, updates, {
+            await api.patch(`/ngsi-ld/v1/entities/${entity.id}/attrs`, updates, {
                 headers: { 'Content-Type': 'application/ld+json' }
             });
 
@@ -122,7 +122,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
     const handleDelete = async () => {
         setLoading(true);
         try {
-            await api.deleteEntity(entity.id);
+            await api.deleteSDMEntity(entity.type, entity.id);
             if (onDelete) onDelete();
         } catch (err: any) {
             console.error('Error deleting entity:', err);

@@ -19,7 +19,7 @@ import {
 import { Line, Bar } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, TrendingUp, Download, RefreshCw } from 'lucide-react';
+import { TrendingUp, RefreshCw } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 

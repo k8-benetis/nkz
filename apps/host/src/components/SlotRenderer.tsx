@@ -2,7 +2,7 @@
 // Slot Renderer - Dynamic Widget Rendering
 // =============================================================================
 // Renders widgets registered for a specific slot in the Unified Viewer.
-// Supports both local (bundled) and remote (Module Federation) widgets.
+// Supports both local (bundled) and remote (IIFE-registered) widgets.
 // Includes error boundaries for module isolation and lazy loading optimization.
 
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
@@ -64,7 +64,6 @@ const getModuleIdFromWidget = (widget: SlotWidgetDefinition): string => {
         // e.g., 'vegetation-prime-config' -> 'vegetation-prime'
         if (parts.length >= 3) {
             const compoundId = `${parts[0]}-${parts[1]}`;
-            console.log(`[SlotRenderer] Inferred compound moduleId: ${compoundId} from widget: ${widgetId} (consider adding explicit moduleId)`);
             return compoundId;
         }
         // Fallback to first part
@@ -83,9 +82,8 @@ const getModuleNameFromWidget = (widget: SlotWidgetDefinition): string => {
 };
 
 /**
- * Loads a single slot component from a remote module by name (e.g. 'LidarLayer')
- * and renders it. Used when viewerSlots were loaded from the remote but
- * localComponent references were not preserved across the federation boundary.
+ * Loads a single slot component from a remote IIFE module by name (e.g. 'LidarLayer')
+ * and renders it. Resolves via window.__NKZ__ registry after the module script has run.
  */
 const RemoteSlotWidget: React.FC<{
     module: ModuleDefinition;
@@ -210,24 +208,9 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
     const slotRegistry = useSlotRegistryOptional();
     const { modules } = useModules();
 
-    // If SlotRegistryProvider is not available, return null silently
-    // This allows SlotRenderer to be used in components that may or may not be within the provider
-    if (!slotRegistry) {
-        console.debug(`[SlotRenderer] SlotRegistryProvider not available for slot "${slot}", returning null`);
-        return null;
-    }
+    const widgets = slotRegistry ? slotRegistry.getVisibleWidgets(slot) : [];
 
-    const { getVisibleWidgets } = slotRegistry;
-    const widgets = getVisibleWidgets(slot);
-
-    console.log(`[SlotRenderer] Rendering slot "${slot}" with ${widgets.length} widgets:`, widgets.map(w => w.id));
-
-    if (widgets.length === 0) {
-        console.log(`[SlotRenderer] No widgets for slot "${slot}", returning null`);
-        return null;
-    }
-
-    // Group widgets by module to share providers when multiple widgets from same module
+    // Group widgets by module (hook must run before any early return)
     const widgetsByModule = useMemo(() => {
         const grouped = new Map<string, {
             widgets: SlotWidgetDefinition[];
@@ -258,6 +241,10 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
         return Array.from(grouped.values());
     }, [widgets, modules]);
 
+    if (!slotRegistry || widgets.length === 0) {
+        return null;
+    }
+
     // Render widgets grouped by module, with shared provider when needed
     const content = widgetsByModule.map(({ widgets: moduleWidgets, moduleId, module, moduleProvider }) => {
         const widgetsContent = moduleWidgets.map(widget => (
@@ -274,7 +261,6 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
         // with a SINGLE instance of the provider to avoid state synchronization issues
         if (moduleProvider) {
             const ModuleProvider = moduleProvider;
-            console.log(`[SlotRenderer] Wrapping ${moduleWidgets.length} widgets from module ${moduleId} with shared provider`);
             return (
                 <ModuleProvider key={moduleId}>
                     {widgetsContent}

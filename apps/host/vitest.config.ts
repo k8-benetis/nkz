@@ -16,7 +16,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'lcov'],
-      include: ['src/utils/**', 'src/hooks/**'],
+      include: ['src/utils/**', 'src/hooks/**', 'src/components/**'],
       exclude: ['src/__tests__/**', 'node_modules/**'],
       thresholds: {
         // Progressive targets — increase as coverage grows

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/KeycloakAuthContext';
+import { logger } from '@/utils/logger';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -34,7 +35,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   React.useEffect(() => {
     if (isLoading || isCallback) {
       const timeout = setTimeout(() => {
-        console.warn('[ProtectedRoute] Loading timeout - forcing state update');
+        logger.warn('[ProtectedRoute] Loading timeout - forcing state update');
         setLoadingTimeout(true);
       }, 30000); // 30 segundos máximo
 
@@ -48,7 +49,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   React.useEffect(() => {
     if (hasStoredToken && !isAuthenticated && !isLoading && !isCallback) {
       const checkTimeout = setTimeout(() => {
-        console.log('[ProtectedRoute] Token encontrado pero no autenticado después de esperar');
+        logger.debug('[ProtectedRoute] Token encontrado pero no autenticado después de esperar');
         setHasCheckedAuth(true);
       }, 1000); // Esperar 1 segundo para que se procese el token
 
@@ -61,7 +62,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // During callback or loading, show spinner but don't check tenant yet
   // Pero si hay timeout, continuar con la verificación de autenticación
   if ((isLoading || isCallback) && !loadingTimeout) {
-    console.log('[ProtectedRoute] Loading or callback, showing spinner. Location:', location.pathname, 'isLoading:', isLoading, 'isCallback:', isCallback);
+    logger.debug('[ProtectedRoute] Loading or callback, showing spinner. Location:', location.pathname, 'isLoading:', isLoading, 'isCallback:', isCallback);
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -74,7 +75,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Si hay token almacenado pero aún no está autenticado, esperar un poco más
   if (hasStoredToken && !isAuthenticated && !hasCheckedAuth) {
-    console.log('[ProtectedRoute] Token encontrado, esperando procesamiento...');
+    logger.debug('[ProtectedRoute] Token encontrado, esperando procesamiento...');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -87,7 +88,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!isAuthenticated) {
     // Usar el adaptador de Keycloak para manejar PKCE correctamente
-    console.log('[ProtectedRoute] Not authenticated, redirecting to login. Location:', location.pathname, 'hasStoredToken:', hasStoredToken);
+    logger.debug('[ProtectedRoute] Not authenticated, redirecting to login. Location:', location.pathname, 'hasStoredToken:', hasStoredToken);
     login();
     return null;
   }
@@ -99,7 +100,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     // Si el usuario es null pero estamos autenticados, puede que se esté cargando
     // Esperar un momento antes de verificar el tenant
     if (!user && isAuthenticated) {
-      console.log('[ProtectedRoute] Usuario autenticado pero user aún no cargado, esperando...');
+      logger.debug('[ProtectedRoute] Usuario autenticado pero user aún no cargado, esperando...');
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
@@ -112,7 +113,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Solo verificar tenant si el usuario está cargado Y no tiene tenant
     if (user && !user.tenant) {
-      console.log('[ProtectedRoute] Tenant required but user has no tenant. Location:', location.pathname, 'User:', user);
+      logger.debug('[ProtectedRoute] Tenant required but user has no tenant. Location:', location.pathname, 'User:', user);
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center max-w-md mx-auto p-8 bg-white rounded-lg shadow-lg">
@@ -142,7 +143,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
 
     if (!hasRequiredRole) {
-      console.log('[ProtectedRoute] User does not have required role. Location:', location.pathname, 'User roles:', userRoles, 'Required:', requiredRoles);
+      logger.debug('[ProtectedRoute] User does not have required role. Location:', location.pathname, 'User roles:', userRoles, 'Required:', requiredRoles);
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
@@ -164,7 +165,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }
 
-  console.log('[ProtectedRoute] Access granted. Location:', location.pathname, 'User:', user?.email, 'Tenant:', user?.tenant);
+  logger.debug('[ProtectedRoute] Access granted. Location:', location.pathname, 'User:', user?.email, 'Tenant:', user?.tenant);
   return <>{children}</>;
 };
 

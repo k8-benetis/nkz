@@ -5,10 +5,8 @@
 import React from 'react';
 import { SmartRiskPanel } from '@/components/SmartRiskPanel';
 import { useI18n } from '@/context/I18nContext';
-import { AlertTriangle } from 'lucide-react';
-
 export const Risks: React.FC = () => {
-  const { t } = useI18n();
+  const { t: _t } = useI18n();
 
   return (
     <div className="container mx-auto px-4 py-6">

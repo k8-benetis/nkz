@@ -8,11 +8,9 @@ import {
   Database, 
   RefreshCw, 
   Upload, 
-  Download, 
   CheckCircle, 
   AlertCircle,
-  Info,
-  Settings
+  Info
 } from 'lucide-react';
 
 interface SDMEntity {

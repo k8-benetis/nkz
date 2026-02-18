@@ -10,17 +10,15 @@ import {
   ChevronRight,
   ChevronDown,
   MapPin,
-  Leaf,
   Gauge,
   TreeDeciduous,
   Building2,
   Droplets,
   Box,
   MoreVertical,
-  Plus,
   FolderTree,
 } from 'lucide-react';
-import { UnifiedAsset, ASSET_TYPE_REGISTRY, CATEGORY_REGISTRY } from '@/types/assets';
+import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
 
 // =============================================================================
 // Types
@@ -107,7 +105,6 @@ function buildTree(assets: UnifiedAsset[]): TreeNode[] {
  * Get icon for asset type
  */
 function getAssetIcon(asset: UnifiedAsset): React.ReactNode {
-  const typeInfo = ASSET_TYPE_REGISTRY[asset.type];
   const iconClass = "w-4 h-4";
   
   switch (asset.category) {

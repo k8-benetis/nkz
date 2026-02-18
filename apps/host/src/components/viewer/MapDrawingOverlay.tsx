@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useViewer } from '@/context/ViewerContext';
-import type { GeoPolygon, Geometry, Point, LineString, MultiLineString } from '@/types';
+import type { Point } from 'geojson';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 
 interface MapDrawingOverlayProps {
@@ -22,7 +22,7 @@ interface MapDrawingOverlayProps {
 
 export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
     onComplete,
-    onCancel,
+    onCancel: _onCancel,
     enabled,
     drawingType = 'Polygon', // Default to Polygon for backward compatibility
 }) => {

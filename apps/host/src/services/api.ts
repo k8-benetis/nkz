@@ -2,7 +2,7 @@
 // API Service - HTTP Client for Nekazari Backend
 // =============================================================================
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import type {
   Robot,
   Sensor,
@@ -10,7 +10,6 @@ import type {
   AgriculturalMachine,
   LivestockAnimal,
   WeatherStation,
-  Translations,
   NDVIJob,
   NDVIResult,
   AssetCreationPayload,
@@ -24,16 +23,34 @@ import type {
   EntityInventory,
 } from '@/types';
 import { getConfig } from '@/config/environment';
+import { logger } from '@/utils/logger';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl;
+
+/** Tenant user as returned by /api/tenant/users */
+export interface TenantUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  roles?: string[];
+  username?: string;
+  enabled?: boolean;
+}
+
+/** Response shape for /api/tenant/users (list) */
+export interface TenantUsersResponse {
+  users?: TenantUser[];
+  [key: string]: unknown;
+}
 
 // Function to get current token (from Keycloak or sessionStorage fallback)
 const getAuthToken = (): string | null => {
   // Try to get token from Keycloak instance if available
   if (typeof window !== 'undefined') {
-    const keycloakInstance = (window as any).keycloak;
-    if (keycloakInstance && keycloakInstance.token) {
+    const keycloakInstance = (window as Window & { keycloak?: { token?: string } }).keycloak;
+    if (keycloakInstance?.token) {
       return keycloakInstance.token;
     }
   }
@@ -45,35 +62,28 @@ const getAuthToken = (): string | null => {
 // Simple in-memory cache for API responses
 // =============================================================================
 
-interface CacheEntry {
-  data: any;
+interface CacheEntry<T = unknown> {
+  data: T;
   timestamp: number;
-  ttl: number; // Time to live in milliseconds
+  ttl: number;
 }
 
 class SimpleCache {
-  private cache: Map<string, CacheEntry> = new Map();
-  private readonly defaultTTL = 60000; // 1 minute default
+  private cache = new Map<string, CacheEntry>();
+  private readonly defaultTTL = 60000;
 
-  get(key: string): any | null {
+  get<T = unknown>(key: string): T | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
-
-    const now = Date.now();
-    if (now - entry.timestamp > entry.ttl) {
+    if (Date.now() - entry.timestamp > entry.ttl) {
       this.cache.delete(key);
       return null;
     }
-
-    return entry.data;
+    return entry.data as T;
   }
 
-  set(key: string, data: any, ttl: number = this.defaultTTL): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl,
-    });
+  set<T = unknown>(key: string, data: T, ttl: number = this.defaultTTL): void {
+    this.cache.set(key, { data, timestamp: Date.now(), ttl });
   }
 
   clear(): void {
@@ -94,16 +104,16 @@ async function retryRequest<T>(
   maxRetries: number = 3,
   delay: number = 1000
 ): Promise<T> {
-  let lastError: any;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
+      const err = error as { response?: { status?: number } };
 
-      // Don't retry on 4xx errors (client errors)
-      if (error.response && error.response.status >= 400 && error.response.status < 500) {
+      if (err.response && err.response.status != null && err.response.status >= 400 && err.response.status < 500) {
         throw error;
       }
 
@@ -140,7 +150,7 @@ class ApiService {
       async (requestConfig) => {
         // Log NDVI requests for debugging
         if (requestConfig.url?.includes('/api/ndvi/')) {
-          console.log(`[API] NDVI request interceptor: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`);
+          logger.debug(`[API] NDVI request interceptor: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`);
         }
         // Get Keycloak instance to refresh token if needed
         let token = getAuthToken();
@@ -160,31 +170,31 @@ class ApiService {
                 // Use 60 seconds buffer to avoid race conditions
                 if (timeUntilExpiry < 60000) {
                   if (timeUntilExpiry < 0) {
-                    console.log(`[API] Token expired ${Math.abs(timeUntilExpiry / 1000).toFixed(0)} seconds ago, refreshing...`);
+                    logger.debug(`[API] Token expired ${Math.abs(timeUntilExpiry / 1000).toFixed(0)} seconds ago, refreshing...`);
                   } else {
-                    console.log(`[API] Token expiring in ${(timeUntilExpiry / 1000).toFixed(0)} seconds, refreshing...`);
+                    logger.debug(`[API] Token expiring in ${(timeUntilExpiry / 1000).toFixed(0)} seconds, refreshing...`);
                   }
                   try {
                     // updateToken will refresh the token if needed
                     // Pass a longer min validity to ensure we get a fresh token
-                    const refreshed = await keycloakInstance.updateToken(60);
+                    await keycloakInstance.updateToken(60);
                     // Always use the token from Keycloak instance after updateToken
                     // (it refreshes internally even if it returns false)
                     if (keycloakInstance.token) {
                       token = keycloakInstance.token;
-                      console.log('[API] Token refreshed successfully');
+                      logger.debug('[API] Token refreshed successfully');
                     } else {
-                      console.warn('[API] updateToken completed but no token available');
+                      logger.warn('[API] updateToken completed but no token available');
                       // Token refresh may have failed - this will cause 401 which will be handled by response interceptor
                     }
-                  } catch (refreshError: any) {
-                    console.warn('[API] Token refresh failed:', refreshError);
+                  } catch (refreshError: unknown) {
+                    logger.warn('[API] Token refresh failed:', refreshError);
                     // If refresh fails, try to get current token anyway
                     token = keycloakInstance.token || token;
                     // If still no token, the request will fail with 401
                     // and the response interceptor will try again
                     if (!token) {
-                      console.error('[API] No token available after refresh attempt - request may fail');
+                      logger.error('[API] No token available after refresh attempt - request may fail');
                     }
                   }
                 } else {
@@ -193,16 +203,16 @@ class ApiService {
                 }
               } else {
                 // No token in instance - try to get one
-                console.warn('[API] Keycloak instance exists but no token available');
+                logger.warn('[API] Keycloak instance exists but no token available');
                 try {
                   await keycloakInstance.updateToken(60);
                   token = keycloakInstance.token || null;
                 } catch (e) {
-                  console.warn('[API] Failed to get token from Keycloak instance:', e);
+                  logger.warn('[API] Failed to get token from Keycloak instance:', e);
                 }
               }
             } catch (e) {
-              console.warn('[API] Error checking token expiry:', e);
+              logger.warn('[API] Error checking token expiry:', e);
               token = keycloakInstance.token || token;
             }
           }
@@ -222,25 +232,25 @@ class ApiService {
           } catch (e) {
             // If token decode fails, continue without X-Tenant-ID header
             // Backend services should extract tenant from JWT token anyway
-            console.warn('[API] Could not extract tenant from token for X-Tenant-ID header');
+            logger.warn('[API] Could not extract tenant from token for X-Tenant-ID header');
           }
         } else {
           // Log when token is missing for weather endpoints
           if (requestConfig.url?.includes('/api/weather')) {
-            console.warn('[API] No token available for weather request:', requestConfig.url);
+            logger.warn('[API] No token available for weather request:', requestConfig.url);
           }
         }
 
         // Log weather requests for debugging
         if (requestConfig.url?.includes('/api/weather')) {
-          console.log(`[API] Weather request: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`, {
+          logger.debug(`[API] Weather request: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`, {
             hasToken: !!token,
             tokenLength: token ? token.length : 0,
             hasTenant: !!requestConfig.headers['X-Tenant-ID'],
           });
         }
         if (requestConfig.url?.includes('/api/ndvi/')) {
-          console.log(`[API] NDVI request ready: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`, {
+          logger.debug(`[API] NDVI request ready: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`, {
             hasToken: !!token,
             hasTenant: !!requestConfig.headers['X-Tenant-ID'],
           });
@@ -255,14 +265,14 @@ class ApiService {
       (response) => {
         // Log successful responses for debugging
         if (response.config.url?.includes('/api/ndvi/')) {
-          console.log(`[API] NDVI request successful: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+          logger.debug(`[API] NDVI request successful: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
         }
         return response;
       },
       async (error: AxiosError) => {
         // Log all errors for NDVI requests
         if (error.config?.url?.includes('/api/ndvi/')) {
-          console.error(`[API] NDVI request error: ${error.config.method?.toUpperCase()} ${error.config.url}`, {
+          logger.error(`[API] NDVI request error: ${error.config.method?.toUpperCase()} ${error.config.url}`, {
             message: error.message,
             code: error.code,
             status: error.response?.status,
@@ -272,13 +282,13 @@ class ApiService {
         }
         // Handle empty responses or non-JSON responses
         if (error.response && typeof error.response.data === 'string' && error.response.data.trim() === '') {
-          console.warn('[API] Empty response received, converting to error object');
+          logger.warn('[API] Empty response received, converting to error object');
           error.response.data = { error: 'Empty response from server' };
         }
 
         // Handle JSON parse errors
         if (error.message && error.message.includes('JSON')) {
-          console.warn('[API] JSON parse error:', error.message);
+          logger.warn('[API] JSON parse error:', error.message);
           if (error.response) {
             try {
               // Try to parse the response as text first
@@ -297,7 +307,7 @@ class ApiService {
           if (error.config?.url?.includes('/api/weather')) {
             const authHeader = error.config.headers?.Authorization;
             const authHeaderStr = typeof authHeader === 'string' ? authHeader : String(authHeader || '');
-            console.error('[API] 401 error for weather request:', {
+            logger.error('[API] 401 error for weather request:', {
               url: error.config.url,
               hasToken: !!authHeader,
               tokenLength: authHeaderStr.length || 0,
@@ -310,7 +320,7 @@ class ApiService {
           const MAX_RETRY_ATTEMPTS = 2; // Máximo 2 intentos de refresh
 
           if (retryCount >= MAX_RETRY_ATTEMPTS) {
-            console.error('[API] Max retry attempts reached for 401 error. Stopping retry loop.', {
+            logger.error('[API] Max retry attempts reached for 401 error. Stopping retry loop.', {
               url: error.config?.url,
               retryCount,
             });
@@ -323,16 +333,16 @@ class ApiService {
             const keycloakInstance = (window as any).keycloak;
             if (keycloakInstance) {
               try {
-                console.log(`[API] 401 error, attempting to refresh token... (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+                logger.debug(`[API] 401 error, attempting to refresh token... (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
                 // Always try to update token - Keycloak handles refresh internally
                 await keycloakInstance.updateToken(30);
                 if (keycloakInstance.token) {
-                  console.log('[API] Token refreshed, retrying request...');
+                  logger.debug('[API] Token refreshed, retrying request...');
                   // Retry the original request with new token
                   const originalRequest = error.config;
                   if (originalRequest && originalRequest.headers) {
                     // Marcar este intento de retry
-                    (originalRequest as any)._retryCount = retryCount + 1;
+                    (originalRequest as AxiosRequestConfig & { _retryCount?: number })._retryCount = retryCount + 1;
                     originalRequest.headers.Authorization = `Bearer ${keycloakInstance.token}`;
                     // Actualizar también sessionStorage para consistencia
                     sessionStorage.setItem('auth_token', keycloakInstance.token);
@@ -341,21 +351,20 @@ class ApiService {
                     delete originalRequest.transformResponse;
                     return this.client.request(originalRequest);
                   } else {
-                    console.warn('[API] Cannot retry: original request config is invalid');
+                    logger.warn('[API] Cannot retry: original request config is invalid');
                   }
                 } else {
-                  console.warn('[API] Token refresh completed but no token available - user may need to re-authenticate');
+                  logger.warn('[API] Token refresh completed but no token available - user may need to re-authenticate');
                 }
-              } catch (refreshError: any) {
-                console.warn('[API] Token refresh failed:', refreshError);
-                // If refresh fails (e.g., refresh token expired), let error propagate
-                // ProtectedRoute will handle redirecting to login
-                if (refreshError.error === 'login_required' || refreshError.error_description?.includes('login')) {
-                  console.log('[API] User needs to re-login');
+              } catch (refreshError: unknown) {
+                logger.warn('[API] Token refresh failed:', refreshError);
+                const err = refreshError as { error?: string; error_description?: string };
+                if (err.error === 'login_required' || err.error_description?.includes('login')) {
+                  logger.debug('[API] User needs to re-login');
                 }
               }
             } else {
-              console.warn('[API] 401 error but Keycloak instance not available');
+              logger.warn('[API] 401 error but Keycloak instance not available');
             }
           }
 
@@ -364,9 +373,9 @@ class ApiService {
           // Dejar que el componente de autenticación maneje esto
           const token = getAuthToken();
           if (!token) {
-            console.warn('[API] 401 error but no token found - may be loading');
+            logger.warn('[API] 401 error but no token found - may be loading');
           } else {
-            console.warn('[API] 401 error with token - token may be expired');
+            logger.warn('[API] 401 error with token - token may be expired');
           }
         }
         return Promise.reject(error);
@@ -378,23 +387,23 @@ class ApiService {
   // HTTP Methods
   // =============================================================================
 
-  async get(url: string, config?: any) {
+  async get(url: string, config?: AxiosRequestConfig) {
     return this.client.get(url, config);
   }
 
-  async post(url: string, data?: any, config?: any) {
+  async post(url: string, data?: unknown, config?: AxiosRequestConfig) {
     return this.client.post(url, data, config);
   }
 
-  async put(url: string, data?: any, config?: any) {
+  async put(url: string, data?: unknown, config?: AxiosRequestConfig) {
     return this.client.put(url, data, config);
   }
 
-  async patch(url: string, data?: any, config?: any) {
+  async patch(url: string, data?: unknown, config?: AxiosRequestConfig) {
     return this.client.patch(url, data, config);
   }
 
-  async delete(url: string, config?: any) {
+  async delete(url: string, config?: AxiosRequestConfig) {
     return this.client.delete(url, config);
   }
 
@@ -405,19 +414,17 @@ class ApiService {
   // Translations are loaded from /locales/*.json files
   // No backend service needed
 
-  // User Profile Management - Uses tenant-user-api service
-  async updateUserProfile(firstName: string, lastName?: string): Promise<any> {
+  async updateUserProfile(firstName: string, lastName?: string): Promise<TenantUser | unknown> {
     const response = await this.client.put('/api/tenant/users/me', {
       firstName: firstName.trim(),
       lastName: lastName?.trim() || ''
     });
-    return response.data;
+    return response.data as TenantUser;
   }
 
-  // Tenant Users Management
-  async getTenantUsers(): Promise<any> {
+  async getTenantUsers(): Promise<TenantUsersResponse> {
     const response = await this.client.get('/api/tenant/users');
-    return response.data;
+    return response.data as TenantUsersResponse;
   }
 
   async createTenantUser(userData: {
@@ -427,31 +434,31 @@ class ApiService {
     roles: string[];
     password: string;
     temporary?: boolean;
-  }): Promise<any> {
+  }): Promise<TenantUser | unknown> {
     const response = await this.client.post('/api/tenant/users', userData);
-    return response.data;
+    return response.data as TenantUser;
   }
 
   async updateTenantUser(userId: string, updates: {
     firstName?: string;
     lastName?: string;
     email?: string;
-  }): Promise<any> {
+  }): Promise<TenantUser | unknown> {
     const response = await this.client.put(`/api/tenant/users/${userId}`, updates);
-    return response.data;
+    return response.data as TenantUser;
   }
 
-  async deleteTenantUser(userId: string): Promise<any> {
+  async deleteTenantUser(userId: string): Promise<unknown> {
     const response = await this.client.delete(`/api/tenant/users/${userId}`);
     return response.data;
   }
 
-  async resetTenantUserPassword(userId: string): Promise<any> {
+  async resetTenantUserPassword(userId: string): Promise<unknown> {
     const response = await this.client.post(`/api/tenant/users/${userId}/reset-password`);
     return response.data;
   }
 
-  async updateTenantUserRoles(userId: string, roles: string[]): Promise<any> {
+  async updateTenantUserRoles(userId: string, roles: string[]): Promise<unknown> {
     const response = await this.client.put(`/api/tenant/users/${userId}/roles`, { roles });
     return response.data;
   }
@@ -465,7 +472,7 @@ class ApiService {
       });
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.warn('Error fetching robots:', error);
+      logger.warn('Error fetching robots:', error);
       return [];
     }
   }
@@ -497,35 +504,6 @@ class ApiService {
       if (response.data?.sensors) {
         // Transform from DB format to NGSI-LD format for frontend
         return response.data.sensors.map((s: any) => {
-          // Parse installation_location - could be PostGIS geography or object with lat/lon
-          let location = undefined;
-          if (s.installation_location) {
-            if (typeof s.installation_location === 'object' && 'lon' in s.installation_location && 'lat' in s.installation_location) {
-              // Already parsed as {lat, lon}
-              location = {
-                type: 'GeoProperty' as const,
-                value: {
-                  type: 'Point' as const,
-                  coordinates: [s.installation_location.lon, s.installation_location.lat] as [number, number]
-                }
-              };
-            } else if (typeof s.installation_location === 'string') {
-              // PostGIS POINT format: "POINT(lon lat)" or similar
-              const match = s.installation_location.match(/POINT\(([\d.-]+)\s+([\d.-]+)\)/);
-              if (match) {
-                const lon = parseFloat(match[1]);
-                const lat = parseFloat(match[2]);
-                location = {
-                  type: 'GeoProperty' as const,
-                  value: {
-                    type: 'Point' as const,
-                    coordinates: [lon, lat] as [number, number]
-                  }
-                };
-              }
-            }
-          }
-
           return {
             id: s.id,
             type: 'AgriSensor',
@@ -565,7 +543,7 @@ class ApiService {
         };
       });
     } catch (error) {
-      console.warn('Error fetching sensors:', error);
+      logger.warn('Error fetching sensors:', error);
       return [];
     }
   }
@@ -575,7 +553,7 @@ class ApiService {
       const response = await this.client.get('/api/sensors/profiles');
       return response.data?.profiles || [];
     } catch (error) {
-      console.warn('Error fetching sensor profiles:', error);
+      logger.warn('Error fetching sensor profiles:', error);
       return [];
     }
   }
@@ -590,7 +568,7 @@ class ApiService {
       const response = await this.client.get('/api/sensors/profiles/status');
       return response.data;
     } catch (error) {
-      console.warn('Error fetching sensor profiles status:', error);
+      logger.warn('Error fetching sensor profiles status:', error);
       return {
         initialized: false,
         global_profiles: 0,
@@ -612,7 +590,7 @@ class ApiService {
     is_under_canopy?: boolean;
     metadata?: Record<string, any>;
   }): Promise<any> {
-    console.warn('[API] registerSensor is deprecated. Use createSensor instead.');
+    logger.warn('[API] registerSensor is deprecated. Use createSensor instead.');
     const response = await this.client.post('/api/sensors/register', sensorData);
     return response.data;
   }
@@ -726,7 +704,7 @@ class ApiService {
     } catch (error: any) {
       // If endpoint doesn't exist, return empty array (graceful degradation)
       if (error.response?.status === 404) {
-        console.warn('[API] Subscriptions endpoint not available');
+        logger.warn('[API] Subscriptions endpoint not available');
         return [];
       }
       throw error;
@@ -803,9 +781,9 @@ class ApiService {
 
     // Check cache first
     if (useCache) {
-      const cached = this.cache.get(cacheKey);
+      const cached = this.cache.get<unknown[]>(cacheKey);
       if (cached) {
-        return cached;
+        return cached as any[];
       }
     }
 
@@ -1122,7 +1100,7 @@ class ApiService {
         };
       });
     } catch (error) {
-      console.warn('Error fetching machines:', error);
+      logger.warn('Error fetching machines:', error);
       return [];
     }
   }
@@ -1146,7 +1124,7 @@ class ApiService {
         lastUpdate: l.modifiedAt || new Date().toISOString()
       }));
     } catch (error) {
-      console.warn('Error fetching livestock:', error);
+      logger.warn('Error fetching livestock:', error);
       return [];
     }
   }
@@ -1174,7 +1152,7 @@ class ApiService {
         lastUpdate: w.modifiedAt || new Date().toISOString()
       }));
     } catch (error) {
-      console.warn('Error fetching weather stations:', error);
+      logger.warn('Error fetching weather stations:', error);
       return [];
     }
   }
@@ -1187,7 +1165,7 @@ class ApiService {
       });
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.warn('Error fetching parcels:', error);
+      logger.warn('Error fetching parcels:', error);
       return [];
     }
   }
@@ -1218,7 +1196,7 @@ class ApiService {
       const response = await this.client.get('/ros2-fiware-bridge-service/api/robots');
       return response.data?.robots || [];
     } catch (error) {
-      console.warn('Error fetching ROS2 robots:', error);
+      logger.warn('Error fetching ROS2 robots:', error);
       return [];
     }
   }
@@ -1228,7 +1206,7 @@ class ApiService {
       const response = await this.client.get(`/ros2-fiware-bridge-service/api/robots/${robotId}/nodes`);
       return response.data;
     } catch (error) {
-      console.warn('Error fetching ROS2 robot nodes:', error);
+      logger.warn('Error fetching ROS2 robot nodes:', error);
       return { nodes: [], metrics: {} };
     }
   }
@@ -1238,7 +1216,7 @@ class ApiService {
       const response = await this.client.get(`/ros2-fiware-bridge-service/api/robots/${robotId}/topics`);
       return response.data;
     } catch (error) {
-      console.warn('Error fetching ROS2 robot topics:', error);
+      logger.warn('Error fetching ROS2 robot topics:', error);
       return { topics: [] };
     }
   }
@@ -1248,7 +1226,7 @@ class ApiService {
       const response = await this.client.get(`/ros2-fiware-bridge-service/api/robots/${robotId}/alerts`);
       return response.data;
     } catch (error) {
-      console.warn('Error fetching ROS2 robot alerts:', error);
+      logger.warn('Error fetching ROS2 robot alerts:', error);
       return { alerts: [] };
     }
   }
@@ -1380,7 +1358,7 @@ class ApiService {
     indexType?: string;
   }): Promise<NDVIJob> {
     try {
-      console.log('[API] Creating NDVI job with payload:', payload);
+      logger.debug('[API] Creating NDVI job with payload:', payload);
       const response = await this.client.post('/api/ndvi/jobs', {
         parcelId: payload.parcelId,
         geometry: payload.geometry || undefined,
@@ -1390,20 +1368,20 @@ class ApiService {
         maxCloudCoverage: payload.maxCloudCoverage,
         indexType: payload.indexType,
       });
-      console.log('[API] NDVI job response:', response.status, response.data);
-      console.log('[API] Response data type:', typeof response.data);
-      console.log('[API] Response data keys:', response.data ? Object.keys(response.data) : 'null/undefined');
+      logger.debug('[API] NDVI job response:', response.status, response.data);
+      logger.debug('[API] Response data type:', typeof response.data);
+      logger.debug('[API] Response data keys:', response.data ? Object.keys(response.data) : 'null/undefined');
       // Backend returns {job: {...}}, extract the job object
       const job = (response.data as any)?.job || response.data;
-      console.log('[API] Extracted job:', job);
+      logger.debug('[API] Extracted job:', job);
       if (!job) {
-        console.error('[API] No job found in response! Response data:', response.data);
+        logger.error('[API] No job found in response! Response data:', response.data);
         throw new Error('Invalid response format: job not found in response');
       }
       return job;
     } catch (error: any) {
-      console.error('[API] Error creating NDVI job:', error);
-      console.error('[API] Error details:', {
+      logger.error('[API] Error creating NDVI job:', error);
+      logger.error('[API] Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
@@ -1415,7 +1393,7 @@ class ApiService {
 
   async getNdviJobs(): Promise<NDVIJob[]> {
     const response = await this.client.get('/api/ndvi/jobs');
-    console.log('[API] getNdviJobs RAW response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
+    logger.debug('[API] getNdviJobs RAW response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
 
     // CRITICAL FIX: response.data is coming as a string JSON, not parsed object
     // Parse it first, then extract jobs array
@@ -1423,42 +1401,42 @@ class ApiService {
 
     // If it's a string, parse it
     if (typeof data === 'string') {
-      console.log('[API] getNdviJobs: response.data is string, parsing JSON...');
-      console.log('[API] getNdviJobs: String length:', data.length, 'first 200 chars:', data.substring(0, 200));
-      console.log('[API] getNdviJobs: Last 200 chars:', data.substring(Math.max(0, data.length - 200)));
+      logger.debug('[API] getNdviJobs: response.data is string, parsing JSON...');
+      logger.debug('[API] getNdviJobs: String length:', data.length, 'first 200 chars:', data.substring(0, 200));
+      logger.debug('[API] getNdviJobs: Last 200 chars:', data.substring(Math.max(0, data.length - 200)));
       try {
-        console.log('[API] getNdviJobs: About to call JSON.parse...');
+        logger.debug('[API] getNdviJobs: About to call JSON.parse...');
         const startTime = performance.now();
         let parsedData;
         try {
           parsedData = JSON.parse(data);
           const parseTime = performance.now() - startTime;
-          console.log('[API] getNdviJobs: ✅ JSON.parse completed in', parseTime.toFixed(2), 'ms');
+          logger.debug('[API] getNdviJobs: ✅ JSON.parse completed in', parseTime.toFixed(2), 'ms');
           data = parsedData;
         } catch (parseError: any) {
           const parseTime = performance.now() - startTime;
-          console.error('[API] getNdviJobs: ❌ JSON.parse threw error after', parseTime.toFixed(2), 'ms');
+          logger.error('[API] getNdviJobs: ❌ JSON.parse threw error after', parseTime.toFixed(2), 'ms');
           throw parseError;
         }
-        console.log('[API] getNdviJobs: ✅ Parsed successfully, type:', typeof data, 'isArray:', Array.isArray(data), 'has jobs:', !!data?.jobs);
+        logger.debug('[API] getNdviJobs: ✅ Parsed successfully, type:', typeof data, 'isArray:', Array.isArray(data), 'has jobs:', !!data?.jobs);
 
         if (data && typeof data === 'object') {
           const keys = Object.keys(data);
-          console.log('[API] getNdviJobs: Parsed data keys:', keys);
+          logger.debug('[API] getNdviJobs: Parsed data keys:', keys);
 
           if (data.jobs) {
-            console.log('[API] getNdviJobs: data.jobs type:', typeof data.jobs, 'isArray:', Array.isArray(data.jobs), 'length:', data.jobs?.length);
+            logger.debug('[API] getNdviJobs: data.jobs type:', typeof data.jobs, 'isArray:', Array.isArray(data.jobs), 'length:', data.jobs?.length);
             if (Array.isArray(data.jobs) && data.jobs.length > 0) {
-              console.log('[API] getNdviJobs: First job ID:', data.jobs[0]?.id);
+              logger.debug('[API] getNdviJobs: First job ID:', data.jobs[0]?.id);
             }
           } else {
-            console.warn('[API] getNdviJobs: data.jobs is missing! Available keys:', keys);
+            logger.warn('[API] getNdviJobs: data.jobs is missing! Available keys:', keys);
           }
         }
       } catch (e: any) {
-        console.error('[API] ❌ Failed to parse response.data:', e);
-        console.error('[API] Parse error type:', typeof e, 'name:', e?.name, 'message:', e?.message);
-        console.error('[API] Parse error details:', {
+        logger.error('[API] ❌ Failed to parse response.data:', e);
+        logger.error('[API] Parse error type:', typeof e, 'name:', e?.name, 'message:', e?.message);
+        logger.error('[API] Parse error details:', {
           message: e?.message,
           name: e?.name,
           stack: e?.stack?.substring(0, 500)
@@ -1479,39 +1457,39 @@ class ApiService {
         }
 
         if (pos >= 0 && pos < data.length) {
-          console.error('[API] JSON error at position/column', pos);
-          console.error('[API] Character at error position:', JSON.stringify(data[pos]), 'charCode:', data.charCodeAt(pos));
-          console.error('[API] Context before error (100 chars):', data.substring(Math.max(0, pos - 100), pos));
-          console.error('[API] Context at error (50 chars):', data.substring(pos, Math.min(data.length, pos + 50)));
-          console.error('[API] Context after error (100 chars):', data.substring(Math.min(data.length, pos + 1), Math.min(data.length, pos + 101)));
+          logger.error('[API] JSON error at position/column', pos);
+          logger.error('[API] Character at error position:', JSON.stringify(data[pos]), 'charCode:', data.charCodeAt(pos));
+          logger.error('[API] Context before error (100 chars):', data.substring(Math.max(0, pos - 100), pos));
+          logger.error('[API] Context at error (50 chars):', data.substring(pos, Math.min(data.length, pos + 50)));
+          logger.error('[API] Context after error (100 chars):', data.substring(Math.min(data.length, pos + 1), Math.min(data.length, pos + 101)));
 
           // Try to find the problematic character
           const problematicChar = data[pos];
-          console.error('[API] Problematic character:', problematicChar, 'charCode:', problematicChar?.charCodeAt?.(0));
+          logger.error('[API] Problematic character:', problematicChar, 'charCode:', problematicChar?.charCodeAt?.(0));
         }
-        console.error('[API] ❌ Returning empty array due to parse error');
+        logger.error('[API] ❌ Returning empty array due to parse error');
         return [];
       }
     }
 
     // Handle both formats: direct array or {jobs: [...]}
-    console.log('[API] getNdviJobs: Checking data format - isArray:', Array.isArray(data), 'isObject:', data && typeof data === 'object', 'has jobs prop:', !!(data && typeof data === 'object' && data.jobs));
+    logger.debug('[API] getNdviJobs: Checking data format - isArray:', Array.isArray(data), 'isObject:', data && typeof data === 'object', 'has jobs prop:', !!(data && typeof data === 'object' && data.jobs));
 
     if (Array.isArray(data)) {
-      console.log('[API] getNdviJobs: ✅ Returning array with', data.length, 'jobs');
-      console.log('[API] getNdviJobs: First job in array:', data[0]?.id || 'N/A');
+      logger.debug('[API] getNdviJobs: ✅ Returning array with', data.length, 'jobs');
+      logger.debug('[API] getNdviJobs: First job in array:', data[0]?.id || 'N/A');
       return data;
     } else if (data && typeof data === 'object' && data.jobs && Array.isArray(data.jobs)) {
-      console.log('[API] getNdviJobs: ✅ Extracting jobs array from object, length:', data.jobs.length);
-      console.log('[API] getNdviJobs: First job ID:', data.jobs[0]?.id || 'N/A');
-      console.log('[API] getNdviJobs: ✅ Returning', data.jobs.length, 'jobs');
+      logger.debug('[API] getNdviJobs: ✅ Extracting jobs array from object, length:', data.jobs.length);
+      logger.debug('[API] getNdviJobs: First job ID:', data.jobs[0]?.id || 'N/A');
+      logger.debug('[API] getNdviJobs: ✅ Returning', data.jobs.length, 'jobs');
       const jobsArray = data.jobs;
-      console.log('[API] getNdviJobs: ✅ Final return - jobsArray type:', typeof jobsArray, 'isArray:', Array.isArray(jobsArray), 'length:', jobsArray?.length);
+      logger.debug('[API] getNdviJobs: ✅ Final return - jobsArray type:', typeof jobsArray, 'isArray:', Array.isArray(jobsArray), 'length:', jobsArray?.length);
       return jobsArray;
     }
 
-    console.warn('[API] getNdviJobs: ❌ Unexpected data format:', typeof data);
-    console.warn('[API] getNdviJobs: Data structure:', {
+    logger.warn('[API] getNdviJobs: ❌ Unexpected data format:', typeof data);
+    logger.warn('[API] getNdviJobs: Data structure:', {
       isArray: Array.isArray(data),
       isObject: data && typeof data === 'object',
       hasJobs: !!(data && typeof data === 'object' && data.jobs),
@@ -1519,7 +1497,7 @@ class ApiService {
       dataType: typeof data,
       dataPreview: data && typeof data === 'object' ? JSON.stringify(data).substring(0, 200) : String(data).substring(0, 200)
     });
-    console.warn('[API] getNdviJobs: ❌ Returning empty array');
+    logger.warn('[API] getNdviJobs: ❌ Returning empty array');
     return [];
   }
 
@@ -1573,28 +1551,28 @@ class ApiService {
 
   async getNdviResults(params?: { parcelId?: string; limit?: number }): Promise<NDVIResult[]> {
     try {
-      console.log('[API] getNdviResults called with params:', params);
+      logger.debug('[API] getNdviResults called with params:', params);
       const response = await this.client.get('/api/ndvi/results', {
         params: {
           parcel_id: params?.parcelId,
           limit: params?.limit,
         },
       });
-      console.log('[API] getNdviResults response:', response.status, response.data);
-      console.log('[API] getNdviResults response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
+      logger.debug('[API] getNdviResults response:', response.status, response.data);
+      logger.debug('[API] getNdviResults response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
 
       // Handle both formats: direct array or {results: [...]}
       let data = response.data;
       if (data && typeof data === 'object' && !Array.isArray(data) && data.results && Array.isArray(data.results)) {
-        console.log('[API] getNdviResults: Extracting results array from object');
+        logger.debug('[API] getNdviResults: Extracting results array from object');
         data = data.results;
       }
 
       return Array.isArray(data) ? data : [];
     } catch (error: any) {
-      console.error('[API] getNdviResults error:', error);
-      console.error('[API] getNdviResults error response:', error.response?.data);
-      console.error('[API] getNdviResults error status:', error.response?.status);
+      logger.error('[API] getNdviResults error:', error);
+      logger.error('[API] getNdviResults error response:', error.response?.data);
+      logger.error('[API] getNdviResults error status:', error.response?.status);
       return [];
     }
   }
@@ -1622,7 +1600,7 @@ class ApiService {
       const response = await this.client.get('/api/weather/locations');
       return response.data?.locations || [];
     } catch (error) {
-      console.warn('Error fetching weather locations:', error);
+      logger.warn('Error fetching weather locations:', error);
       return [];
     }
   }
@@ -1638,7 +1616,7 @@ class ApiService {
       const response = await this.client.post('/api/weather/locations', location);
       return response.data?.location;
     } catch (error) {
-      console.warn('Error creating weather location:', error);
+      logger.warn('Error creating weather location:', error);
       throw error;
     }
   }
@@ -1647,18 +1625,18 @@ class ApiService {
     try {
       const url = '/api/weather/municipalities/search';
       const fullUrl = `${this.client.defaults.baseURL || ''}${url}`;
-      console.log('[API] Searching municipalities:', { query, limit, url, fullUrl });
+      logger.debug('[API] Searching municipalities:', { query, limit, url, fullUrl });
       const response = await this.client.get(url, {
         params: { q: query, limit },
       });
-      console.log('[API] Municipalities search successful:', response.data);
+      logger.debug('[API] Municipalities search successful:', response.data);
       return {
         municipalities: response.data?.municipalities || [],
         count: response.data?.count || 0,
       };
     } catch (error: any) {
-      console.error('[API] Error searching municipalities:', error);
-      console.error('[API] Error details:', {
+      logger.error('[API] Error searching municipalities:', error);
+      logger.error('[API] Error details:', {
         status: error.response?.status,
         data: error.response?.data,
         message: error.message,
@@ -1678,7 +1656,7 @@ class ApiService {
       });
       return response.data;
     } catch (error: any) {
-      console.error('[API] Error getting nearest municipality:', error);
+      logger.error('[API] Error getting nearest municipality:', error);
       throw error;
     }
   }
@@ -1692,7 +1670,7 @@ class ApiService {
       const response = await this.client.get('/api/weather/observations/latest', { params });
       return response.data?.observations || [];
     } catch (error) {
-      console.warn('Error fetching latest weather observations:', error);
+      logger.warn('Error fetching latest weather observations:', error);
       return [];
     }
   }
@@ -1712,7 +1690,7 @@ class ApiService {
         count: response.data?.count || 0,
       };
     } catch (error) {
-      console.warn('Error fetching weather observations:', error);
+      logger.warn('Error fetching weather observations:', error);
       return { observations: [], count: 0 };
     }
   }
@@ -1748,12 +1726,12 @@ class ApiService {
       };
     } catch (error) {
       // Fallback to old endpoint if new one fails
-      console.warn('Error with new agro-status endpoint, trying fallback:', error);
+      logger.warn('Error with new agro-status endpoint, trying fallback:', error);
       try {
         const response = await this.client.get(`/sensor-ingestor/api/weather/parcel/${parcelId}/status`);
         return response.data;
       } catch (fallbackError) {
-        console.error('Both agro-status endpoints failed:', fallbackError);
+        logger.error('Both agro-status endpoints failed:', fallbackError);
         throw fallbackError;
       }
     }
@@ -1771,7 +1749,7 @@ class ApiService {
         count: response.data?.count || 0,
       };
     } catch (error) {
-      console.warn('Error fetching weather alerts:', error);
+      logger.warn('Error fetching weather alerts:', error);
       return { alerts: [], count: 0 };
     }
   }
@@ -1785,7 +1763,7 @@ class ApiService {
       const response = await this.client.get('/entity-manager/api/entities/inventory');
       return response.data?.inventory || [];
     } catch (error) {
-      console.warn('Error fetching entity inventory:', error);
+      logger.warn('Error fetching entity inventory:', error);
       return [];
     }
   }
@@ -1795,7 +1773,7 @@ class ApiService {
       const response = await this.client.get('/api/risks/catalog');
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.warn('Error fetching risk catalog:', error);
+      logger.warn('Error fetching risk catalog:', error);
       return [];
     }
   }
@@ -1805,7 +1783,7 @@ class ApiService {
       const response = await this.client.get('/api/risks/subscriptions');
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.warn('Error fetching risk subscriptions:', error);
+      logger.warn('Error fetching risk subscriptions:', error);
       return [];
     }
   }
@@ -1835,7 +1813,7 @@ class ApiService {
       const response = await this.client.get('/api/risks/states', { params });
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.warn('Error fetching risk states:', error);
+      logger.warn('Error fetching risk states:', error);
       return [];
     }
   }
@@ -1854,7 +1832,7 @@ class ApiService {
       const response = await this.client.get('/sdm/entities');
       return response.data || {};
     } catch (error) {
-      console.warn('Error fetching SDM entities:', error);
+      logger.warn('Error fetching SDM entities:', error);
       return {};
     }
   }
@@ -1864,7 +1842,7 @@ class ApiService {
       const response = await this.client.get(`/sdm/entities/${entityType}`);
       return response.data;
     } catch (error) {
-      console.warn(`Error fetching SDM schema for ${entityType}:`, error);
+      logger.warn(`Error fetching SDM schema for ${entityType}:`, error);
       return null;
     }
   }
@@ -1889,7 +1867,7 @@ class ApiService {
       const response = await this.client.get('/api/entities/parents', { params });
       return Array.isArray(response.data?.entities) ? response.data.entities : [];
     } catch (error) {
-      console.warn('Error fetching parent entities:', error);
+      logger.warn('Error fetching parent entities:', error);
       return [];
     }
   }

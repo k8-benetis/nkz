@@ -9,7 +9,6 @@ import { X, Save, MapPin, Tractor, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
-import type { AgriculturalMachine } from '@/types';
 
 const config = getConfig();
 

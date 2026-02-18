@@ -1,6 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { ServerError } from './error/ServerError';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface Props {
     children: ReactNode;
@@ -51,7 +50,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             // Use ServerError component for better UX
             return (
                 <ServerError 
-                    error={this.state.error} 
+                    error={this.state.error ?? undefined} 
                     resetError={() => {
                         this.setState({ hasError: false, error: null });
                     }}

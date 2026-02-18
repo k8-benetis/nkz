@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Download, AlertTriangle, Shield, Wifi, Server, Key, FileDown } from 'lucide-react';
+import { X, Copy, Check, AlertTriangle, Shield, Wifi, Server, Key, FileDown } from 'lucide-react';
 
 export interface RobotCredentials {
   robot_uuid: string;
@@ -25,6 +25,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
   credentials
 }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [allCopied, setAllCopied] = useState(false);
 
   if (!isOpen) return null;
 
@@ -87,8 +88,6 @@ PersistentKeepalive = 25
       </div>
     </div>
   );
-
-  const [allCopied, setAllCopied] = useState(false);
 
   const copyAllCredentials = () => {
     const text = `Robot Credentials for ${robotName}

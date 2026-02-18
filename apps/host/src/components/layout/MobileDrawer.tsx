@@ -14,7 +14,7 @@ import {
   filterNavigationItemsByRoles,
   sortNavigationItemsByPriority,
 } from '@/config/navigation';
-import { X, Menu } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   Puzzle,
   Bird,

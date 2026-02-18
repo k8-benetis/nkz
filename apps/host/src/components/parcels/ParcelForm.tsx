@@ -8,7 +8,7 @@ import type { Parcel } from '@/types';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 
 interface ParcelFormProps {
-    initialData: Parcel | null;
+    initialData: Partial<Parcel> | null;
     geometry: any;
     onSave: (data: Partial<Parcel>) => void;
     onCancel: () => void;

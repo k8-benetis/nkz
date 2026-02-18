@@ -48,7 +48,7 @@ interface TenantStats {
 
 export const TenantManagement: React.FC = () => {
   const { user } = useAuth();
-  const { t } = useI18n();
+  const { t: _t } = useI18n();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [stats, setStats] = useState<TenantStats>({
     total_tenants: 0,

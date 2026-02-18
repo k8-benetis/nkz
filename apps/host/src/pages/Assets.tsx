@@ -15,14 +15,14 @@ import { useI18n } from '@/context/I18nContext';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 export const Assets: React.FC = () => {
-  const { t } = useI18n();
+  const { t: _t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const [selectedAssetType, setSelectedAssetType] = useState<AssetType | null>(null);
   const [drawingGeometry, setDrawingGeometry] = useState<any>(null);
   const [showPropertiesDialog, setShowPropertiesDialog] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [_isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -143,7 +143,7 @@ export const Assets: React.FC = () => {
         },
       };
 
-      const result = await api.createAsset(payload);
+      await api.createAsset(payload);
       
       setSaveSuccess(true);
       setShowPropertiesDialog(false);

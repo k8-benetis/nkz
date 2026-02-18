@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Check, X, RotateCw, Maximize2, Paintbrush, Grid } from 'lucide-react';
-import { useViewer, MapMode } from '@/context/ViewerContext';
+import { useViewer } from '@/context/ViewerContext';
 
 interface PlacementToolbarProps {
     onConfirm?: () => void;

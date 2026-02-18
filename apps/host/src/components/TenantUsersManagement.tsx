@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
-import api from '@/services/api';
+import api, { type TenantUser } from '@/services/api';
 import { Users, Plus, Trash2, Mail, User, Edit2, X } from 'lucide-react';
 
 interface TenantUsersManagementProps {
@@ -14,13 +14,13 @@ interface TenantUsersManagementProps {
 export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ canManageUsers }) => {
   const { t } = useI18n();
 
-  const [tenantUsers, setTenantUsers] = useState<any[]>([]);
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [usersSuccess, setUsersSuccess] = useState<string | null>(null);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedUser, setSelectedUser] = useState<TenantUser | null>(null);
   const [editingUserData, setEditingUserData] = useState<{ firstName?: string; lastName?: string }>({});
   const [newUser, setNewUser] = useState({
     email: '',
@@ -43,9 +43,10 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     try {
       const data = await api.getTenantUsers();
       setTenantUsers(data.users || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (import.meta.env.DEV) console.error('Error loading tenant users:', err);
-      if (err.response?.status !== 404) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status !== 404) {
         setUsersError(t('settings.users.load_error'));
       }
     } finally {
@@ -146,12 +147,14 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     setUsersError(null);
     setUsersSuccess(null);
     try {
-      const response = await api.resetTenantUserPassword(userId);
-      setUsersSuccess(t('settings.users.reset_success').replace('{password}', response.data?.temporaryPassword || t('settings.users.generated')));
+      const data = await api.resetTenantUserPassword(userId) as { temporaryPassword?: string; data?: { temporaryPassword?: string } };
+      const password = data?.temporaryPassword ?? data?.data?.temporaryPassword ?? t('settings.users.generated');
+      setUsersSuccess(t('settings.users.reset_success').replace('{password}', password));
       await loadTenantUsers();
       setTimeout(() => setUsersSuccess(null), 10000);
-    } catch (err: any) {
-      setUsersError(t('settings.users.reset_error') + ': ' + (err.response?.data?.error || err.message));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error ?? (err as Error).message ?? '';
+      setUsersError(t('settings.users.reset_error') + ': ' + msg);
       setUsersSuccess(null);
     } finally {
       setLoadingUsers(false);

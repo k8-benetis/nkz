@@ -59,7 +59,7 @@ export const Modules: React.FC = () => {
   const canManageModules = isPlatformAdmin || isTenantAdmin || isTechnicalConsultant;
 
   useEffect(() => {
-    if (canManageModules && getToken) {
+    if (canManageModules) {
       loadMarketplace();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

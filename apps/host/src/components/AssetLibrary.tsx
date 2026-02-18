@@ -4,13 +4,12 @@
 // Panel lateral que muestra una biblioteca de tipos de activos disponibles
 
 import React, { useState } from 'react';
-import { 
-  TreePine, 
-  Trees, 
-  Crop, 
-  Square, 
+import {
+  TreePine,
+  Trees,
+  Crop,
+  Square,
   Search,
-  Filter,
   X
 } from 'lucide-react';
 import type { AssetType } from '@/types';
@@ -91,7 +90,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
   selectedAssetType,
   className = '',
 }) => {
-  const { t } = useI18n();
+  useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 

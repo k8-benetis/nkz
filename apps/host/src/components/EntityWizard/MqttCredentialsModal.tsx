@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Copy, Check, Download, AlertTriangle, Wifi, Server, Key, FileDown, Radio, Zap } from 'lucide-react';
+import { X, Copy, Check, AlertTriangle, Wifi, Server, Key, FileDown, Radio, Zap } from 'lucide-react';
 
 export interface MqttCredentials {
   host: string;

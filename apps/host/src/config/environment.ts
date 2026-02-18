@@ -2,38 +2,8 @@
 // Environment Configuration - Enterprise Grade
 // =============================================================================
 
-// Declaración de tipos para window.__ENV__ (runtime config desde K8s)
-declare global {
-  interface Window {
-    __ENV__?: {
-      API_URL?: string;
-      KEYCLOAK_URL?: string;
-      KEYCLOAK_REALM?: string;
-      KEYCLOAK_CLIENT_ID?: string;
-      TITILER_URL?: string;
-      VITE_API_URL?: string;
-      VITE_KEYCLOAK_URL?: string;
-      VITE_KEYCLOAK_REALM?: string;
-      VITE_KEYCLOAK_CLIENT_ID?: string;
-      VITE_KEYCLOAK_REDIRECT_URI?: string;
-      VITE_KEYCLOAK_ADMIN_URL?: string;
-      VITE_CONTEXT_URL?: string;
-      VITE_TITILER_URL?: string;
-      VITE_GRAFANA_URL?: string;
-      VITE_PROMETHEUS_URL?: string;
-      VITE_ROS2_BRIDGE_URL?: string;
-      VITE_GEOSERVER_URL?: string;
-      VITE_TITILER_URL?: string;
-      VITE_CESIUM_TOKEN?: string;
-      VITE_OPENWEATHER_API_KEY?: string;
-      VITE_MAPBOX_TOKEN?: string;
-      VITE_ENABLE_I18N?: string;
-      VITE_ENABLE_MONITORING?: string;
-      VITE_ENABLE_DEBUG?: string;
-      [key: string]: unknown;
-    };
-  }
-}
+// window.__ENV__ is declared in src/vite-env.d.ts
+import { logger } from '@/utils/logger';
 
 /**
  * Environment Configuration Manager
@@ -362,11 +332,11 @@ function validateConfig(config: EnvironmentConfig): void {
   // In production, context URL is optional - can use relative URLs
   // Only validate in development
   if (!config.external.contextUrl && config.environment.isDevelopment) {
-    console.warn('[Config] Context URL not set - using default');
+    logger.warn('[Config] Context URL not set - using default');
   }
-  
+
   if (errors.length > 0) {
-    console.error('Configuration validation failed:', errors);
+    logger.error('Configuration validation failed', new Error(errors.join('; ')));
     // Don't throw in production - use defaults
     if (config.environment.isDevelopment) {
       throw new Error(`Configuration validation failed: ${errors.join(', ')}`);

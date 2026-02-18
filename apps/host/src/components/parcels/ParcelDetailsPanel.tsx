@@ -69,7 +69,6 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
             setLoadingLocation(true);
             try {
                 let coordinates: { lat: number; lon: number } | undefined = undefined;
-                let hasLocation = false;
 
                 // Try to extract coordinates from location.value (NGSI-LD format)
                 const locationValue = parcel.location?.value;
@@ -78,7 +77,6 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                         // Point: [lon, lat]
                         const coords = locationValue.coordinates as [number, number];
                         coordinates = { lon: coords[0], lat: coords[1] };
-                        hasLocation = true;
                     } else if (locationValue.type === 'Polygon' && locationValue.coordinates) {
                         // Polygon: calculate centroid
                         try {
@@ -89,7 +87,6 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 const centroid = calculatePolygonCentroid(polygonCoords);
                                 if (centroid) {
                                     coordinates = centroid;
-                                    hasLocation = true;
                                 }
                             }
                         } catch (e) {
@@ -103,7 +100,6 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                     if (parcel.geometry.type === 'Point' && Array.isArray(parcel.geometry.coordinates)) {
                         const coords = parcel.geometry.coordinates as [number, number];
                         coordinates = { lon: coords[0], lat: coords[1] };
-                        hasLocation = true;
                     } else if (parcel.geometry.type === 'Polygon' && Array.isArray(parcel.geometry.coordinates)) {
                         // Calculate centroid from polygon
                         try {
@@ -114,7 +110,6 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 const centroid = calculatePolygonCentroid(polygonCoords);
                                 if (centroid) {
                                     coordinates = centroid;
-                                    hasLocation = true;
                                 }
                             }
                         } catch (e) {

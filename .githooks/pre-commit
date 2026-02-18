@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run safety check: no .env or obvious secrets in staged files.
+# See scripts/pre-commit-check.sh and LINT_WARNINGS_AND_CLEANUP_PLAN.md Phase D.
+exec "$(git rev-parse --show-toplevel)/scripts/pre-commit-check.sh"

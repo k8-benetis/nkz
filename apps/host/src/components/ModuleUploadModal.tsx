@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, Package, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { NekazariClient } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
 import { Card } from '@nekazari/ui-kit';
@@ -34,7 +33,7 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { getToken, tenantId } = useAuth();
+  const { getToken } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>({ status: 'idle' });
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +77,7 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
     setUploadStatus({ status: 'idle' });
 
     // Validate file extension
-    if (!file.name.toLowerCase().endswith('.zip')) {
+    if (!file.name.toLowerCase().endsWith('.zip')) {
       setError('Only ZIP files are allowed');
       return;
     }
@@ -100,12 +99,6 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
     setUploadStatus({ status: 'uploading', message: 'Uploading module...' });
 
     try {
-      const client = new NekazariClient({
-        baseUrl: API_BASE_URL,
-        getToken: getToken,
-        getTenantId: () => tenantId,
-      });
-
       // Create FormData for file upload
       const formData = new FormData();
       formData.append('file', selectedFile);

@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
-import { getConfig } from '@/config/environment';
 import { Lock } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 const KeycloakLogin: React.FC = () => {
-  console.log('[KeycloakLogin] Component mounted/re-rendered');
+  logger.debug('[KeycloakLogin] Component mounted/re-rendered');
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [status, setStatus] = useState<string>('Redirigiendo a Keycloak…');
   const loginInitiatedRef = React.useRef(false); // Track if we've already initiated login
 
   useEffect(() => {
-    console.log('[KeycloakLogin] useEffect executing');
+    logger.debug('[KeycloakLogin] useEffect executing');
     
     // Si ya está autenticado, ir al dashboard
     if (isAuthenticated) {
-      console.log('[KeycloakLogin] Already authenticated, redirecting to dashboard');
+      logger.debug('[KeycloakLogin] Already authenticated, redirecting to dashboard');
       navigate('/dashboard');
       return;
     }
@@ -30,13 +30,13 @@ const KeycloakLogin: React.FC = () => {
                      window.location.search.includes('code=');
 
       if (hasError) {
-        console.log('[KeycloakLogin] Error detectado - AuthProvider lo manejará');
+        logger.debug('[KeycloakLogin] Error detectado - AuthProvider lo manejará');
         setStatus('Error de autenticación. Redirigiendo...');
         return; // Dejar que AuthProvider maneje el error
       }
 
       if (hasCode) {
-        console.log('[KeycloakLogin] Callback detected, waiting for AuthProvider to process...');
+        logger.debug('[KeycloakLogin] Callback detected, waiting for AuthProvider to process...');
         setStatus('Procesando respuesta de Keycloak…');
         return;
       }
@@ -44,16 +44,16 @@ const KeycloakLogin: React.FC = () => {
 
     // Si ya iniciamos el login, no hacer nada más
     if (loginInitiatedRef.current) {
-      console.log('[KeycloakLogin] Login already initiated, waiting...');
+      logger.debug('[KeycloakLogin] Login already initiated, waiting...');
       return;
     }
 
     // Si no hay callback ni error, simplemente iniciar login - REDIRIGIR A KEYCLOAK
-    console.log('[KeycloakLogin] No callback, starting login - redirecting to Keycloak');
+    logger.debug('[KeycloakLogin] No callback, starting login - redirecting to Keycloak');
     loginInitiatedRef.current = true;
     setStatus('Redirigiendo a Keycloak…');
     login().catch(err => {
-      console.error('[KeycloakLogin] Login error:', err);
+      logger.error('[KeycloakLogin] Login error', err);
       setStatus('Error al iniciar sesión. Usa el botón para reintentar.');
       loginInitiatedRef.current = false;
     });
@@ -79,7 +79,7 @@ const KeycloakLogin: React.FC = () => {
               try {
                 await login();
               } catch (e) {
-                console.error('Login error:', e);
+                logger.error('Login error', e);
                 setStatus('Error al iniciar sesión. Intenta nuevamente.');
               }
             }}

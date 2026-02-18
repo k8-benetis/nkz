@@ -3,20 +3,6 @@
 // =============================================================================
 // Provides a normalized view of all entity types for the asset management UI.
 
-import type {
-  Robot,
-  Sensor,
-  Parcel,
-  AgriculturalMachine,
-  LivestockAnimal,
-  WeatherStation,
-  AgriCrop,
-  AgriBuilding,
-  Device,
-  WaterSource,
-  AgriTree,
-} from './index';
-
 // =============================================================================
 // Asset Categories
 // =============================================================================
@@ -711,11 +697,12 @@ export function sortAssets(assets: UnifiedAsset[], sort: SortConfig): UnifiedAss
       case 'status':
         comparison = a.status.localeCompare(b.status);
         break;
-      case 'lastSeen':
+      case 'lastSeen': {
         const aTime = a.lastSeen?.getTime() || 0;
         const bTime = b.lastSeen?.getTime() || 0;
         comparison = aTime - bTime;
         break;
+      }
       case 'municipality':
         comparison = (a.municipality || '').localeCompare(b.municipality || '');
         break;

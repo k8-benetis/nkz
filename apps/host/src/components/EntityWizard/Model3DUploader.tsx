@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, Box, Check, RotateCw, ZoomIn, Loader2 } from 'lucide-react';
-import { uploadToMinIO, isValid3DModelFile, formatFileSize, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
+import { Upload, X, Check, Loader2 } from 'lucide-react';
+import { uploadToMinIO, isValid3DModelFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
 
 interface Model3DUploaderProps {
   currentModelUrl?: string;

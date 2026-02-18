@@ -8,7 +8,7 @@ import { LayerType, LayerConfig, EntityData, LayerRenderer } from './CesiumLayer
 export const createImageryLayerRenderer = (layerType: LayerType): LayerRenderer => {
   return {
     type: layerType,
-    render: (viewer: any, Cesium: any, data: any, config: LayerConfig) => {
+    render: (_viewer: any, _Cesium: any, _data: any, _config: LayerConfig) => {
       // Imagery layers are handled separately in CesiumMapAdvanced
       // This is a placeholder for future extensibility
     },
@@ -18,7 +18,7 @@ export const createImageryLayerRenderer = (layerType: LayerType): LayerRenderer 
 export const createRobotsLayerRenderer = (): LayerRenderer => {
   return {
     type: 'robots',
-    render: (viewer: any, Cesium: any, data: EntityData, config: LayerConfig) => {
+    render: (viewer: any, Cesium: any, data: EntityData, _config: LayerConfig) => {
       if (!data.robots || data.robots.length === 0) return;
 
       const getRobotColor = (status?: string): any => {
@@ -91,7 +91,7 @@ export const createRobotsLayerRenderer = (): LayerRenderer => {
 export const createSensorsLayerRenderer = (): LayerRenderer => {
   return {
     type: 'sensors',
-    render: (viewer: any, Cesium: any, data: EntityData, config: LayerConfig) => {
+    render: (viewer: any, Cesium: any, data: EntityData, _config: LayerConfig) => {
       if (!data.sensors || data.sensors.length === 0) return;
 
       data.sensors.forEach((sensor) => {
@@ -146,7 +146,7 @@ export const createSensorsLayerRenderer = (): LayerRenderer => {
 export const createEntitiesLayerRenderer = (): LayerRenderer => {
   return {
     type: 'entities',
-    render: (viewer: any, Cesium: any, data: EntityData, config: LayerConfig) => {
+    render: (viewer: any, Cesium: any, data: EntityData, _config: LayerConfig) => {
       if (!data.entities || data.entities.length === 0) return;
 
       data.entities.forEach((entity) => {

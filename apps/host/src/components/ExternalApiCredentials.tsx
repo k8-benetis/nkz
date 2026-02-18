@@ -11,8 +11,6 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Eye,
-  EyeOff,
   Save,
   X,
   AlertCircle,
@@ -55,7 +53,6 @@ export const ExternalApiCredentials: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -201,13 +198,6 @@ export const ExternalApiCredentials: React.FC = () => {
       setError(err?.response?.data?.error || 'Error eliminando credencial');
       console.error('Error deleting credential:', err);
     }
-  };
-
-  const togglePasswordVisibility = (id: string) => {
-    setShowPassword((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
   };
 
   const getAuthTypeLabel = (type: string) => {

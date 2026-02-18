@@ -10,8 +10,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
-import type { Parcel } from '@/types';
-
 interface Municipality {
   code: string;
   name: string;

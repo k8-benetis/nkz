@@ -166,6 +166,105 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
     } = useViewer();
     const { modules } = useModules();
 
+    // All hooks must run before any early return (rules of hooks)
+    const getAllAttributes = useMemo(() => {
+        if (!entityData) return [];
+
+        const systemFields = ['id', 'type', '@context', '@id'];
+        const attributes: Array<{ key: string; value: any; label: string; observedAt?: string }> = [];
+
+        Object.keys(entityData).forEach(key => {
+            if (systemFields.includes(key)) return;
+
+            const attr = entityData[key];
+            const value = attr?.value !== undefined ? attr.value : attr;
+            const observedAt = attr?.observedAt;
+
+            if (value === null || value === undefined) return;
+
+            const label = key
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/^./, str => str.toUpperCase())
+                .trim();
+
+            attributes.push({ key, value, label, observedAt });
+        });
+
+        return attributes.sort((a, b) => a.label.localeCompare(b.label));
+    }, [entityData]);
+
+    const moduleContextPanelContent = useMemo(() => {
+        const relevantModules = modules
+            .filter(module => {
+                const contextPanel = module.metadata?.contextPanel;
+                if (!contextPanel) return false;
+                if (module.tenantConfig?.enabled === false) return false;
+                const relevantEntityTypes = contextPanel.entityTypes || [];
+                if (relevantEntityTypes.length > 0 && selectedEntityType) {
+                    return relevantEntityTypes.includes(selectedEntityType);
+                }
+                return true;
+            })
+            .map(module => ({
+                id: module.id,
+                displayName: module.displayName,
+                contextPanel: module.metadata?.contextPanel || {},
+                icon: module.metadata?.icon || module.icon,
+                color: module.metadata?.color || '#10B981',
+            }));
+
+        if (relevantModules.length === 0) {
+            return (
+                <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-dashed border-slate-200">
+                    <p className="text-xs text-slate-500 text-center">
+                        Los módulos activos pueden añadir controles adicionales aquí
+                    </p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="mt-4 space-y-2">
+                {relevantModules.map(module => (
+                    <div
+                        key={module.id}
+                        className="p-3 rounded-lg bg-slate-50 border border-slate-200"
+                        style={{
+                            borderLeftColor: module.color,
+                            borderLeftWidth: '3px',
+                        }}
+                    >
+                        <div className="flex items-start gap-2">
+                            {module.icon && (
+                                <div
+                                    className="p-1.5 rounded-md flex-shrink-0"
+                                    style={{ backgroundColor: `${module.color}15` }}
+                                >
+                                    <Leaf className="w-4 h-4" style={{ color: module.color }} />
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm text-slate-800 mb-1">
+                                    {module.displayName}
+                                </h4>
+                                {module.contextPanel.description && (
+                                    <p className="text-xs text-slate-600 mb-1">
+                                        {module.contextPanel.description}
+                                    </p>
+                                )}
+                                {module.contextPanel.instructions && (
+                                    <p className="text-xs text-slate-500 italic">
+                                        {module.contextPanel.instructions}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }, [modules, selectedEntityType]);
+
     // If no entity selected, show placeholder
     if (!selectedEntityId) {
         return (
@@ -206,35 +305,6 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
         if (!entityData) return null;
         return entityData.status?.value || entityData.status;
     };
-
-    // Extract all attributes from entity (excluding system fields) - Legacy for non-custom types
-    const getAllAttributes = useMemo(() => {
-        if (!entityData) return [];
-
-        const systemFields = ['id', 'type', '@context', '@id'];
-        const attributes: Array<{ key: string; value: any; label: string; observedAt?: string }> = [];
-
-        Object.keys(entityData).forEach(key => {
-            if (systemFields.includes(key)) return;
-
-            const attr = entityData[key];
-            const value = attr?.value !== undefined ? attr.value : attr;
-            const observedAt = attr?.observedAt;
-
-            // Skip if value is null/undefined or is an object (we'll handle complex objects separately)
-            if (value === null || value === undefined) return;
-
-            // Format label (camelCase to Title Case)
-            const label = key
-                .replace(/([A-Z])/g, ' $1')
-                .replace(/^./, str => str.toUpperCase())
-                .trim();
-
-            attributes.push({ key, value, label, observedAt });
-        });
-
-        return attributes.sort((a, b) => a.label.localeCompare(b.label));
-    }, [entityData]);
 
     // Format attribute value for display
     const formatAttributeValue = (value: any): string => {
@@ -388,79 +458,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         </div>
 
                         {/* Module-specific information from metadata */}
-                        {useMemo(() => {
-                            // Get modules that have contextPanel metadata and are relevant for this entity type
-                            const relevantModules = modules
-                                .filter(module => {
-                                    const contextPanel = module.metadata?.contextPanel;
-                                    if (!contextPanel) return false;
-                                    if (module.tenantConfig?.enabled === false) return false;
-
-                                    const relevantEntityTypes = contextPanel.entityTypes || [];
-                                    if (relevantEntityTypes.length > 0 && selectedEntityType) {
-                                        return relevantEntityTypes.includes(selectedEntityType);
-                                    }
-                                    return true;
-                                })
-                                .map(module => ({
-                                    id: module.id,
-                                    displayName: module.displayName,
-                                    contextPanel: module.metadata?.contextPanel || {},
-                                    icon: module.metadata?.icon || module.icon,
-                                    color: module.metadata?.color || '#10B981',
-                                }));
-
-                            if (relevantModules.length === 0) {
-                                return (
-                                    <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-dashed border-slate-200">
-                                        <p className="text-xs text-slate-500 text-center">
-                                            Los módulos activos pueden añadir controles adicionales aquí
-                                        </p>
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <div className="mt-4 space-y-2">
-                                    {relevantModules.map(module => (
-                                        <div
-                                            key={module.id}
-                                            className="p-3 rounded-lg bg-slate-50 border border-slate-200"
-                                            style={{
-                                                borderLeftColor: module.color,
-                                                borderLeftWidth: '3px',
-                                            }}
-                                        >
-                                            <div className="flex items-start gap-2">
-                                                {module.icon && (
-                                                    <div
-                                                        className="p-1.5 rounded-md flex-shrink-0"
-                                                        style={{ backgroundColor: `${module.color}15` }}
-                                                    >
-                                                        <Leaf className="w-4 h-4" style={{ color: module.color }} />
-                                                    </div>
-                                                )}
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-medium text-sm text-slate-800 mb-1">
-                                                        {module.displayName}
-                                                    </h4>
-                                                    {module.contextPanel.description && (
-                                                        <p className="text-xs text-slate-600 mb-1">
-                                                            {module.contextPanel.description}
-                                                        </p>
-                                                    )}
-                                                    {module.contextPanel.instructions && (
-                                                        <p className="text-xs text-slate-500 italic">
-                                                            {module.contextPanel.instructions}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            );
-                        }, [modules, selectedEntityType])}
+                        {moduleContextPanelContent}
                     </div>
                 )}
             </div>
@@ -492,15 +490,9 @@ interface EntityTelemetrySectionProps {
 
 const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
     entityId,
-    entityType,
-    entityName,
+    entityType: _entityType,
+    entityName: _entityName,
 }) => {
-    const entityNameValue = typeof entityName === 'object' && entityName?.value
-        ? entityName.value
-        : typeof entityName === 'string'
-            ? entityName
-            : entityId?.split(':').pop() || 'Entidad';
-
     const {
         latestTelemetry,
         isLoadingLatest,

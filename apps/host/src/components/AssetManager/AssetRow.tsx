@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { UnifiedAsset, ASSET_TYPE_REGISTRY, CATEGORY_REGISTRY } from '@/types/assets';
+import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
 
 // =============================================================================
 // Icon Map
@@ -82,8 +82,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   compact = false,
 }) => {
   const typeInfo = ASSET_TYPE_REGISTRY[asset.type];
-  const categoryInfo = CATEGORY_REGISTRY[asset.category];
-  
+
   // Get icon component
   const iconName = typeInfo?.icon || asset.icon || 'map-pin';
   const IconComponent = ICON_MAP[iconName] || MapPin;

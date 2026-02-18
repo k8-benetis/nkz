@@ -18,9 +18,6 @@ import {
   CheckCircle,
   AlertTriangle,
   RefreshCw,
-  User,
-  Shield,
-  Trash2
 } from 'lucide-react';
 
 interface AdminApiKey {
@@ -63,14 +60,8 @@ interface Tenant {
   created_at: string;
 }
 
-const PLAN_LIMITS = {
-  basic: { users: 1, robots: 3, sensors: 10 },
-  premium: { users: 5, robots: 10, sensors: 50 },
-  enterprise: { users: 999, robots: 999, sensors: 999 }
-};
-
 export const AdminUserManagement: React.FC = () => {
-  const { user, keycloak, getToken } = useAuth();
+  const { user, getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [adminApiKey, setAdminApiKey] = useState<AdminApiKey | null>(null);
   const [showAdminKey, setShowAdminKey] = useState(false);

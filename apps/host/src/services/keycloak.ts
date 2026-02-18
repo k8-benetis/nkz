@@ -2,7 +2,6 @@
 // Keycloak Authentication Service
 // =============================================================================
 
-import type Keycloak from 'keycloak-js';
 import { getConfig } from '@/config/environment';
 
 const config = getConfig();
@@ -14,7 +13,7 @@ const keycloakConfig = {
 };
 
 class KeycloakAuthService {
-  private keycloak: Keycloak.KeycloakInstance | null = null;
+  private keycloak: any = null;
   private initPromise: Promise<boolean> | null = null;
 
   async init(): Promise<boolean> {
@@ -22,7 +21,8 @@ class KeycloakAuthService {
       return this.initPromise;
     }
 
-    this.initPromise = new Promise(async (resolve) => {
+    this.initPromise = new Promise((resolve) => {
+      (async () => {
       try {
         const Keycloak = (await import('keycloak-js')).default;
         this.keycloak = new Keycloak(keycloakConfig);
@@ -50,6 +50,7 @@ class KeycloakAuthService {
         console.error('Keycloak initialization failed:', error);
         resolve(false);
       }
+      })();
     });
 
     return this.initPromise;

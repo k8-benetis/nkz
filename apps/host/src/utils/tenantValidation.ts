@@ -121,7 +121,7 @@ export function getTenantIdRules(): {
  * Check if tenant ID would be unique (client-side check only)
  * This is a helper for UI feedback, actual uniqueness is checked on backend
  */
-export function checkTenantIdUniqueness(normalizedId: string): Promise<boolean> {
+export function checkTenantIdUniqueness(): Promise<boolean> {
   // This would typically call an API endpoint to check uniqueness
   // For now, we'll return true and let the backend handle the actual check
   return Promise.resolve(true);

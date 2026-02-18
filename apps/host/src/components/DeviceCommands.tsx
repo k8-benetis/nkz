@@ -27,7 +27,7 @@ interface DeviceCommandsProps {
 
 export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
   deviceId,
-  deviceName,
+  deviceName: _deviceName,
   mqttTopics
 }) => {
   const { t } = useI18n();

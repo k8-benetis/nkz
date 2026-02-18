@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, AlertCircle, Ruler } from 'lucide-react';
+import { X, CheckCircle2, Ruler } from 'lucide-react';
 import type { GeoPolygon } from '@/types';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { useI18n } from '@/context/I18nContext';

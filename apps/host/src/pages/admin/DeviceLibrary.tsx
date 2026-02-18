@@ -14,11 +14,9 @@ import {
     RefreshCw,
     AlertCircle,
     Check,
-    ChevronDown,
     BookOpen,
     Globe,
     Building2,
-    Filter,
     X
 } from 'lucide-react';
 import { useAuth } from '@/context/KeycloakAuthContext';

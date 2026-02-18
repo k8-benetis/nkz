@@ -14,17 +14,15 @@ import {
   MapPin, Gauge, Bot, Building2, Droplets, Trees, Zap, Tractor,
   ChevronDown, ChevronRight, Leaf, Activity, Sun, Palette
 } from 'lucide-react';
-import { useReducer, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { placementReducer, INITIAL_STATE, PlacementAction } from '@/machines/placementMachine';
-import { useI18n } from '@/context/I18nContext';
+import { useReducer, useState, useEffect, useMemo, useCallback } from 'react';
+import { placementReducer, INITIAL_STATE } from '@/machines/placementMachine';
 import { useViewer } from '@/context/ViewerContext';
 import api from '@/services/api';
 import { getConfig } from '@/config/environment';
 import { ParentEntitySelector, ParentEntity } from './ParentEntitySelector';
 import { IconUploader } from './IconUploader';
-import { Model3DUploader } from './Model3DUploader';
 import { AssetBrowser } from './AssetBrowser';
-import { PlacementModeSelector, PlacementMode } from './PlacementModeSelector';
+import { PlacementModeSelector } from './PlacementModeSelector';
 import { StampTool } from './StampTool';
 import { RobotCredentialsModal, RobotCredentials } from './RobotCredentialsModal';
 import { MqttCredentialsModal, MqttCredentials } from './MqttCredentialsModal';
@@ -32,12 +30,12 @@ import { Cable } from 'lucide-react';
 import { listDeviceProfiles, DeviceProfile } from '@/services/deviceProfilesApi';
 import { parcelApi } from '@/services/parcelApi';
 import { DefaultIconSelector } from './DefaultIconSelector';
-import { SceneComposer } from './SceneComposer';
-import { validateGeometryWithinParent, isValidGeometry } from '@/utils/geometryValidation';
+import { validateGeometryWithinParent } from '@/utils/geometryValidation';
 import { GeometryEditor } from './GeometryEditor';
 import { DeviceProfileHelpModal } from '../DeviceProfileHelpModal';
 import { HelpCircle } from 'lucide-react';
 import type { Geometry } from 'geojson';
+import type { Parcel } from '@/types';
 
 // =============================================================================
 // Entity Type Metadata - For search, icons, and categorization
@@ -159,8 +157,7 @@ interface WizardFormData {
 }
 
 export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onSuccess, initialEntityType }) => {
-  const { t } = useI18n();
-  const { mapMode, startModelPreview, startStampMode, modelPlacement, updateModelPlacement } = useViewer();
+  const { mapMode, startModelPreview } = useViewer();
   // Type assertion to bypass potential staleness in TS check
   const isMapInteractMode = (mapMode as string) === 'STAMP_INSTANCES' || (mapMode as string) === 'PREVIEW_MODEL';
   const [step, setStep] = useState(1);
@@ -245,8 +242,7 @@ export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onS
         const lat = Number(coords[1]);
 
         if (!isNaN(lon) && !isNaN(lat)) {
-          startModelPreview(formData.model3DUrl, {
-            position: { lat, lon },
+          startModelPreview(formData.model3DUrl, { lat, lon }, {
             scale: formData.modelScale || 1.0,
             rotation: formData.modelRotation || [0, 0, 0]
           });
@@ -550,7 +546,10 @@ export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onS
           ndviEnabled: true
         };
 
-        await parcelApi.createParcel(parcelData);
+        await parcelApi.createParcel({
+          ...parcelData,
+          geometry: parcelData.geometry ?? undefined
+        } as Partial<Parcel>);
         if (onSuccess) onSuccess();
         onClose();
         return;
@@ -846,8 +845,6 @@ export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onS
   // Step 2: Basic Info + Hierarchy
   const renderStep2 = () => {
     const canHaveParent = ['AgriParcel', 'Vineyard', 'OliveGrove', 'AgriBuilding'].includes(entityType || '');
-    const isVegetation = ['AgriCrop', 'OliveGrove', 'Vineyard', 'AgriTree', 'OliveTree', 'Vine'].includes(entityType || '');
-
     return (
       <div className="space-y-4">
         <div>
@@ -1056,7 +1053,7 @@ export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onS
                                   sdm_entity_type: json.sdm_entity_type,
                                   mappings: json.mappings,
                                   is_public: false // User profiles are private
-                                }).then((result) => {
+                                }).then((_result) => {
                                   alert(`Perfil "${json.name}" importado correctamente. Selecciónalo de la lista.`);
                                   // Refresh device profiles
                                   import('@/services/deviceProfilesApi').then(({ listDeviceProfiles }) => {
@@ -1431,7 +1428,7 @@ export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onS
   return (
     <>
       <div className={`fixed inset-0 z-50 flex items-center justify-center 
-        ${mapMode === 'DRAW_GEOMETRY'
+        ${(mapMode as string) === 'DRAW_GEOMETRY'
           ? 'hidden'
           : isMapInteractMode
             ? 'pointer-events-none'

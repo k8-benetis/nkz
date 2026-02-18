@@ -17,7 +17,6 @@ import {
   RefreshCw,
   Globe,
   Cloud,
-  ExternalLink,
   Info
 } from 'lucide-react';
 

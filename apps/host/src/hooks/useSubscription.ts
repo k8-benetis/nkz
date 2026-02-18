@@ -5,7 +5,7 @@
 // Enables real-time updates via WebSocket or HTTP notifications.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import api, { clearApiCache, invalidateEntityCache } from '@/services/api';
+import api from '@/services/api';
 
 // =============================================================================
 // Types

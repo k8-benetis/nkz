@@ -4,13 +4,12 @@
 // Professional implementation for splitting AgriParcel polygons into zones
 // Uses Turf.js and polyclip-ts for geometric operations
 
-import { polygon, lineString, Feature, Polygon } from '@turf/helpers';
-import bbox from '@turf/bbox';
+import { polygon, lineString } from '@turf/helpers';
+import turfBbox from '@turf/bbox';
 import area from '@turf/area';
 import { booleanValid } from '@turf/boolean-valid';
 import { lineIntersect } from '@turf/line-intersect';
 import { polygonToLine } from '@turf/polygon-to-line';
-import { booleanPointInPolygon } from '@turf/boolean-point-in-polygon';
 import type { GeoPolygon } from '@/types';
 
 /**
@@ -78,9 +77,6 @@ function splitPolygonSimple(
     cuttingLine: { type: 'LineString'; coordinates: number[][] }
 ): GeoPolygon[] {
     try {
-        const parcelFeature = polygon(parcelPolygon.coordinates as number[][][]);
-        const parcelBbox = bbox(parcelFeature);
-        
         const lineCoords = cuttingLine.coordinates;
         if (lineCoords.length < 2) {
             return [];
@@ -169,7 +165,7 @@ function splitPolygonWithExtendedLine(
     cuttingLine: { type: 'LineString'; coordinates: number[][] }
 ): GeoPolygon[] {
     const parcelFeature = polygon(parcelPolygon.coordinates as number[][][]);
-    const parcelBbox = bbox(parcelFeature);
+    const parcelBbox = turfBbox(parcelFeature);
     
     const lineCoords = cuttingLine.coordinates;
     const startPoint = lineCoords[0];
@@ -223,15 +219,15 @@ export function validateCuttingLine(
 
         // Check if line intersects polygon boundary
         // We'll use a simple check: line endpoints should be on opposite sides or outside
-        const bbox = bbox(parcelFeature);
-        
+        const parcelBox = turfBbox(parcelFeature);
+
         // Check if line crosses through the polygon's bounding box
-        const lineBbox = bbox(lineFeature);
+        const lineBbox = turfBbox(lineFeature);
         const intersectsBbox = !(
-            lineBbox[2] < bbox[0] || // line is to the left
-            lineBbox[0] > bbox[2] || // line is to the right
-            lineBbox[3] < bbox[1] || // line is below
-            lineBbox[1] > bbox[3]    // line is above
+            lineBbox[2] < parcelBox[0] || // line is to the left
+            lineBbox[0] > parcelBox[2] || // line is to the right
+            lineBbox[3] < parcelBox[1] || // line is below
+            lineBbox[1] > parcelBox[3]    // line is above
         );
 
         if (!intersectsBbox) {

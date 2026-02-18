@@ -94,11 +94,12 @@ export function initNKZRuntime(): NKZRuntime {
             }
 
             registered.set(id, registration);
-            console.log(`[NKZ Runtime] ✅ Module "${id}" registered`, {
-                slots: registration.viewerSlots ? Object.keys(registration.viewerSlots) : [],
-                hasProvider: !!registration.provider,
-                version: registration.version || 'unknown',
-            });
+            if (typeof console !== 'undefined' && console.debug) {
+                console.debug(`[NKZ Runtime] Module "${id}" registered`, {
+                    slots: registration.viewerSlots ? Object.keys(registration.viewerSlots) : [],
+                    hasProvider: !!registration.provider,
+                });
+            }
 
             // Notify all listeners
             listeners.forEach(listener => {
@@ -142,7 +143,8 @@ export function initNKZRuntime(): NKZRuntime {
     };
 
     window.__NKZ__ = runtime;
-    console.log('[NKZ Runtime] ✅ Initialized (v1.0.0)');
-
+    if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[NKZ Runtime] Initialized (v1.0.0)');
+    }
     return runtime;
 }
