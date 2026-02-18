@@ -19,11 +19,11 @@ export default defineConfig({
       include: ['src/utils/**', 'src/hooks/**', 'src/components/**'],
       exclude: ['src/__tests__/**', 'node_modules/**'],
       thresholds: {
-        // Keep low until coverage grows; CI was failing at 10%. Raise gradually.
-        statements: 1,
-        branches: 1,
-        functions: 1,
-        lines: 1,
+        // Raised 2026-02: urlNormalizer + nkzRuntime tests. Next target M1: 5% lines.
+        statements: 2,
+        branches: 50,
+        functions: 15,
+        lines: 2,
       },
     },
   },
