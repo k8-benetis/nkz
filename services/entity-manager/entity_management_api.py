@@ -7550,6 +7550,239 @@ def get_audit_logs():
         return jsonify({'error': 'Failed to fetch audit logs', 'details': str(e)}), 500
 
 
+# =============================================================================
+# Mobile Offline Sync API
+# =============================================================================
+
+def _calculate_centroid(geometry):
+    """Calculate simple centroid from GeoJSON geometry"""
+    try:
+        if not geometry or 'coordinates' not in geometry:
+            return None, None
+            
+        coords = geometry['coordinates']
+        points = []
+        if geometry['type'] == 'Polygon':
+            points = coords[0]
+        elif geometry['type'] == 'MultiPolygon':
+            points = coords[0][0] # First polygon representing outer boundary
+        elif geometry['type'] == 'Point':
+            return coords[1], coords[0] 
+        else:
+            return None, None
+
+        if not points:
+            return None, None
+
+        sum_lon = 0
+        sum_lat = 0
+        count = 0
+        
+        for p in points:
+            if len(p) >= 2:
+                # Correct order for GeoJSON is [lon, lat]
+                sum_lon += p[0]
+                sum_lat += p[1]
+                count += 1
+                
+        if count == 0:
+            return None, None
+            
+        return sum_lat / count, sum_lon / count
+    except Exception:
+        return None, None
+
+def _map_entity_to_mobile(ent):
+    """Map NGSI-LD entity to WatermelonDB Parcel schema"""
+    props = ent.copy()
+    remote_id = ent.get('id')
+    
+    # Extract name
+    name = 'Unknown'
+    if 'name' in props:
+        val = props['name']
+        name = val.get('value') if isinstance(val, dict) else val
+        
+    # Extract area
+    area = 0.0
+    if 'area' in props:
+        area = _extract_number(props['area']) or 0.0
+        
+    # Extract crop_type
+    crop_type = ''
+    if 'cropType' in props:
+        val = props['cropType']
+        crop_type = val.get('value') if isinstance(val, dict) else val
+        
+    # Extract status
+    status = 'synced'
+        
+    # Extract geometry
+    geometry = None
+    if 'location' in props:
+        val = props['location']
+        if isinstance(val, dict) and 'value' in val:
+            geometry = val['value']
+        elif isinstance(val, dict):
+             geometry = val
+             
+    # Calculate centroid
+    lat, lng = _calculate_centroid(geometry)
+
+    # Timestamps
+    created_at = 0
+    updated_at = 0
+    
+    # helper for timestamp
+    def parse_ts(ts_val):
+        try:
+            val = ts_val.get('value') if isinstance(ts_val, dict) else ts_val
+            if not val: return 0
+            if isinstance(val, str):
+                if val.endswith('Z'):
+                    dt = datetime.fromisoformat(val.replace('Z', '+00:00'))
+                else:
+                    dt = datetime.fromisoformat(val)
+                return int(dt.timestamp() * 1000)
+            return 0
+        except: return 0
+
+    if 'createdAt' in props:
+        created_at = parse_ts(props['createdAt'])
+        
+    if 'modifiedAt' in props:
+        updated_at = parse_ts(props['modifiedAt'])
+
+    # If updated_at is 0, use current time or created_at
+    if updated_at == 0:
+        updated_at = created_at or int(time.time() * 1000)
+
+    # Format geometry as string for WDB
+    geojson_str = json.dumps(geometry) if geometry else '{}'
+
+    return {
+        'remote_id': remote_id,
+        'name': str(name) if name else '',
+        'geojson': geojson_str,
+        'area': float(area),
+        'crop_type': str(crop_type) if crop_type else '',
+        'status': status,
+        'created_at': created_at,
+        'updated_at': updated_at,
+        'centroid_lat': lat,
+        'centroid_lng': lng
+    }
+
+@app.route('/api/mobile/sync', methods=['GET'])
+@require_auth
+def mobile_sync_pull():
+    """
+    Get changes for mobile offline sync.
+    Query params: last_pulled_at (timestamp custom epoch ms)
+    """
+    try:
+        tenant = g.tenant
+        last_pulled_at = request.args.get('last_pulled_at')
+        
+        # Current timestamp
+        current_ts = int(time.time() * 1000)
+        
+        # Query: Get all parcels
+        # We rely on WatermelonDB to handle syncing logic (upsert/update)
+        # unless result set is massive. For <1000 parcels, full refresh is acceptable.
+        
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+        params = {
+            'type': 'AgriParcel,Parcel,OliveGrove,Vineyard',
+            'limit': 1000,
+        }
+        
+        headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
+        resp = requests.get(orion_url, params=params, headers=headers)
+        
+        updated_list = []
+        
+        if resp.status_code == 200:
+            entities = resp.json()
+            if isinstance(entities, list):
+                for ent in entities:
+                    try:
+                        mobile_ent = _map_entity_to_mobile(ent)
+                        updated_list.append(mobile_ent)
+                    except Exception as map_err:
+                        logger.warning(f"Error mapping entity {ent.get('id')}: {map_err}")
+        
+        return jsonify({
+            'changes': {
+                'parcels': {
+                    'created': [],
+                    'updated': updated_list,
+                    'deleted': []
+                }
+            },
+            'timestamp': current_ts
+        })
+    except Exception as e:
+        logger.error(f"Sync Pull Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mobile/sync', methods=['POST'])
+@require_auth
+def mobile_sync_push():
+    """
+    Push changes from mobile.
+    Body: { changes: ... }
+    """
+    try:
+        data = request.get_json()
+        if not data or 'changes' not in data:
+            return jsonify({'error': 'Invalid body'}), 400
+            
+        changes = data['changes']
+        tenant = g.tenant
+        headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
+        
+        # Process Parcels
+        if 'parcels' in changes:
+            parcels = changes['parcels']
+            
+            # Handle Updated (PATCH)
+            # WatermelonDB sends { id, ...fields }
+            if 'updated' in parcels:
+                for item in parcels['updated']:
+                    try:
+                        entity_id = item.get('remote_id') or item.get('id')
+                        if not entity_id or not str(entity_id).startswith('urn:'):
+                            continue
+                            
+                        # Build Patch
+                        attrs = {}
+                        if 'name' in item:
+                             attrs['name'] = {'type': 'Property', 'value': item['name']}
+                        if 'crop_type' in item:
+                             attrs['cropType'] = {'type': 'Property', 'value': item['crop_type']}
+                        if 'notes' in item:
+                             attrs['notes'] = {'type': 'Property', 'value': item['notes']}
+                        
+                        # Only PATCH if attributes present
+                        if attrs:
+                            patch_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
+                            requests.patch(patch_url, json=attrs, headers=headers)
+                            
+                    except Exception as up_err:
+                        logger.error(f"Error pushing update for {item.get('id')}: {up_err}")
+                        
+            # Handle Created (POST) - if allowed
+            if 'created' in parcels:
+                # Not implemented for V1 Read-Only
+                pass
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Sync Push Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = LOG_LEVEL == 'DEBUG'

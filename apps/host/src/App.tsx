@@ -41,6 +41,7 @@ import { Modules } from '@/pages/admin/Modules';
 import { AlertCenter } from '@/pages/AlertCenter';
 import { IntelligenceInfoPage } from '@/pages/IntelligenceInfoPage';
 import { NotFound } from '@/components/error/NotFound';
+import MobileViewer from '@/pages/MobileViewer';
 
 // Dynamic routes component that includes remote modules
 const DynamicRoutes = () => {
@@ -53,6 +54,7 @@ const DynamicRoutes = () => {
             PUBLIC ROUTES (No authentication required)
             ============================================ */}
         <Route path="/" element={<Landing />} />
+        <Route path="/mobile-viewer" element={<MobileViewer />} />
         <Route path="/login" element={<KeycloakLogin />} />
         <Route path="/activate" element={<Activation />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
