@@ -208,6 +208,14 @@ spec:
                 name: lidar-api-service
                 port:
                   number: 80
+          # DataHub Module API (analytical canvas, timeseries align/export)
+          - path: /api/datahub
+            pathType: Prefix
+            backend:
+              service:
+                name: datahub-api-service
+                port:
+                  number: 8000
           # - path: /ros2-fiware-bridge-service
           #   pathType: Prefix
           #   backend:
