@@ -257,6 +257,11 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const [webglFailed, setWebglFailed] = useState(!webglStatus.supported);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
+  const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('osm');
+  const osmLayerRef = useRef<any>(null);
+  const pnoaLayerRef = useRef<any>(null);
+  const esriLayerRef = useRef<any>(null);
+  const cesiumLayerRef = useRef<any>(null);
   const viewerContext = useViewerOptional();
   const setCesiumViewer = viewerContext?.setCesiumViewer;
 
@@ -330,12 +335,14 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         // Remove default imagery layer and add OSM as default (no Cesium ION)
         try {
           viewer.imageryLayers.removeAll();
+
           const osmProvider = new Cesium.UrlTemplateImageryProvider({
             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             maximumLevel: 19,
             credit: 'OpenStreetMap Contributors',
           });
-          viewer.imageryLayers.addImageryProvider(osmProvider);
+          const osmLayer = viewer.imageryLayers.addImageryProvider(osmProvider);
+          osmLayerRef.current = osmLayer;
           logger.debug('[CesiumMap] Initial imagery provider (OSM) configured');
 
           // Add PNOA (Plan Nacional de Ortofotografía Aérea) as base layer option
@@ -350,10 +357,47 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               credit: 'PNOA - IGN España',
             });
             // Add PNOA as an optional layer (can be toggled)
-            viewer.imageryLayers.addImageryProvider(pnoaProvider, 0); // Add at bottom
+            const pnoaLayer = viewer.imageryLayers.addImageryProvider(pnoaProvider, 0); // Add at bottom
+            pnoaLayerRef.current = pnoaLayer;
           } catch (pnoaError) {
             logger.warn('[CesiumMap] Could not add PNOA layer:', pnoaError);
           }
+
+          // Add Esri World Imagery (Global Satellite)
+          try {
+            const esriProvider = new Cesium.ArcGisMapServerImageryProvider({
+              url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
+              enablePickFeatures: false
+            });
+            const esriLayer = viewer.imageryLayers.addImageryProvider(esriProvider, 0);
+            esriLayerRef.current = esriLayer;
+          } catch (esriError) {
+            logger.warn('[CesiumMap] Could not add Esri layer:', esriError);
+          }
+
+          // Add Cesium Ion default imagery (if token is available)
+          try {
+            if (import.meta.env.VITE_CESIUM_ION_TOKEN) {
+              Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
+              // Bing Maps Aerial (Asset ID 2)
+              Cesium.IonImageryProvider.fromAssetId(2)
+                .then((provider: any) => {
+                  if (viewer.isDestroyed()) return;
+                  const cesiumLayer = viewer.imageryLayers.addImageryProvider(provider, 0);
+                  cesiumLayerRef.current = cesiumLayer;
+                  cesiumLayer.show = baseLayer === 'cesium';
+                  viewer.scene.requestRender?.();
+                })
+                .catch((e: Error) => logger.warn('[CesiumMap] Error loading Ion Imagery', e));
+            }
+          } catch (cesiumError) {
+            logger.warn('[CesiumMap] Could not set up Cesium Ion:', cesiumError);
+          }
+
+          // Apply initial visibility
+          if (osmLayer) osmLayer.show = true; // Default
+          if (pnoaLayerRef.current) pnoaLayerRef.current.show = false; // Hidden by default
+          if (esriLayerRef.current) esriLayerRef.current.show = false;
 
           viewer.scene.requestRender?.();
         } catch (error) {
@@ -421,6 +465,29 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
   // Handle Terrain Updates (extracted hook)
   useTerrainProvider(viewerRef, enable3DTerrain, currentTerrainProvider, parcels);
+
+  // Handle Base Layer Updates
+  useEffect(() => {
+    if (!isViewerReady) return;
+
+    if (osmLayerRef.current) {
+      osmLayerRef.current.show = baseLayer === 'osm';
+    }
+
+    if (pnoaLayerRef.current) {
+      pnoaLayerRef.current.show = baseLayer === 'pnoa';
+    }
+
+    if (esriLayerRef.current) {
+      esriLayerRef.current.show = baseLayer === 'esri';
+    }
+
+    if (cesiumLayerRef.current) {
+      cesiumLayerRef.current.show = baseLayer === 'cesium';
+    }
+
+    viewerRef.current?.scene?.requestRender?.();
+  }, [baseLayer, isViewerReady]);
 
   // Handle 3D Tiles Updates (extracted hook)
   use3DTiles(viewerRef, enable3DTiles, tilesetUrl);
@@ -1490,46 +1557,86 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             <Mountain size={20} />
           </button>
 
-          {/* Terrain Provider Picker */}
-          {enable3DTerrain && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowTerrainPicker(!showTerrainPicker)}
-                className="p-2 bg-slate-800/90 hover:bg-slate-700 text-white rounded-lg shadow-lg backdrop-blur-sm transition-all border border-slate-600"
-                title="Seleccionar modelo de elevación"
-              >
-                <Layers size={20} />
-              </button>
+          {/* Layer Picker (Base Map & Terrain) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowTerrainPicker(!showTerrainPicker)}
+              className="p-2 bg-slate-800/90 hover:bg-slate-700 text-white rounded-lg shadow-lg backdrop-blur-sm transition-all border border-slate-600"
+              title="Seleccionar capas"
+            >
+              <Layers size={20} />
+            </button>
 
-              {showTerrainPicker && (
-                <div className="absolute right-full top-0 mr-2 bg-slate-800 rounded-lg shadow-xl border border-slate-600 min-w-[200px] overflow-hidden z-20">
-                  <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700">
-                    <p className="text-xs font-semibold text-slate-300">Modelo de Elevación</p>
-                  </div>
-                  <div className="p-1">
-                    {[
-                      { id: 'auto', name: 'Automático (Detectar)', desc: 'Selecciona según ubicación' },
-                      { id: 'idena', name: 'IDENA (Navarra)', desc: 'Alta precisión (MDT05)' },
-                      { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' }
-                    ].map((provider) => (
-                      <button
-                        key={provider.id}
-                        onClick={() => {
-                          setCurrentTerrainProvider(provider.id);
-                          setShowTerrainPicker(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${currentTerrainProvider === provider.id ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
-                      >
-                        <div className="font-medium">{provider.name}</div>
-                        <div className="text-xs text-slate-500">{provider.desc}</div>
-                      </button>
-                    ))}
-                  </div>
+            {showTerrainPicker && (
+              <div className="absolute right-full top-0 mr-2 bg-slate-800 rounded-lg shadow-xl border border-slate-600 min-w-[220px] overflow-hidden z-20">
+                {/* Base Map Section */}
+                <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700">
+                  <p className="text-xs font-semibold text-slate-300">Mapa Base</p>
                 </div>
-              )}
-            </div>
-          )}
+                <div className="p-1 border-b border-slate-700">
+                  <button
+                    onClick={() => setBaseLayer('osm')}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'osm' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    <div className="font-medium">Callejero (OSM)</div>
+                    <div className="text-xs text-slate-500">OpenStreetMap global</div>
+                  </button>
+                  <button
+                    onClick={() => setBaseLayer('pnoa')}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'pnoa' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    <div className="font-medium">Ortofoto (PNOA)</div>
+                    <div className="text-xs text-slate-500">Alta resolución (España)</div>
+                  </button>
+                  <button
+                    onClick={() => setBaseLayer('esri')}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'esri' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    <div className="font-medium">Satélite (Esri)</div>
+                    <div className="text-xs text-slate-500">Imágenes satelitales globales</div>
+                  </button>
+                  {import.meta.env.VITE_CESIUM_ION_TOKEN && (
+                    <button
+                      onClick={() => setBaseLayer('cesium')}
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'cesium' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                    >
+                      <div className="font-medium">Satélite (Cesium Ion)</div>
+                      <div className="text-xs text-slate-500">Bing Maps Aerial (Premium)</div>
+                    </button>
+                  )}
+                </div>
+
+                {/* Terrain Section */}
+                {enable3DTerrain && (
+                  <>
+                    <div className="px-3 py-2 bg-slate-900/50 border-b border-slate-700">
+                      <p className="text-xs font-semibold text-slate-300">Modelo de Elevación</p>
+                    </div>
+                    <div className="p-1">
+                      {[
+                        { id: 'auto', name: 'Automático (Detectar)', desc: 'Selecciona según ubicación' },
+                        { id: 'idena', name: 'IDENA (Navarra)', desc: 'Alta precisión (MDT05)' },
+                        { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' }
+                      ].map((provider) => (
+                        <button
+                          key={provider.id}
+                          onClick={() => {
+                            setCurrentTerrainProvider(provider.id);
+                            setShowTerrainPicker(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${currentTerrainProvider === provider.id ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                        >
+                          <div className="font-medium">{provider.name}</div>
+                          <div className="text-xs text-slate-500">{provider.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

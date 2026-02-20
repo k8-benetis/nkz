@@ -13,7 +13,7 @@ const logger = {
 // Fix window types for Cesium global
 declare global {
     interface Window {
-        Cesium: typeof Cesium;
+        Cesium: any;
     }
 }
 
@@ -62,18 +62,24 @@ export const MobileViewer: React.FC = () => {
                     }
                 },
                 // Use PNOA (Ortofoto) as default imagery for Agriculture context
-                imageryProvider: new Cesium.WebMapServiceImageryProvider({
-                    url: 'https://www.ign.es/wms-inspire/pnoa-ma',
-                    layers: 'OI.OrthoimageCoverage',
-                    parameters: {
-                        transparent: 'false',
-                        format: 'image/jpeg',
-                    },
-                    credit: 'PNOA - IGN España',
-                }),
+                // @ts-ignore
+                imageryProvider: false,
                 // Use Ellipsoid terrain by default for performance, upgrade via message if needed
                 terrainProvider: undefined,
             });
+
+            // Set PNOA as imagery provider
+            viewer.imageryLayers.removeAll();
+            const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
+                url: 'https://www.ign.es/wms-inspire/pnoa-ma',
+                layers: 'OI.OrthoimageCoverage',
+                parameters: {
+                    transparent: 'false',
+                    format: 'image/jpeg',
+                },
+                credit: 'PNOA - IGN España',
+            });
+            viewer.imageryLayers.addImageryProvider(pnoaProvider);
 
             // Also add OSM as a base layer if PNOA fails or for streets context (optional)
             // For now, agriculture focus prefers Ortho.
@@ -129,21 +135,8 @@ export const MobileViewer: React.FC = () => {
                 }
             };
 
-            // Throttle updates (every 500ms or on move end)
-            let lastUpdate = 0;
-            const THROTTLE_MS = 500;
-
-            const throttledUpdate = () => {
-                const now = Date.now();
-                if (now - lastUpdate > THROTTLE_MS) {
-                    onCameraChange();
-                    lastUpdate = now;
-                }
-            };
-
             viewer.camera.moveEnd.addEventListener(onCameraChange);
             // Optional: moveStart or changed for smoother updates if needed, but moveEnd is safer for performance
-            // viewer.camera.changed.addEventListener(throttledUpdate);
 
             viewerRef.current = viewer;
             setIsReady(true);
