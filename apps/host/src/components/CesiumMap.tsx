@@ -337,41 +337,31 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           viewer.imageryLayers.removeAll();
 
           // Add OSM (OpenStreetMap)
-          Cesium.UrlTemplateImageryProvider.fromUrl(
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          const osmProvider = new Cesium.UrlTemplateImageryProvider({
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             maximumLevel: 19,
             credit: 'OpenStreetMap Contributors',
-          }
-          ).then((osmProvider: any) => {
-            if (viewer.isDestroyed()) return;
-            const osmLayer = viewer.imageryLayers.addImageryProvider(osmProvider, 0); // Bottom
-            osmLayerRef.current = osmLayer;
-            osmLayer.show = baseLayer === 'osm';
-            logger.debug('[CesiumMap] Initial imagery provider (OSM) configured');
-            viewer.scene.requestRender?.();
-          }).catch((osmError: any) => {
-            logger.error('[CesiumMap] Error configuring OSM:', osmError);
           });
+          const osmLayer = viewer.imageryLayers.addImageryProvider(osmProvider, 0); // Bottom
+          osmLayerRef.current = osmLayer;
+          logger.debug('[CesiumMap] Initial imagery provider (OSM) configured');
 
           // Add PNOA (Plan Nacional de Ortofotografía Aérea) as base layer option
-          Cesium.WebMapServiceImageryProvider.fromUrl(
-            'https://www.ign.es/wms-inspire/pnoa-ma', {
-            layers: 'OI.OrthoimageCoverage',
-            parameters: {
-              transparent: false,
-              format: 'image/jpeg',
-            },
-            credit: 'PNOA - IGN España',
-          }
-          ).then((pnoaProvider: any) => {
-            if (viewer.isDestroyed()) return;
+          try {
+            const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
+              url: 'https://www.ign.es/wms-inspire/pnoa-ma',
+              layers: 'OI.OrthoimageCoverage',
+              parameters: {
+                transparent: false,
+                format: 'image/jpeg',
+              },
+              credit: 'PNOA - IGN España',
+            });
             const pnoaLayer = viewer.imageryLayers.addImageryProvider(pnoaProvider, 0); // Add at bottom
             pnoaLayerRef.current = pnoaLayer;
-            pnoaLayer.show = baseLayer === 'pnoa';
-            viewer.scene.requestRender?.();
-          }).catch((pnoaError: any) => {
+          } catch (pnoaError) {
             logger.warn('[CesiumMap] Could not add PNOA layer:', pnoaError);
-          });
+          }
 
           // Add Esri World Imagery (Global Satellite)
           try {
@@ -411,10 +401,10 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             logger.warn('[CesiumMap] Could not set up Cesium Ion:', cesiumError);
           }
 
-          /* 
-            Initial layer visibility is now handled asynchronously inside each
-            provider's .then() callback using the component's baseLayer state.
-          */
+          // Apply initial visibility
+          if (osmLayer) osmLayer.show = baseLayer === 'osm'; // Default
+          if (pnoaLayerRef.current) pnoaLayerRef.current.show = baseLayer === 'pnoa'; // Hidden by default
+          if (esriLayerRef.current) esriLayerRef.current.show = baseLayer === 'esri';
           viewer.scene.requestRender?.();
         } catch (error) {
           logger.error('[CesiumMap] Error configuring initial imagery provider:', error);
