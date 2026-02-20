@@ -1,0 +1,9 @@
+# Production overlay: DataHub BFF ConfigMap (API URL from Git — no manual patch).
+# Only this file holds the production API base URL; the module repo keeps an empty placeholder.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datahub-api-config
+  namespace: nekazari
+data:
+  PLATFORM_API_URL: "https://nkz.robotika.cloud"

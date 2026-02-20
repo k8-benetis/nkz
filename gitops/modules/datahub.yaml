@@ -1,0 +1,20 @@
+# DataHub module — source of truth: nkz-module-data-hub repo (GitOps strict).
+# Syncs Deployment, Service, ConfigMap (base) from the module repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: datahub
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/k8-benetis/nkz-module-data-hub
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
