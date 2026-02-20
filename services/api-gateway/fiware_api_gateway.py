@@ -539,9 +539,9 @@ def get_device_latest_telemetry(device_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
-@app.route('/api/timeseries/<path:path>', methods=['GET'])
+@app.route('/api/timeseries/<path:path>', methods=['GET', 'POST'])
 def timeseries_proxy(path):
-    """Proxy to Timeseries Reader Service"""
+    """Proxy to Timeseries Reader Service (GET for data/align, POST for export)."""
     # Validate JWT token
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
@@ -562,13 +562,20 @@ def timeseries_proxy(path):
         'Authorization': auth_header,
         'Fiware-Service': tenant
     }
-    
+    if request.method == 'POST' and request.is_json:
+        headers['Content-Type'] = 'application/json'
+
     # Forward request
     try:
         service_url = f"http://timeseries-reader-service:5000/api/timeseries/{path}"
-        response = requests.get(service_url, headers=headers, params=request.args, timeout=30)
+        if request.method == 'GET':
+            response = requests.get(service_url, headers=headers, params=request.args, timeout=60)
+        else:
+            response = requests.post(
+                service_url, headers=headers, params=request.args,
+                json=request.get_json(silent=True) or {}, timeout=120
+            )
         return make_response(response.content, response.status_code, dict(response.headers))
-    
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding request to timeseries-reader: {e}")
         return jsonify({'error': 'Internal server error'}), 500
