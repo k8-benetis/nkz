@@ -365,14 +365,21 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           // Add Esri World Imagery (Global Satellite)
           try {
-            const esriProvider = new Cesium.ArcGisMapServerImageryProvider({
-              url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
+            Cesium.ArcGisMapServerImageryProvider.fromUrl(
+              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer', {
               enablePickFeatures: false
+            }
+            ).then((esriProvider: any) => {
+              if (viewer.isDestroyed()) return;
+              const esriLayer = viewer.imageryLayers.addImageryProvider(esriProvider, 0);
+              esriLayerRef.current = esriLayer;
+              esriLayer.show = baseLayer === 'esri';
+              viewer.scene.requestRender?.();
+            }).catch((esriError: any) => {
+              logger.warn('[CesiumMap] Could not fetch Esri layer metadata:', esriError);
             });
-            const esriLayer = viewer.imageryLayers.addImageryProvider(esriProvider, 0);
-            esriLayerRef.current = esriLayer;
-          } catch (esriError) {
-            logger.warn('[CesiumMap] Could not add Esri layer:', esriError);
+          } catch (esriInitError) {
+            logger.warn('[CesiumMap] Could not initialize Esri provider:', esriInitError);
           }
 
           // Add Cesium Ion default imagery (if token is available)
