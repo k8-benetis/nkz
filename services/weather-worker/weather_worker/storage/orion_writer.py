@@ -117,12 +117,14 @@ def get_parcels_by_location(
         headers = {
             'Fiware-Service': tenant_id,
             'Fiware-ServicePath': '/',
-            'Accept': 'application/ld+json'
+            'Accept': 'application/ld+json',
         }
-        
+        if CONTEXT_URL:
+            headers['Link'] = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
         url = f"{ORION_URL}/ngsi-ld/v1/entities"
         response = requests.get(url, params=query_params, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             entities = response.json()
             if isinstance(entities, list):
@@ -507,7 +509,6 @@ def sync_weather_to_orion(
                 location=parcel_location,
                 weather_data=weather_data,
                 observed_at=observed_at,
-                use_clustering=True  # Enable spatial clustering
             )
             
             if entity_id:
