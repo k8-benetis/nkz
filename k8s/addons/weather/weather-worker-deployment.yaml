@@ -92,6 +92,11 @@ spec:
           value: "9106"
         - name: LOG_LEVEL
           value: "INFO"
+        # Orion-LD — required for WeatherObserved entity sync to parcels
+        - name: ORION_URL
+          value: "http://orion-ld-service:1026"
+        - name: CONTEXT_URL
+          value: "https://nekazari.robotika.cloud/ngsi-ld-context.json"
 
         resources:
           requests:
