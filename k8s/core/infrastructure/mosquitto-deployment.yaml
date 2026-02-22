@@ -21,15 +21,39 @@ data:
     # =============================================================================
     # Mosquitto Configuration - Nekazari Platform
     # =============================================================================
-    
-    # Listener Configuration
+    # Arquitectura dual-interface:
+    #   - Puerto 8883: MQTTS con mTLS obligatorio (ESP32 desde internet)
+    #   - Puerto 1883: MQTT sin TLS (gateways KLinux via subred Tailscale SDN)
+    #   - Puerto 9001: WebSocket sin TLS (panel web, acceso interno)
+    #
+    # El aislamiento del puerto 1883 se garantiza por NetworkPolicy:
+    # solo permite conexiones desde 100.64.0.0/10 (subred Tailscale).
+    # =============================================================================
+
+    # -------------------------------------------------------------------------
+    # Puerto 8883 — MQTTS con mTLS (ESP32, internet)
+    # -------------------------------------------------------------------------
+    listener 8883 0.0.0.0
+    protocol mqtt
+    # Certificado del servidor (emitido por la CA IoT de Nekazari)
+    cafile /mosquitto/tls/ca.crt
+    certfile /mosquitto/tls/tls.crt
+    keyfile /mosquitto/tls/tls.key
+    # mTLS obligatorio: los ESP32 deben presentar certificado de cliente
+    require_certificate true
+    use_identity_as_username true
+
+    # -------------------------------------------------------------------------
+    # Puerto 1883 — MQTT sin TLS (gateways KLinux via Tailscale SDN)
+    # NetworkPolicy restringe el acceso a 100.64.0.0/10 únicamente.
+    # -------------------------------------------------------------------------
     listener 1883 0.0.0.0
     protocol mqtt
-    
+
     # WebSocket listener (sin SSL, SSL lo maneja Traefik)
     listener 9001 0.0.0.0
     protocol websockets
-    
+
     # Authentication
     allow_anonymous false
     password_file /mosquitto/config/passwords
@@ -184,6 +208,34 @@ data:
 
 ---
 # =============================================================================
+# Certificate — TLS del servidor Mosquitto (firmado por CA IoT)
+# =============================================================================
+# PRE-REQUISITO: ClusterIssuer 'nekazari-iot-ca' desplegado
+# El Secret 'mosquitto-tls-secret' es creado automáticamente por cert-manager.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mosquitto-tls
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: tls
+spec:
+  secretName: mosquitto-tls-secret
+  issuerRef:
+    name: nekazari-iot-ca
+    kind: ClusterIssuer
+  duration: 8760h     # 1 año
+  renewBefore: 720h   # Renovar 30 días antes
+  commonName: mosquitto-service.nekazari.svc.cluster.local
+  dnsNames:
+    - mosquitto-service.nekazari.svc.cluster.local
+    - mosquitto-service
+  usages:
+    - server auth
+
+---
+# =============================================================================
 # PersistentVolumeClaim - Datos de Mosquitto
 # =============================================================================
 apiVersion: v1
@@ -318,6 +370,9 @@ spec:
             - ALL
         
         ports:
+        - name: mqtts
+          containerPort: 8883
+          protocol: TCP
         - name: mqtt
           containerPort: 1883
           protocol: TCP
@@ -362,6 +417,9 @@ spec:
           mountPath: /mosquitto/log
         - name: tmp
           mountPath: /tmp
+        - name: tls
+          mountPath: /mosquitto/tls
+          readOnly: true
       
       # Mosquitto Exporter (métricas para Prometheus)
       - name: mosquitto-exporter
@@ -408,6 +466,9 @@ spec:
         emptyDir: {}
       - name: tmp
         emptyDir: {}
+      - name: tls
+        secret:
+          secretName: mosquitto-tls-secret
 
 ---
 # =============================================================================
@@ -426,6 +487,10 @@ spec:
   selector:
     app: mosquitto
   ports:
+  - name: mqtts
+    port: 8883
+    targetPort: mqtts
+    protocol: TCP
   - name: mqtt
     port: 1883
     targetPort: mqtt

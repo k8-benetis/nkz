@@ -154,25 +154,8 @@ data:
         drop:
         - ALL
 
-  # Para WireGuard VPN (necesita privilegios de red)
-  wireguard-service.yaml: |
-    podSecurityContext:
-      # WireGuard requiere más privilegios
-      runAsNonRoot: false
-      seccompProfile:
-        type: RuntimeDefault
-    
-    containerSecurityContext:
-      # WireGuard necesita capacidades de red
-      allowPrivilegeEscalation: true
-      privileged: false
-      capabilities:
-        drop:
-        - ALL
-        add:
-        - NET_ADMIN
-        - SYS_MODULE
-        - NET_RAW
+  # WireGuard VPN removed (2026-02-21) — replaced by Headscale (Tailscale).
+  # No special security context needed; Tailscale runs as unprivileged user-space daemon.
 
 ---
 # =============================================================================

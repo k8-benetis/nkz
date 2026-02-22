@@ -27,6 +27,13 @@ spec:
         app: n8n
         component: workflow-automation
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       # =========================================================================
       # OAuth2 Proxy Sidecar - Validates Keycloak tokens and injects Basic Auth
@@ -45,14 +52,26 @@ spec:
         - name: OAUTH2_PROXY_PROVIDER
           value: "keycloak-oidc"
         - name: OAUTH2_PROXY_OIDC_ISSUER_URL
-          value: "https://auth.robotika.cloud/auth/realms/nekazari"
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: jwt_issuer
         # Use internal URL for token requests (faster, no external routing)
         - name: OAUTH2_PROXY_OIDC_JWKS_URL
-          value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/certs"
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: jwks_url
         - name: OAUTH2_PROXY_OIDC_TOKEN_URL
-          value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/token"
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: keycloak_token_url
         - name: OAUTH2_PROXY_OIDC_AUTH_URL
-          value: "https://auth.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/auth"
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: keycloak_auth_url
         - name: OAUTH2_PROXY_SKIP_OIDC_DISCOVERY
           value: "true"
         - name: OAUTH2_PROXY_CLIENT_ID
@@ -167,6 +186,16 @@ spec:
           - --upstream=http://127.0.0.1:5678
           - --http-address=0.0.0.0:4180
         
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
         resources:
           requests:
             memory: "64Mi"
@@ -258,6 +287,17 @@ spec:
         - name: n8n-workflows
           mountPath: /home/node/.n8n
         
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          # n8n writes workflow data to the PVC mount — readOnly not applicable here
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
         resources:
           requests:
             memory: "512Mi"
@@ -265,7 +305,7 @@ spec:
           limits:
             memory: "1Gi"
             cpu: "500m"
-        
+
         livenessProbe:
           httpGet:
             path: /healthz

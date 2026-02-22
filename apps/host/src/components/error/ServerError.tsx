@@ -102,7 +102,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
           <div className="mt-12 pt-8 border-t border-gray-200">
             <p className="text-sm text-gray-500">
               Si el problema persiste, contacta con{' '}
-              <a href="mailto:support@robotika.cloud" className="text-green-600 hover:text-green-700">
+              <a href={`mailto:${(window as any).__ENV__?.SUPPORT_EMAIL || 'support'}`} className="text-green-600 hover:text-green-700">
                 soporte técnico
               </a>
             </p>

@@ -35,7 +35,6 @@ const ROBOT_FORM_INITIAL = {
   manufacturer: '',
   model: '',
   serialNumber: '',
-  vpnIp: '',
   rosDomainId: '',
   latitude: 0,
   longitude: 0,
@@ -488,16 +487,6 @@ export const Robots: React.FC = () => {
               <div className="border-b border-gray-200 pb-4">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Conectividad</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">VPN IP</label>
-                    <input
-                      type="text"
-                      value={formData.vpnIp}
-                      onChange={(e) => setFormData({ ...formData, vpnIp: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                      placeholder="10.8.0.x"
-                    />
-                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">ROS_DOMAIN_ID</label>
                     <input

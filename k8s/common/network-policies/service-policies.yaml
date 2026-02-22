@@ -259,18 +259,9 @@ spec:
     - protocol: TCP
       port: 1883
   
-  # Desde aplicaciones externas vía VPN (WireGuard)
-  # Esto se gestiona a nivel de servicio LoadBalancer/NodePort
-  - from:
-    - podSelector:
-        matchLabels:
-          app: wireguard
-    ports:
-    - protocol: TCP
-      port: 1883
-    - protocol: TCP
-      port: 8883
-  
+  # Desde dispositivos de campo vía Tailscale SDN (100.64.0.0/10)
+  # Gestionado por Headscale + NetworkPolicies en updated-policies.yaml
+
   # WebSocket para clientes web
   - from:
     - podSelector:

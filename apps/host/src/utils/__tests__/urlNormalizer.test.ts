@@ -8,17 +8,24 @@ describe('normalizeAssetUrl', () => {
     expect(normalizeAssetUrl(undefined as unknown as string)).toBe('');
   });
 
-  it('replaces legacy domain with robotika.cloud', () => {
-    expect(normalizeAssetUrl('https://nekazari.artotxiki.com/assets/model.glb'))
-      .toBe('https://nekazari.robotika.cloud/assets/model.glb');
-    expect(normalizeAssetUrl('https://nekazari.artotxiki.com/modules/foo/nkz-module.js'))
-      .toBe('https://nekazari.robotika.cloud/modules/foo/nkz-module.js');
+  it('converts absolute URLs to relative paths', () => {
+    expect(normalizeAssetUrl('https://example.com/assets/model.glb'))
+      .toBe('/assets/model.glb');
+    expect(normalizeAssetUrl('https://example.com/modules/foo/nkz-module.js'))
+      .toBe('/modules/foo/nkz-module.js');
+    expect(normalizeAssetUrl('https://example.com/icons/tractor.glb?v=2'))
+      .toBe('/icons/tractor.glb?v=2');
   });
 
-  it('leaves URLs without legacy domain unchanged', () => {
-    expect(normalizeAssetUrl('https://nekazari.robotika.cloud/host/index.html'))
-      .toBe('https://nekazari.robotika.cloud/host/index.html');
-    expect(normalizeAssetUrl('/icons/machines/tractor.glb')).toBe('/icons/machines/tractor.glb');
-    expect(normalizeAssetUrl('data:image/png;base64,abc')).toBe('data:image/png;base64,abc');
+  it('leaves relative paths unchanged', () => {
+    expect(normalizeAssetUrl('/icons/machines/tractor.glb'))
+      .toBe('/icons/machines/tractor.glb');
+    expect(normalizeAssetUrl('relative/path.png'))
+      .toBe('relative/path.png');
+  });
+
+  it('leaves data URIs unchanged', () => {
+    expect(normalizeAssetUrl('data:image/png;base64,abc'))
+      .toBe('data:image/png;base64,abc');
   });
 });

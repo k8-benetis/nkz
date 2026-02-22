@@ -34,9 +34,7 @@ export default defineConfig({
     /*
     federation({
       name: 'nekazari-host',
-      remotes: {
-        // 'weather-module': 'http://modules.nekazari.robotika.cloud/weather/remoteEntry.js',
-      },
+      remotes: {},
       shared: {
         'react': { singleton: true, requiredVersion: '^18.3.1' },
         'react-dom': { singleton: true, requiredVersion: '^18.3.1' },

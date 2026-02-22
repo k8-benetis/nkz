@@ -295,22 +295,26 @@ export const Landing: React.FC = () => {
                 {t('landing.footer_description') || 'Plataforma IoT agrícola de grado empresarial potenciada por FIWARE'}
               </p>
               <div className="flex items-center space-x-4 text-sm">
-                <a 
-                  href="https://robotika.cloud" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  {t('landing.footer_company') || 'Robotika.cloud'}
-                </a>
-                <a 
-                  href="mailto:kate@robotika.cloud"
-                  className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  {t('landing.footer_contact') || 'kate@robotika.cloud'}
-                </a>
+                {(window as any).__ENV__?.COMPANY_URL && (
+                  <a
+                    href={(window as any).__ENV__.COMPANY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    {t('landing.footer_company') || (window as any).__ENV__.COMPANY_URL}
+                  </a>
+                )}
+                {(window as any).__ENV__?.SUPPORT_EMAIL && (
+                  <a
+                    href={`mailto:${(window as any).__ENV__.SUPPORT_EMAIL}`}
+                    className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    {t('landing.footer_contact') || (window as any).__ENV__.SUPPORT_EMAIL}
+                  </a>
+                )}
               </div>
             </div>
             <div>

@@ -238,33 +238,24 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
                     {/* ROBOT / VPN SECTION */}
                     {showVpnSection && (
-                        <div className="bg-gray-800/50 rounded-xl p-5 border border-indigo-500/30">
+                        <div className="bg-gray-800/50 rounded-xl p-5 border border-sky-500/30">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-500/20 rounded-lg">
-                                    <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                                <div className="p-2 bg-sky-500/20 rounded-lg">
+                                    <ShieldCheck className="w-5 h-5 text-sky-400" />
                                 </div>
-                                <h3 className="text-lg font-medium text-white">Conexión Segura (VPN)</h3>
+                                <h3 className="text-lg font-medium text-white">SDN (Headscale)</h3>
                             </div>
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-gray-400 text-xs uppercase tracking-wider">Estado</span>
-                                        <span className="flex items-center gap-1.5 text-emerald-400 text-sm font-medium">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                            Configurado
-                                        </span>
-                                    </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-gray-400 text-xs uppercase tracking-wider">Tipo</span>
-                                        <span className="text-indigo-300 text-sm">WireGuard</span>
+                                        <span className="text-sky-300 text-sm">Tailscale / Headscale</span>
                                     </div>
                                 </div>
-                                <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">
-                                    <Download className="w-4 h-4" />
-                                    Descargar Configuración (.conf)
-                                </button>
-                                <p className="text-xs text-gray-500 text-center">
-                                    Usa este archivo en <code>/etc/wireguard/</code> en el robot.
+                                <p className="text-xs text-gray-400 text-center">
+                                    Network access is managed via the{' '}
+                                    <a href="/devices" className="text-sky-400 underline">Device Management</a> module.
+                                    Use a Claim Code to provision this device.
                                 </p>
                             </div>
                         </div>

@@ -1,196 +1,134 @@
 # =============================================================================
-# NetworkPolicies Actualizadas - Incluyendo VPN y ROS2
+# NetworkPolicies — SDN Tailscale/Headscale + Zenoh + MQTT + Frontend
 # =============================================================================
-# Políticas de red actualizadas para incluir VPN WireGuard y ROS2 Bridge
-# Corregidas para usar puerto 80 en frontend (no 3000)
+# Estas políticas se aplican sobre la base de default-deny-all.yaml.
+#
+# Arquitectura de red SDN:
+#   - Peers (robots, gateways) en subred Tailscale: 100.64.0.0/10
+#   - K8s node actúa como subnet router: anuncia 10.43.0.0/16 (ClusterIPs)
+#   - Los peers SOLO pueden alcanzar: zenoh-service:7447 y mosquitto:1883
+#   - Las NetworkPolicies son la segunda capa de defensa (la primera son las
+#     ACLs huJSON de Headscale)
+#
+# Estado: LISTAS PARA APLICAR (reemplaza la versión WireGuard anterior)
+# Aplicar con: kubectl apply -f k8s/common/network-policies/
 # =============================================================================
 
 ---
 # =============================================================================
-# Network Policy: VPN WireGuard - Acceso desde Internet y ROS2
+# Headscale Control Plane — acceso desde internet (HTTPS via Traefik)
 # =============================================================================
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: wireguard-vpn-policy
-  namespace: nekazari-vpn
+  name: headscale-control-plane-policy
+  namespace: nekazari
   labels:
-    app: wireguard
+    app: headscale
     component: vpn
 spec:
   podSelector:
     matchLabels:
-      app: wireguard
+      app: headscale
   policyTypes:
-  - Ingress
-  - Egress
-  
+    - Ingress
+    - Egress
+
   ingress:
-  # Permitir conexiones VPN desde Internet
-  - from: []
-    ports:
-    - protocol: UDP
-      port: 51820
-  
+    # Desde Traefik ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Desde nkz-network-controller (llamadas a la API REST de Headscale)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nkz-network-controller
+      ports:
+        - protocol: TCP
+          port: 8080
+
   egress:
-  # DNS
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
-  
-  # Acceso a servicios principales
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari
-    ports:
-    - protocol: TCP
-      port: 80   # Frontend
-    - protocol: TCP
-      port: 443  # HTTPS
-    - protocol: TCP
-      port: 1026 # Orion-LD
-    - protocol: TCP
-      port: 1883 # MQTT
-    - protocol: TCP
-      port: 8080 # Keycloak
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # PostgreSQL (estado de Headscale)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: timescaledb
+      ports:
+        - protocol: TCP
+          port: 5432
+    # DERP servers (relay Tailscale, egress a internet)
+    - ports:
+        - protocol: TCP
+          port: 443
 
 ---
 # =============================================================================
-# Network Policy: ROS2 Bridge - Comunicación con Orion y MQTT
+# Zenoh Router — acceso desde subred Tailscale SDN
 # =============================================================================
+# Los robots conectados via Tailscale alcanzan zenoh-service a través del
+# subnet router del nodo K8s. Su IP de origen está en 100.64.0.0/10.
+# La segunda fuente es el pod RoboticsCockpit (desde el navegador via WS).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: ros2-bridge-policy
-  namespace: nekazari-ros2
-  labels:
-    app: ros2-bridge
-    component: ros2
-spec:
-  podSelector:
-    matchLabels:
-      app: ros2-bridge
-  policyTypes:
-  - Ingress
-  - Egress
-  
-  ingress:
-  # Desde VPN (robots conectados)
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari-vpn
-    ports:
-    - protocol: TCP
-      port: 11811  # ROS2 DDS
-    - protocol: TCP
-      port: 11812  # ROS2 Discovery
-  
-  # Desde servicios principales
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari
-    ports:
-    - protocol: TCP
-      port: 11811
-    - protocol: TCP
-      port: 11812
-  
-  egress:
-  # DNS
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
-  
-  # Comunicación con Orion-LD
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari
-    ports:
-    - protocol: TCP
-      port: 1026
-  
-  # Comunicación con MQTT
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari
-    ports:
-    - protocol: TCP
-      port: 1883
-
----
-# =============================================================================
-# Network Policy: Frontend - Solo puerto 80 (corregido)
-# =============================================================================
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: frontend-policy
+  name: zenoh-router-policy
   namespace: nekazari
   labels:
-    app: frontend
-    component: frontend
+    app: zenoh-router
+    component: robotics
 spec:
   podSelector:
     matchLabels:
-      app: frontend
+      app: zenoh-router
   policyTypes:
-  - Ingress
-  - Egress
-  
+    - Ingress
+    - Egress
+
   ingress:
-  # Desde Ingress Controller
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: ingress-nginx
-    ports:
-    - protocol: TCP
-      port: 80
-  
+    # Desde robots via subred Tailscale (subnet routing desde el nodo K8s)
+    - from:
+        - ipBlock:
+            cidr: 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 7447
+        - protocol: UDP
+          port: 7447
+    # WebSocket desde el frontend del host (cockpit de teleopración en navegador)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend-static
+      ports:
+        - protocol: TCP
+          port: 8447
+
   egress:
-  # DNS
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
-  
-  # Acceso a APIs
-  - to:
-    - podSelector:
-        matchLabels:
-          layer: apis
-    ports:
-    - protocol: TCP
-      port: 5000
-  
-  # Acceso a Keycloak
-  - to:
-    - podSelector:
-        matchLabels:
-          app: keycloak
-    ports:
-    - protocol: TCP
-      port: 8080
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
 
 ---
 # =============================================================================
-# Network Policy: MQTT Mosquitto - Acceso desde VPN y ROS2
+# Mosquitto MQTT — dual interface: 8883 público mTLS + 1883 solo SDN
 # =============================================================================
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -205,49 +143,99 @@ spec:
     matchLabels:
       app: mosquitto
   policyTypes:
-  - Ingress
-  - Egress
-  
+    - Ingress
+    - Egress
+
   ingress:
-  # Desde VPN (robots y sensores)
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari-vpn
-    ports:
-    - protocol: TCP
-      port: 1883  # MQTT
-    - protocol: TCP
-      port: 8883  # MQTT SSL
-    - protocol: TCP
-      port: 9001  # WebSocket
-  
-  # Desde ROS2 Bridge
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: nekazari-ros2
-    ports:
-    - protocol: TCP
-      port: 1883
-    - protocol: TCP
-      port: 8883
-  
-  # Desde servicios internos
-  - from:
-    - podSelector:
-        matchLabels:
-          app: orion-ld
-    ports:
-    - protocol: TCP
-      port: 1883
-  
+    # Puerto 8883 (MQTTS mTLS) — ESP32 desde internet
+    # No se filtra por IP porque los ESP32 tienen IPs dinámicas (4G)
+    - ports:
+        - protocol: TCP
+          port: 8883
+
+    # Puerto 1883 (MQTT sin TLS) — solo gateways KLinux via Tailscale SDN
+    - from:
+        - ipBlock:
+            cidr: 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 1883
+
+    # Puerto 1883 — servicios internos del cluster (Orion-LD, IoT Agents)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: orion-ld
+        - podSelector:
+            matchLabels:
+              layer: apis
+      ports:
+        - protocol: TCP
+          port: 1883
+
+    # WebSocket — desde frontend
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend-static
+      ports:
+        - protocol: TCP
+          port: 9001
+
   egress:
-  # DNS
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+
+---
+# =============================================================================
+# Frontend (frontend-static) — proxy Nginx → MinIO
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: nekazari
+  labels:
+    app: frontend-static
+    component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend-static
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Desde Traefik ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 80
+
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # MinIO (assets estáticos)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: minio
+      ports:
+        - protocol: TCP
+          port: 9000

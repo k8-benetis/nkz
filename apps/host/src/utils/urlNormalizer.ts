@@ -1,8 +1,16 @@
 /**
- * Normalize asset URLs that may still point to the legacy domain.
- * Use before passing any URL to Cesium (model.uri, billboard.image) or other asset loading.
+ * Normalize asset URLs that may be stored as absolute URLs in NGSI-LD entities.
+ * Converts them to relative paths so the app works on any deployment domain.
+ * Use before passing any URL to Cesium (model.uri, billboard.image) or asset loaders.
  */
 export function normalizeAssetUrl(url: string): string {
   if (!url || typeof url !== 'string') return '';
-  return url.replace('nekazari.artotxiki.com', 'nekazari.robotika.cloud');
+  try {
+    // Convert absolute URLs to relative paths — works regardless of deployment domain
+    const { pathname, search, hash } = new URL(url);
+    return pathname + search + hash;
+  } catch {
+    // Not a valid absolute URL — return as-is (already relative or a data URI)
+    return url;
+  }
 }
