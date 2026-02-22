@@ -10,7 +10,7 @@ import requests
 import subprocess
 import base64
 
-KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'https://auth.robotika.cloud/auth')
+KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080/auth')
 REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 TARGET_EMAIL = sys.argv[1] if len(sys.argv) > 1 else None
 

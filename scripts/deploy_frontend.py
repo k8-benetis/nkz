@@ -32,11 +32,11 @@ def generate_config():
     config_path = os.path.join(DIST_DIR, "config.js")
     
     # Define production vars
-    api_url = os.getenv("VITE_API_URL", "https://nkz.robotika.cloud")
-    keycloak_url = os.getenv("VITE_KEYCLOAK_URL", "https://auth.robotika.cloud")
+    api_url = os.getenv("VITE_API_URL", "")
+    keycloak_url = os.getenv("VITE_KEYCLOAK_URL", "")
     realm = os.getenv("VITE_KEYCLOAK_REALM", "nekazari")
     client_id = os.getenv("VITE_KEYCLOAK_CLIENT_ID", "nekazari-frontend")
-    titiler_url = os.getenv("VITE_TITILER_URL", "https://nkz.robotika.cloud/titiler")
+    titiler_url = os.getenv("VITE_TITILER_URL", "")
 
     content = f"""
 // Runtime configuration - generated at deploy time
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     
     if not os.getenv('AWS_ACCESS_KEY_ID'):
         print("❌ AWS_ACCESS_KEY_ID not set. Please export MinIO credentials.")
-        print("Example: export AWS_ACCESS_KEY_ID=minio AWS_SECRET_ACCESS_KEY=minio123 S3_ENDPOINT_URL=https://minio.robotika.cloud")
+        print("Example: export AWS_ACCESS_KEY_ID=minio AWS_SECRET_ACCESS_KEY=minio123 S3_ENDPOINT_URL=https://minio.YOUR_DOMAIN")
         sys.exit(1)
         
     upload_to_minio()

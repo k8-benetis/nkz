@@ -43,8 +43,8 @@ CORS(app)
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 ORION_URL = os.getenv('ORION_URL', 'http://orion-ld-service:1026')
 # Get CONTEXT_URL, constructing from PRODUCTION_DOMAIN if not set
-PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')
-CONTEXT_URL = os.getenv('CONTEXT_URL', f'https://{PRODUCTION_DOMAIN}/ngsi-ld')
+PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', '')
+CONTEXT_URL = os.getenv('CONTEXT_URL', f'https://{PRODUCTION_DOMAIN}/ngsi-ld' if PRODUCTION_DOMAIN else '')
 HMAC_SECRET = os.getenv('HMAC_SECRET', '')
 
 # Cache de API keys por tenant

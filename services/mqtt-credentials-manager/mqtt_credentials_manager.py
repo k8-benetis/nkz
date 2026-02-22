@@ -18,9 +18,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, origins=[
-    os.getenv('CORS_ORIGIN', 'https://nekazari.robotika.cloud'),
-])
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',') if o.strip()]
+CORS(app, origins=_cors_origins)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

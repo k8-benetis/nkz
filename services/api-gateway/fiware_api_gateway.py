@@ -45,13 +45,7 @@ except ImportError as e:
     KEYCLOAK_AUTH_AVAILABLE = False
 
 app = Flask(__name__)
-# CORS: Handled by Traefik Middleware (Infrastructure Level)
-# CORS(app, origins=[
-#     "https://nekazari.robotika.cloud",
-#     "https://*.vercel.app",  # All Vercel preview deployments
-#     "http://localhost:3000",  # Local development
-#     "http://localhost:5173",  # Vite dev server
-# ])
+# CORS: Handled by Traefik Middleware at infrastructure level
 
 # Configuration - All environment variables are REQUIRED for security
 JWT_SECRET = os.getenv('JWT_SECRET')  # Deprecated, kept for fallback
@@ -77,12 +71,9 @@ LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 REQUESTS_PER_MINUTE = int(os.getenv('REQUESTS_PER_MINUTE', '60'))  # Default: 60 req/min per tenant
 ALLOW_JWT_FALLBACK = os.getenv('ALLOW_JWT_FALLBACK', 'false').lower() == 'true'
 
-# CORS whitelist — only production and configured origins
-ALLOWED_ORIGINS = set(filter(None, [
-    'https://nekazari.robotika.cloud',
-    'https://nkz.robotika.cloud',
-    os.getenv('EXTRA_CORS_ORIGIN', ''),
-]))
+# CORS whitelist — configured via CORS_ORIGINS env var (comma-separated)
+_cors_env = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
+ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(',') if o.strip()}
 
 # Set logging level
 logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))

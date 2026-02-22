@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Get Orion URL from environment
 ORION_URL = os.getenv('ORION_URL', 'http://orion-ld-service:1026')
-CONTEXT_URL = os.getenv('CONTEXT_URL', 'https://nekazari.robotika.cloud/ngsi-ld-context.json')
+CONTEXT_URL = os.getenv('CONTEXT_URL', '')
 
 
 def create_weather_observed_entity(

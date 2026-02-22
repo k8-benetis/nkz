@@ -25,10 +25,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=[
-    'https://nekazari.robotika.cloud',
-    'https://nkz.robotika.cloud',
-])
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',') if o.strip()]
+CORS(app, origins=_cors_origins)
 
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 if not POSTGRES_URL:

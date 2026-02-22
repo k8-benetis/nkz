@@ -6,7 +6,7 @@ import requests
 import argparse
 
 # Configuration
-API_URL = "https://nkz.robotika.cloud/entity-manager/api/assets/upload"
+API_URL = os.getenv("NKZ_API_URL", "") + "/entity-manager/api/assets/upload"
 DEFAULTS_DIR = "./assets/defaults"
 MANIFEST_FILE = "./apps/host/src/config/default-assets.json"
 

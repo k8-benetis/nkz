@@ -49,7 +49,7 @@ LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
 # IoT Agent Configuration for device provisioning
 IOT_AGENT_URL = os.getenv('IOT_AGENT_URL', 'http://iot-agent-json-service:4041')
-MQTT_HOST = os.getenv('MQTT_EXTERNAL_HOST', 'mqtt.robotika.cloud')  # External hostname for devices
+MQTT_HOST = os.getenv('MQTT_EXTERNAL_HOST', '')  # External hostname for devices — must be set via env
 MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
 MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 

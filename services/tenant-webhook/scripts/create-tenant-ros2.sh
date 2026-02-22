@@ -73,12 +73,6 @@ if ! kubectl get namespace "${NAMESPACE}" &> /dev/null; then
     exit 1
 fi
 
-# Generate tenant-specific VPN configuration
-TENANT_VPN_IP="10.0.${RANDOM%255}.0/24"
-TENANT_VPN_PORT=$((50000 + RANDOM % 1000))
-
-log_info "Generated VPN config - IP: ${TENANT_VPN_IP}, Port: ${TENANT_VPN_PORT}"
-
 # Create ROS2-specific ConfigMap
 log_info "Creating ROS2 configuration for tenant: ${TENANT_ID}"
 cat <<EOF | kubectl apply -f -
@@ -93,12 +87,10 @@ metadata:
 data:
   ros2_domain_id: "$(($(echo ${TENANT_ID} | wc -c) + 100))"
   tenant_id: "${TENANT_ID}"
-  vpn_ip_range: "${TENANT_VPN_IP}"
-  vpn_port: "${TENANT_VPN_PORT}"
   mqtt_broker: "mosquitto-service.nekazari-system.svc.cluster.local"
   mqtt_port: "1883"
   mqtt_topic_prefix: "nekazari/${TENANT_ID}"
-  fiware_context: "https://nekazari.robotika.cloud/ngsi-ld-context.json"
+  fiware_context: "${CONTEXT_URL}"
   orion_ld_url: "http://orion-ld-service.nekazari-system.svc.cluster.local:1026"
   prometheus_url: "http://prometheus-service.nekazari-system.svc.cluster.local:9090"
   grafana_url: "http://grafana-service.nekazari-system.svc.cluster.local:3000"
@@ -379,30 +371,6 @@ spec:
           name: ${TENANT_ID}-ros2-config
 EOF
 
-# Create VPN Configuration for tenant
-log_info "Creating VPN configuration for tenant: ${TENANT_ID}"
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ${TENANT_ID}-vpn-config
-  namespace: ${NAMESPACE}
-  labels:
-    tenant-id: ${TENANT_ID}
-    app: vpn-config
-data:
-  vpn.conf: |
-    [Interface]
-    PrivateKey = $(wg genkey)
-    Address = ${TENANT_VPN_IP%.*}.1/24
-    ListenPort = ${TENANT_VPN_PORT}
-    
-    [Peer]
-    PublicKey = $(wg genkey | wg pubkey)
-    AllowedIPs = ${TENANT_VPN_IP%.*}.0/24
-    Endpoint = nekazari.robotika.cloud:${TENANT_VPN_PORT}
-EOF
-
 # Create Network Policy for ROS2 communication
 log_info "Creating network policies for ROS2 communication"
 cat <<EOF | kubectl apply -f -
@@ -464,9 +432,8 @@ kubectl get configmaps -n "${NAMESPACE}" -l tenant-id="${TENANT_ID}"
 
 log_success "ROS2 resources created successfully for tenant: ${TENANT_ID}"
 log_info "ROS2 Domain ID: $(kubectl get configmap ${TENANT_ID}-ros2-config -n ${NAMESPACE} -o jsonpath='{.data.ros2_domain_id}')"
-log_info "VPN IP Range: ${TENANT_VPN_IP}"
-log_info "VPN Port: ${TENANT_VPN_PORT}"
 log_info "MQTT Topic Prefix: nekazari/${TENANT_ID}"
+log_info "Network access: provision devices via Device Management (Headscale SDN)"
 
 # Create ROS2 cleanup script
 log_info "Creating ROS2 cleanup script for tenant: ${TENANT_ID}"
@@ -482,7 +449,6 @@ kubectl delete deployment ${TENANT_ID}-ros2-bridge -n ${NAMESPACE} --ignore-not-
 kubectl delete deployment ${TENANT_ID}-robot-simulator -n ${NAMESPACE} --ignore-not-found=true
 kubectl delete service ${TENANT_ID}-ros2-bridge-service -n ${NAMESPACE} --ignore-not-found=true
 kubectl delete configmap ${TENANT_ID}-ros2-config -n ${NAMESPACE} --ignore-not-found=true
-kubectl delete configmap ${TENANT_ID}-vpn-config -n ${NAMESPACE} --ignore-not-found=true
 kubectl delete networkpolicy ros2-communication -n ${NAMESPACE} --ignore-not-found=true
 rm -f "${PROJECT_ROOT}/scripts/cleanup-ros2-${TENANT_ID}.sh"
 echo "ROS2 cleanup completed for tenant: ${TENANT_ID}"

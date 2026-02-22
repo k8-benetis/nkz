@@ -100,13 +100,9 @@ except ImportError:
 
 app = Flask(__name__)
 
-# Configure CORS - EXACT same config as api-gateway (which works)
-CORS(app, origins=[
-    "https://nekazari.robotika.cloud",
-    "https://*.vercel.app",  # All Vercel preview deployments
-    "http://localhost:3000",  # Local development
-    "http://localhost:5173",  # Vite dev server
-], supports_credentials=True, allow_headers=["Content-Type", "Authorization", "X-Tenant-ID", "x-tenant-id"])
+# Configure CORS — origins configured via CORS_ORIGINS env var (comma-separated)
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
+CORS(app, origins=_cors_origins, supports_credentials=True, allow_headers=["Content-Type", "Authorization", "X-Tenant-ID", "x-tenant-id"])
 
 # =============================================================================
 # Authentication decorators
@@ -254,11 +250,11 @@ try:
     GRAFANA_PUBLIC_URL = ConfigManager.get_grafana_public_url()
 except ImportError:
     # Fallback if config_manager not available
-    PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')
-    PLATFORM_EMAIL = os.getenv('ADMIN_EMAIL') or os.getenv('SMTP_FROM_EMAIL', 'nekazari@robotika.cloud')
-    FRONTEND_URL = os.getenv('FRONTEND_URL', f'https://{PRODUCTION_DOMAIN}').rstrip('/')
-    KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/auth').rstrip('/')
-    GRAFANA_PUBLIC_URL = os.getenv('GRAFANA_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/grafana').rstrip('/')
+    PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', '')
+    PLATFORM_EMAIL = os.getenv('ADMIN_EMAIL') or os.getenv('SMTP_FROM_EMAIL', '')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', f'https://{PRODUCTION_DOMAIN}' if PRODUCTION_DOMAIN else '').rstrip('/')
+    KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/auth' if PRODUCTION_DOMAIN else '').rstrip('/')
+    GRAFANA_PUBLIC_URL = os.getenv('GRAFANA_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/grafana' if PRODUCTION_DOMAIN else '').rstrip('/')
 DEFAULT_TENANT_ROLES: List[str] = [
     # Roles should be assigned to specific users, not the entire tenant group
     # 'PlatformAdmin',  # CRITICAL: Do not assign PlatformAdmin to tenant group
@@ -1577,12 +1573,7 @@ def woocommerce_webhook():
 
 @app.route('/admin/generate-code', methods=['POST', 'OPTIONS'])
 @app.route('/webhook/admin/generate-code', methods=['POST', 'OPTIONS'])
-@cross_origin(origins=[
-    "https://nekazari.robotika.cloud",
-    "https://*.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-], supports_credentials=True)
+@cross_origin(origins=_cors_origins, supports_credentials=True)
 @require_platform_admin
 def generate_activation_code():
     """Generate activation code directly (admin use, without WooCommerce)"""

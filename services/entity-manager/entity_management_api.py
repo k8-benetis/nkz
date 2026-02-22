@@ -149,12 +149,8 @@ if AUDIT_MIDDLEWARE_AVAILABLE:
 
 # Configure CORS to allow requests from frontend
 # CORS must be configured before routes to handle OPTIONS preflight
-ALLOWED_ORIGINS = {
-    "https://nekazari.robotika.cloud",
-    "https://nkz.robotika.cloud",
-    "http://localhost:3000",
-    "http://localhost:5173",
-}
+_cors_env = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
+ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(',') if o.strip()}
 
 @app.route('/api/weather/<path:subpath>', methods=['OPTIONS'])
 def weather_cors_preflight(subpath):
@@ -310,9 +306,9 @@ try:
         CONTEXT_URL = f'https://{domain}/ngsi-ld-context.json'
 except ImportError:
     # Fallback if config_manager not available
-    PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')
-    KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/auth').rstrip('/')
-    CONTEXT_URL = os.getenv('CONTEXT_URL', f'https://{PRODUCTION_DOMAIN}/ngsi-ld-context.json')
+    PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', '')
+    KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/auth' if PRODUCTION_DOMAIN else '').rstrip('/')
+    CONTEXT_URL = os.getenv('CONTEXT_URL', f'https://{PRODUCTION_DOMAIN}/ngsi-ld-context.json' if PRODUCTION_DOMAIN else '')
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 GRAFANA_OAUTH_CLIENT_ID = os.getenv('GRAFANA_OAUTH_CLIENT_ID', 'nekazari-frontend')
 # MQTT Configuration for device commands
@@ -3411,241 +3407,9 @@ def get_device_commands(device_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
-@app.route('/api/vpn/config', methods=['GET'])
-@require_auth
-def get_vpn_config():
-    """Obtiene la configuración VPN del tenant actual"""
-    try:
-        tenant_id = g.tenant
-        if not tenant_id:
-            return jsonify({'error': 'Tenant not found'}), 401
-        
-        # Obtener configuración VPN desde Kubernetes ConfigMap
-        namespace = f"nekazari-{tenant_id}"
-        configmap_name = f"{tenant_id}-ros2-config"
-        
-        vpn_config = {
-            'tenant_id': tenant_id,
-            'configured': False,
-            'vpn_ip_range': None,
-            'vpn_port': None,
-            'server_endpoint': ConfigManager.get_vpn_server_endpoint() if _config_manager_available else os.getenv('VPN_SERVER_ENDPOINT', f"{os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')}:51820"),
-            'server_ip': '10.8.0.1',
-            'subnet': '10.8.0.0/24',
-            'instructions': []
-        }
-        
-        try:
-            # Intentar leer ConfigMap desde Kubernetes
-            # Usar kubectl como fallback si no hay cliente de Kubernetes
-            result = subprocess.run(
-                [
-                    'kubectl', 'get', 'configmap', configmap_name,
-                    '-n', namespace,
-                    '-o', 'json'
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if result.returncode == 0:
-                configmap_data = json.loads(result.stdout)
-                data = configmap_data.get('data', {})
-                
-                vpn_config['configured'] = True
-                vpn_config['vpn_ip_range'] = data.get('vpn_ip_range', '10.8.0.0/24')
-                vpn_config['vpn_port'] = data.get('vpn_port', '51820')
-                
-                # Calcular IP base del tenant (si está en formato 10.8.0.X)
-                if 'vpn_ip_range' in data:
-                    ip_range = data['vpn_ip_range']
-                    # Extraer IP base si está en formato CIDR
-                    if '/' in ip_range:
-                        base_ip = ip_range.split('/')[0]
-                        vpn_config['tenant_base_ip'] = base_ip
-                    else:
-                        vpn_config['tenant_base_ip'] = ip_range
-                
-                # Obtener información adicional del ConfigMap VPN
-                vpn_configmap_name = f"{tenant_id}-vpn-config"
-                vpn_result = subprocess.run(
-                    [
-                        'kubectl', 'get', 'configmap', vpn_configmap_name,
-                        '-n', namespace,
-                        '-o', 'json'
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                
-                if vpn_result.returncode == 0:
-                    vpn_configmap_data = json.loads(vpn_result.stdout)
-                    vpn_data = vpn_configmap_data.get('data', {})
-                    if 'vpn.conf' in vpn_data:
-                        vpn_config['has_wireguard_config'] = True
-                
-        except subprocess.TimeoutExpired:
-            logger.warning(f"Timeout reading VPN config for tenant {tenant_id}")
-        except FileNotFoundError:
-            logger.warning("kubectl not found, VPN config may not be available")
-        except Exception as e:
-            logger.warning(f"Error reading VPN config: {e}")
-        
-        # Generar instrucciones de uso
-        if vpn_config['configured']:
-            vpn_config['instructions'] = [
-                {
-                    'step': 1,
-                    'title': 'Instalar WireGuard',
-                    'description': 'Instala WireGuard en tu dispositivo/robot',
-                    'command': 'sudo apt update && sudo apt install wireguard-tools'
-                },
-                {
-                    'step': 2,
-                    'title': 'Generar configuración',
-                    'description': 'Contacta con el administrador para obtener tu archivo de configuración VPN',
-                    'command': None
-                },
-                {
-                    'step': 3,
-                    'title': 'Configurar WireGuard',
-                    'description': f'Copia la configuración a /etc/wireguard/{tenant_id}.conf',
-                    'command': f'sudo nano /etc/wireguard/{tenant_id}.conf'
-                },
-                {
-                    'step': 4,
-                    'title': 'Activar VPN',
-                    'description': 'Activa la conexión VPN',
-                    'command': f'sudo wg-quick up {tenant_id}'
-                },
-                {
-                    'step': 5,
-                    'title': 'Habilitar al inicio',
-                    'description': 'Configura WireGuard para iniciar automáticamente',
-                    'command': f'sudo systemctl enable wg-quick@{tenant_id}'
-                }
-            ]
-        
-        return jsonify(vpn_config), 200
-    
-    except Exception as e:
-        logger.error(f"Error getting VPN config: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-
-@app.route('/api/vpn/generate-client-config', methods=['POST'])
-@require_auth
-def generate_vpn_client_config():
-    """Genera configuración VPN para un nuevo cliente (robot/sensor)"""
-    try:
-        tenant_id = g.tenant
-        if not tenant_id:
-            return jsonify({'error': 'Tenant not found'}), 401
-        
-        data = request.get_json() or {}
-        client_name = data.get('client_name', f'{tenant_id}_device_001')
-        client_ip_number = data.get('ip_number', None)  # Opcional: número IP específico
-        
-        # Obtener configuración VPN del tenant
-        namespace = f"nekazari-{tenant_id}"
-        
-        # Leer configuración del servidor VPN
-        try:
-            # Obtener clave pública del servidor desde el secret de WireGuard
-            server_key_result = subprocess.run(
-                [
-                    'kubectl', 'get', 'secret', 'wireguard-keys',
-                    '-n', 'nekazari-vpn',
-                    '-o', 'jsonpath={.data.public-key}'
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            server_public_key = None
-            if server_key_result.returncode == 0:
-                import base64
-                server_public_key = base64.b64decode(server_key_result.stdout).decode('utf-8').strip()
-            
-            # Generar claves del cliente
-            private_key_result = subprocess.run(
-                ['wg', 'genkey'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if private_key_result.returncode != 0:
-                return jsonify({'error': 'Failed to generate WireGuard keys'}), 500
-            
-            client_private_key = private_key_result.stdout.strip()
-            
-            public_key_result = subprocess.run(
-                ['wg', 'pubkey'],
-                input=client_private_key,
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if public_key_result.returncode != 0:
-                return jsonify({'error': 'Failed to generate public key'}), 500
-            
-            client_public_key = public_key_result.stdout.strip()
-            
-            # Calcular IP del cliente
-            if not client_ip_number:
-                # Obtener último IP usado o calcular basado en tenant
-                tenant_num = tenant_id.replace('tenant', '').replace('tenant-', '')
-                try:
-                    tenant_num_int = int(tenant_num) if tenant_num.isdigit() else hash(tenant_id) % 100
-                except:
-                    tenant_num_int = hash(tenant_id) % 100
-                client_ip_number = 10 + (tenant_num_int % 240)  # Rango 10-250
-            
-            client_ip = f"10.8.0.{client_ip_number}"
-            server_endpoint = ConfigManager.get_vpn_server_endpoint() if _config_manager_available else os.getenv('VPN_SERVER_ENDPOINT', f"{os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')}:51820")
-            
-            # Generar configuración del cliente
-            client_config = f"""[Interface]
-PrivateKey = {client_private_key}
-Address = {client_ip}/24
-DNS = 10.8.0.1
-
-[Peer]
-PublicKey = {server_public_key or 'SERVER_PUBLIC_KEY_HERE'}
-Endpoint = {server_endpoint}
-AllowedIPs = 10.8.0.0/24, 10.43.0.0/16
-PersistentKeepalive = 25"""
-            
-            return jsonify({
-                'success': True,
-                'client_name': client_name,
-                'client_ip': client_ip,
-                'client_public_key': client_public_key,
-                'config': client_config,
-                'instructions': {
-                    'save_to': f'/etc/wireguard/{tenant_id}.conf',
-                    'activate': f'sudo wg-quick up {tenant_id}',
-                    'enable': f'sudo systemctl enable wg-quick@{tenant_id}'
-                }
-            }), 200
-        
-        except FileNotFoundError:
-            return jsonify({
-                'error': 'WireGuard tools not available on server',
-                'message': 'Contact administrator to generate VPN configuration'
-            }), 503
-        except Exception as e:
-            logger.error(f"Error generating VPN client config: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    except Exception as e:
-        logger.error(f"Error in generate_vpn_client_config: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+# NOTE: WireGuard VPN endpoints removed (2026-02-21).
+# Network provisioning is now handled by nkz-network-controller (nkz-module-vpn).
+# Use POST /api/vpn/devices/claim for ZTP via Claim Code.
 
 
 # =============================================================================
@@ -4251,6 +4015,168 @@ def get_nearest_municipality():
     except Exception as e:
         logger.error(f"Error in get_nearest_municipality: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+
+def _resolve_urn_to_timeseries_entity_id(tenant_id: str, entity_id: str) -> tuple:
+    """
+    Resolve an NGSI-LD URN to (timeseries_entity_id, source).
+    Returns (id, source) for success, (None, 'not_found') for 404, (None, 'no_location') for 204.
+    source: 'municipality' | 'station' | 'passthrough' | 'not_found' | 'no_location'
+    """
+    if not entity_id or not isinstance(entity_id, str):
+        return (None, 'not_found')
+    entity_id = entity_id.strip()
+    # Passthrough: not a URN (no urn: prefix)
+    if not entity_id.lower().startswith('urn:'):
+        return (entity_id, 'passthrough')
+
+    headers = {'Accept': 'application/ld+json'}
+    headers = inject_fiware_headers(headers, tenant_id)
+
+    # Fetch entity from Orion
+    orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
+    try:
+        resp = requests.get(orion_url, headers=headers, timeout=10)
+    except Exception as e:
+        logger.warning(f"Orion request failed for {entity_id}: {e}")
+        return (None, 'not_found')
+    if resp.status_code == 404:
+        return (None, 'not_found')
+    if resp.status_code != 200:
+        logger.warning(f"Orion returned {resp.status_code} for {entity_id}")
+        return (None, 'not_found')
+
+    entity = resp.json()
+    etype = (entity.get('type') or '').strip()
+
+    # WeatherObserved: resolve refParcel -> parcel -> municipality_code
+    if etype == 'WeatherObserved':
+        ref_parcel = entity.get('refParcel')
+        if not ref_parcel:
+            return (None, 'no_location')
+        parcel_urn = ref_parcel.get('object') if isinstance(ref_parcel, dict) else ref_parcel
+        if not parcel_urn:
+            return (None, 'no_location')
+        parcel_urn = str(parcel_urn).strip()
+        parcel_resp = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{parcel_urn}",
+            headers=headers,
+            timeout=10,
+        )
+        if parcel_resp.status_code != 200:
+            return (None, 'no_location')
+        parcel_entity = parcel_resp.json()
+        res = _parcel_urn_to_municipality_code(tenant_id, parcel_urn, parcel_entity)
+        return (None, 'no_location') if res is None else res
+
+    # AgriParcel / Parcel / parcel-like: resolve by cadastral_parcels or Orion municipality
+    if etype in PARCEL_ENTITY_TYPES or 'parcel' in etype.lower():
+        res = _parcel_urn_to_municipality_code(tenant_id, entity_id, entity)
+        return (None, 'no_location') if res is None else res
+
+    return (None, 'no_location')
+
+
+def _parcel_urn_to_municipality_code(tenant_id: str, parcel_urn: str, parcel_entity: Optional[dict] = None) -> Optional[tuple]:
+    """
+    Resolve parcel URN to municipality_code (INE).
+    Tries: cadastral_parcels.id (UUID from URN) -> weather_location_id -> municipality_code;
+    else cadastral_parcels.municipality -> catalog_municipalities.ine_code.
+    """
+    import re
+    uuid_candidate = None
+    parts = parcel_urn.split(':')
+    if parts:
+        last = parts[-1].strip()
+        if re.match(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', last):
+            uuid_candidate = last
+        elif last.startswith('parcel-'):
+            uuid_candidate = last[7:].strip()
+            if not re.match(r'^[0-9a-fA-F-]{36}$', uuid_candidate):
+                uuid_candidate = None
+    if not uuid_candidate:
+        # Fallback: try to get municipality from Orion entity (address.addressLocality, etc.)
+        if parcel_entity:
+            addr = parcel_entity.get('address')
+            if isinstance(addr, dict) and 'value' in addr:
+                addr = addr['value']
+            if isinstance(addr, dict):
+                loc = addr.get('addressLocality') or addr.get('addressRegion') or ''
+                if isinstance(loc, str) and loc.strip():
+                    with get_db_connection_with_tenant(tenant_id) as conn:
+                        if conn:
+                            try:
+                                cur = conn.cursor(cursor_factory=RealDictCursor)
+                                cur.execute("""
+                                    SELECT ine_code FROM catalog_municipalities
+                                    WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
+                                    LIMIT 1
+                                """, (loc.strip(),))
+                                row = cur.fetchone()
+                                cur.close()
+                                if row:
+                                    return (row['ine_code'], 'municipality')
+                            except Exception as e:
+                                logger.debug(f"Catalog lookup for municipality name failed: {e}")
+        return None
+
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        if not conn:
+            return None
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # Prefer weather_location_id -> tenant_weather_locations.municipality_code
+            cur.execute("""
+                SELECT twl.municipality_code
+                FROM cadastral_parcels cp
+                LEFT JOIN tenant_weather_locations twl ON twl.id = cp.weather_location_id
+                WHERE cp.id = %s::uuid AND cp.tenant_id = %s
+                LIMIT 1
+            """, (uuid_candidate, tenant_id))
+            row = cur.fetchone()
+            if row and row.get('municipality_code'):
+                cur.close()
+                return (row['municipality_code'], 'municipality')
+            # Fallback: parcel municipality (name) -> catalog_municipalities.ine_code
+            cur.execute("""
+                SELECT cm.ine_code
+                FROM cadastral_parcels cp
+                JOIN catalog_municipalities cm ON LOWER(TRIM(cm.name)) = LOWER(TRIM(cp.municipality))
+                WHERE cp.id = %s::uuid AND cp.tenant_id = %s
+                LIMIT 1
+            """, (uuid_candidate, tenant_id))
+            row = cur.fetchone()
+            cur.close()
+            if row and row.get('ine_code'):
+                return (row['ine_code'], 'municipality')
+        except Exception as e:
+            logger.debug(f"cadastral_parcels lookup failed for {uuid_candidate}: {e}")
+    return None
+
+
+@app.route('/api/entities/<path:entity_id>/timeseries-location', methods=['GET'])
+@require_auth(require_hmac=False)
+def get_entity_timeseries_location(entity_id):
+    """
+    Resolve an NGSI-LD entity URN (or raw id) to the timeseries entity id used by the platform.
+    Used by DataHub and other clients to query weather_observations by URN (e.g. WeatherObserved, AgriParcel).
+    Returns 200 + { timeseries_entity_id, source }, 204 when entity has no location, or 404 when not found.
+    """
+    if not entity_id or not entity_id.strip():
+        return jsonify({'error': 'entity_id is required'}), 400
+
+    tenant_id = g.tenant
+    timeseries_entity_id, source = _resolve_urn_to_timeseries_entity_id(tenant_id, entity_id.strip())
+
+    if timeseries_entity_id is None:
+        if source == 'not_found':
+            return jsonify({'error': 'Entity not found'}), 404
+        return '', 204
+
+    return jsonify({
+        'timeseries_entity_id': timeseries_entity_id,
+        'source': source,
+    }), 200
 
 
 @app.route('/api/weather/locations', methods=['POST'])
@@ -5179,43 +5105,9 @@ def get_parent_entities():
 
 
 # =============================================================================
-# Robot Provisioning (with WireGuard, ROS namespace, etc.)
+# Robot Provisioning (identity + NGSI-LD entity)
+# Network access (Headscale SDN) is handled by nkz-network-controller.
 # =============================================================================
-
-def _generate_wireguard_keys():
-    """Generate WireGuard key pair"""
-    try:
-        # Try to use wg command if available
-        private_key = subprocess.check_output(['wg', 'genkey'], stderr=subprocess.STDOUT).decode().strip()
-        public_key = subprocess.check_output(['wg', 'pubkey'], input=private_key.encode(), stderr=subprocess.STDOUT).decode().strip()
-        return private_key, public_key
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fallback: generate keys using Python (requires cryptography library)
-        try:
-            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-            from cryptography.hazmat.primitives import serialization
-            import base64
-            
-            private_key_obj = X25519PrivateKey.generate()
-            private_key_bytes = private_key_obj.private_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PrivateFormat.Raw,
-                encryption_algorithm=serialization.NoEncryption()
-            )
-            public_key_obj = private_key_obj.public_key()
-            public_key_bytes = public_key_obj.public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw
-            )
-            
-            # WireGuard uses base64 encoding
-            private_key = base64.b64encode(private_key_bytes).decode('ascii')
-            public_key = base64.b64encode(public_key_bytes).decode('ascii')
-            
-            return private_key, public_key
-        except ImportError:
-            logger.error("WireGuard key generation requires 'wg' command or 'cryptography' library")
-            raise ValueError("WireGuard key generation not available")
 
 
 def _get_next_robot_index(tenant_id: str) -> int:
@@ -5246,223 +5138,82 @@ def _get_next_robot_index(tenant_id: str) -> int:
         return 1
 
 
-def _calculate_vpn_ip(tenant_id: str, robot_index: int) -> str:
-    """Calculate VPN IP for robot based on tenant and index"""
-    # Simple algorithm: base IP + tenant hash + robot index
-    # Range: 10.8.0.10 - 10.8.0.250
-    base = 10
-    tenant_hash = hash(tenant_id) % 100  # 0-99
-    robot_offset = robot_index % 20  # 0-19
-    ip_last_octet = base + tenant_hash + robot_offset
-    
-    # Ensure within valid range
-    if ip_last_octet > 250:
-        ip_last_octet = 10 + (ip_last_octet % 240)
-    
-    return f"10.8.0.{ip_last_octet}"
-
-
 @app.route('/api/robots/provision', methods=['POST'])
 @require_auth
 def provision_robot():
     """
-    Provision a new robot with full identity:
-    - UUID persistent
-    - ROS_NAMESPACE
-    - WireGuard keys
-    - VPN IP
-    - Status: offline (will change to online when ROS2 Bridge detects telemetry)
+    Provision a new robot: creates NGSI-LD entity with UUID and ROS namespace.
+    Network access (Headscale SDN) is provisioned separately via nkz-module-vpn
+    using a hardware Claim Code printed on the device chassis.
     """
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         tenant_id = g.tenant
-        
-        # 1. Generate UUID persistent
+
+        # 1. Generate persistent UUID
         robot_uuid = str(uuid.uuid4())
-        
+
         # 2. Generate ROS_NAMESPACE
         robot_index = _get_next_robot_index(tenant_id)
         ros_namespace = f"/{tenant_id}/robot_{robot_index:03d}"
-        
-        # 3. Generate WireGuard keys
-        try:
-            private_key, public_key = _generate_wireguard_keys()
-        except Exception as e:
-            logger.error(f"Error generating WireGuard keys: {e}")
-            return jsonify({
-                'error': 'Failed to generate WireGuard keys',
-                'details': str(e)
-            }), 500
-        
-        # 4. Calculate VPN IP
-        vpn_ip = _calculate_vpn_ip(tenant_id, robot_index)
-        
-        # 5. Get WireGuard server info (from config or env)
-        server_endpoint = os.getenv('WIREGUARD_SERVER_ENDPOINT')
-        server_public_key = os.getenv('WIREGUARD_SERVER_PUBLIC_KEY', '')
-        
-        # 6. Build robot entity for Orion-LD
+
+        # 3. Build robot entity for Orion-LD
         robot_name = data.get('name', 'Robot')
         robot_location = data.get('location', {})
-        
+
         robot_entity = {
             'id': f"urn:ngsi-ld:AgriculturalRobot:{tenant_id}:{robot_uuid}",
             'type': 'AgriculturalRobot',
-            'name': {
-                'type': 'Property',
-                'value': robot_name
-            },
-            'status': {
-                'type': 'Property',
-                'value': 'offline'  # Initial status
-            },
-            'robotUUID': {
-                'type': 'Property',
-                'value': robot_uuid
-            },
-            'rosNamespace': {
-                'type': 'Property',
-                'value': ros_namespace
-            },
-            'vpnIp': {
-                'type': 'Property',
-                'value': vpn_ip
-            },
-            'wireguardPublicKey': {
-                'type': 'Property',
-                'value': public_key
-            },
+            'name': {'type': 'Property', 'value': robot_name},
+            'status': {'type': 'Property', 'value': 'offline'},
+            'robotUUID': {'type': 'Property', 'value': robot_uuid},
+            'rosNamespace': {'type': 'Property', 'value': ros_namespace},
             '@context': [CONTEXT_URL]
         }
-        
-        # Add location if provided
+
         if robot_location:
             robot_entity['location'] = robot_location
-        
-        # Add optional fields
-        if data.get('robotType'):
-            robot_entity['robotType'] = {
-                'type': 'Property',
-                'value': data['robotType']
-            }
-        if data.get('model'):
-            robot_entity['model'] = {
-                'type': 'Property',
-                'value': data['model']
-            }
-        if data.get('manufacturer'):
-            robot_entity['manufacturer'] = {
-                'type': 'Property',
-                'value': data['manufacturer']
-            }
-        if data.get('serialNumber'):
-            robot_entity['serialNumber'] = {
-                'type': 'Property',
-                'value': data['serialNumber']
-            }
-        if data.get('icon'):
-            robot_entity['icon'] = {
-                'type': 'Property',
-                'value': data['icon']
-            }
+
+        for field in ('robotType', 'model', 'manufacturer', 'serialNumber', 'icon'):
+            if data.get(field):
+                robot_entity[field] = {'type': 'Property', 'value': data[field]}
+
         if data.get('ref3DModel'):
-            robot_entity['ref3DModel'] = {
-                'type': 'Property',
-                'value': data['ref3DModel']
-            }
-            if data.get('modelScale'):
-                robot_entity['modelScale'] = {
-                    'type': 'Property',
-                    'value': data['modelScale']
-                }
-            if data.get('modelRotation'):
-                robot_entity['modelRotation'] = {
-                    'type': 'Property',
-                    'value': data['modelRotation']
-                }
-        
-        # 7. Create in Orion-LD
+            robot_entity['ref3DModel'] = {'type': 'Property', 'value': data['ref3DModel']}
+            for sub in ('modelScale', 'modelRotation'):
+                if data.get(sub):
+                    robot_entity[sub] = {'type': 'Property', 'value': data[sub]}
+
+        # 4. Create in Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        headers = {
-            'Content-Type': 'application/ld+json'
-        }
-        headers = inject_fiware_headers(headers, tenant_id)
-        
+        headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant_id)
         response = requests.post(orion_url, json=robot_entity, headers=headers, timeout=10)
-        
-        if response.status_code not in [201, 409]:  # 409 = already exists
+
+        if response.status_code not in [201, 409]:
             logger.error(f"Failed to create robot in Orion: {response.status_code} - {response.text}")
-            return jsonify({
-                'error': 'Failed to create robot in Orion-LD',
-                'details': response.text
-            }), 500
-        
-        # 8. Save credentials in DB (encrypted) for recovery
-        # Note: In production, encrypt private_key before storing
-        if POSTGRES_URL:
-            try:
-                conn = get_db_connection_with_tenant(tenant_id)
-                if conn:
-                    try:
-                        cur = conn.cursor()
-                        # Create table if not exists
-                        cur.execute("""
-                            CREATE TABLE IF NOT EXISTS robot_credentials (
-                                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                                tenant_id TEXT NOT NULL,
-                                robot_uuid TEXT NOT NULL UNIQUE,
-                                ros_namespace TEXT NOT NULL,
-                                vpn_ip TEXT NOT NULL,
-                                wireguard_private_key TEXT NOT NULL,
-                                wireguard_public_key TEXT NOT NULL,
-                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                UNIQUE(tenant_id, robot_uuid)
-                            )
-                        """)
-                        # Insert credentials
-                        cur.execute("""
-                            INSERT INTO robot_credentials 
-                            (tenant_id, robot_uuid, ros_namespace, vpn_ip, wireguard_private_key, wireguard_public_key)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (robot_uuid) DO NOTHING
-                        """, (tenant_id, robot_uuid, ros_namespace, vpn_ip, private_key, public_key))
-                        conn.commit()
-                        cur.close()
-                    finally:
-                        return_db_connection(conn)
-            except Exception as e:
-                logger.warning(f"Could not save robot credentials to DB: {e}")
-        
-        # 9. Log the operation
+            return jsonify({'error': 'Failed to create robot in Orion-LD', 'details': response.text}), 500
+
+        # 5. Log operation
         log_entity_operation('create', robot_entity['id'], 'AgriculturalRobot', tenant_id, g.farmer_id, {
             'robot_uuid': robot_uuid,
             'ros_namespace': ros_namespace
         })
-        
-        # 10. Return robot entity and credentials (private key shown only once)
+
         return jsonify({
             'robot': robot_entity,
             'credentials': {
                 'robot_uuid': robot_uuid,
                 'ros_namespace': ros_namespace,
-                'vpn_ip': vpn_ip,
-                'wireguard_private_key': private_key,  # ⚠️ Show only once
-                'wireguard_public_key': public_key,
-                'server_endpoint': server_endpoint,
-                'server_public_key': server_public_key
             },
-            'warning': 'Save these credentials securely. The private key will not be shown again.'
+            'info': 'Network access (Headscale SDN) is provisioned via the Device Management module using the Claim Code on the device chassis.'
         }), 201
-        
+
     except Exception as e:
         logger.error(f"Error provisioning robot: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'details': str(e)
-        }), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 
 # =============================================================================

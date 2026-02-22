@@ -211,7 +211,7 @@ class ConfigManager:
     @staticmethod
     def get_production_domain() -> str:
         """Get production domain from environment"""
-        return os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')
+        return os.getenv('PRODUCTION_DOMAIN', '')
     
     @staticmethod
     def get_frontend_url() -> str:
@@ -243,7 +243,7 @@ class ConfigManager:
     @staticmethod
     def get_platform_email() -> str:
         """Get platform admin email (uses ADMIN_EMAIL or SMTP_FROM_EMAIL as fallback)"""
-        return os.getenv('ADMIN_EMAIL') or os.getenv('SMTP_FROM_EMAIL', 'nekazari@robotika.cloud')
+        return os.getenv('ADMIN_EMAIL') or os.getenv('SMTP_FROM_EMAIL', '')
     
     @staticmethod
     def get_vpn_server_endpoint() -> str:

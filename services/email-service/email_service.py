@@ -60,10 +60,7 @@ class EmailConfig:
             self.frontend_url = ConfigManager.get_frontend_url()
         except ImportError:
             # Fallback if config_manager not available
-            PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', 'nekazari.robotika.cloud')
             self.frontend_url = os.getenv('FRONTEND_URL', '').rstrip('/')
-            if not self.frontend_url:
-                self.frontend_url = f'https://{PRODUCTION_DOMAIN}'
         self.keycloak_url = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080')
         
         # Validar configuración crítica

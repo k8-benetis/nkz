@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]
     
     # Keycloak / JWT Authentication
-    keycloak_url: str = "https://auth.robotika.cloud/auth"
+    keycloak_url: str = "http://keycloak:8080/auth"
     keycloak_realm: str = "nekazari"
     jwt_audience: str = "account"
     jwt_issuer: str = ""  # Auto-derived from keycloak_url + realm if empty

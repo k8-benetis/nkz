@@ -61,7 +61,7 @@ export default defineConfig({
     proxy: {
       // Proxy to production API for development
       '/api': {
-        target: 'https://nkz.robotika.cloud',
+        target: process.env.VITE_DEV_API_TARGET || 'http://localhost:8000',
         changeOrigin: true,
         secure: true,
       },

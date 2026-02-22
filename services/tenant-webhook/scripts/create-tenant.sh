@@ -11,6 +11,13 @@ set -euo pipefail
 TENANT_ID="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Deployment domain — must be set in the environment before running this script
+PRODUCTION_DOMAIN="${PRODUCTION_DOMAIN:-}"
+if [[ -z "${PRODUCTION_DOMAIN}" ]]; then
+    echo "ERROR: PRODUCTION_DOMAIN environment variable is required." >&2
+    echo "  export PRODUCTION_DOMAIN=nkz.example.com" >&2
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -234,7 +241,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: ${TENANT_ID}.nekazari.robotika.cloud
+  - host: ${TENANT_ID}.${PRODUCTION_DOMAIN}
     http:
       paths:
       - path: /
@@ -395,7 +402,7 @@ data:
   nginx.conf: |
     server {
         listen 80;
-        server_name ${TENANT_ID}.nekazari.robotika.cloud;
+        server_name ${TENANT_ID}.${PRODUCTION_DOMAIN};
         
         location / {
             return 200 'Tenant ${TENANT_ID} - Coming Soon';
@@ -413,7 +420,7 @@ kubectl get networkpolicies -n "${NAMESPACE}"
 
 log_success "Tenant ${TENANT_ID} created successfully!"
 log_info "Namespace: ${NAMESPACE}"
-log_info "Access URL: https://${TENANT_ID}.nekazari.robotika.cloud"
+log_info "Access URL: https://${TENANT_ID}.${PRODUCTION_DOMAIN}"
 log_info "Service Account: ${TENANT_ID}-sa"
 log_info "Secrets: ${TENANT_ID}-secrets"
 

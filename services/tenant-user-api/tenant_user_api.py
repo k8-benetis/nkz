@@ -23,12 +23,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=[
-    "https://nekazari.robotika.cloud",
-    "https://*.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-], supports_credentials=True)
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
+CORS(app, origins=_cors_origins, supports_credentials=True)
 
 # Configuration from environment
 KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080')
