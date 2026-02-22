@@ -18,7 +18,7 @@ metadata:
     module: intelligence
     nekazari.io/profile: addon
 spec:
-  replicas: 2
+  replicas: 1  # single-node cluster; increase when CPU headroom allows
   selector:
     matchLabels:
       app: intelligence-backend
@@ -91,13 +91,12 @@ spec:
             - name: CORS_ORIGINS
               value: '["https://nekazari.robotika.cloud"]'
           resources:
-            # Higher limits for Data Science workloads
             requests:
-              memory: "512Mi"
-              cpu: "250m"
+              memory: "256Mi"
+              cpu: "100m"
             limits:
-              memory: "2Gi"
-              cpu: "2000m"
+              memory: "1Gi"
+              cpu: "1000m"
           livenessProbe:
             httpGet:
               path: /health
