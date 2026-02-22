@@ -7,3 +7,6 @@ metadata:
   namespace: nekazari
 data:
   PLATFORM_API_URL: "https://nkz.robotika.cloud"
+  # Vegetation-Health timeseries adapter.
+  # Source "vegetation_health" (underscore) → matches this env var pattern in the BFF.
+  TIMESERIES_ADAPTER_VEGETATION_HEALTH_URL: "http://vegetation-health-service:8000"

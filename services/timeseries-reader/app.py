@@ -251,6 +251,45 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 
+@app.route('/api/timeseries/entities', methods=['GET'])
+@require_auth
+def list_timeseries_entities():
+    """
+    List entity IDs that have timeseries data (weather_observations.station_id and municipality_code).
+    Used by DataHub and other clients to show which "entities" can be queried for temp_avg, humidity_avg, etc.
+    Returns: { "entities": [ { "id": "<station_id or municipality_code>", "name": "<label>", "attributes": [...] } ] }
+    """
+    tenant_id = get_tenant_from_request()
+    if not tenant_id:
+        return jsonify({'error': 'Tenant ID required'}), 400
+    attributes_list = sorted(VALID_ATTRIBUTES)
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            except Exception:
+                pass
+            cursor.execute("""
+                SELECT DISTINCT station_id AS id FROM weather_observations
+                WHERE tenant_id = %s AND station_id IS NOT NULL AND station_id != ''
+                UNION
+                SELECT DISTINCT municipality_code AS id FROM weather_observations
+                WHERE tenant_id = %s AND municipality_code IS NOT NULL AND municipality_code != ''
+                ORDER BY id
+            """, (tenant_id, tenant_id))
+            rows = cursor.fetchall()
+            cursor.close()
+        entities = [
+            {"id": str(r["id"]), "name": str(r["id"]), "attributes": attributes_list, "source": "timescale"}
+            for r in rows
+        ]
+        return jsonify({"entities": entities})
+    except Exception as e:
+        logger.error(f"Error listing timeseries entities: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/timeseries/entities/<entity_id>/data', methods=['GET'])
 @require_auth
 def get_entity_timeseries(entity_id: str):
