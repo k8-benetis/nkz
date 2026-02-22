@@ -266,14 +266,14 @@ def create_weather_observed_entity(
                 'unitCode': 'CEL'
             }
         
-        # Prepare headers
+        # Prepare headers — no Link header: context is embedded inline in the body
+        # (application/ld+json + Link is not allowed by the NGSI-LD spec)
         headers = {
             'Content-Type': 'application/ld+json',
             'Fiware-Service': tenant_id,
             'Fiware-ServicePath': '/',
-            'Link': f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
         }
-        
+
         # Try to create entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         response = requests.post(orion_url, json=entity, headers=headers, timeout=10)
@@ -408,8 +408,8 @@ def update_weather_observed_entity(
         headers['Content-Type'] = 'application/ld+json'
         headers['Fiware-Service'] = tenant_id
         headers['Fiware-ServicePath'] = '/'
-        headers['Link'] = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-        
+        # no Link header: context is embedded in the entity body (ld+json spec)
+
         # Update entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
         response = requests.patch(orion_url, json=update_payload, headers=headers, timeout=10)
