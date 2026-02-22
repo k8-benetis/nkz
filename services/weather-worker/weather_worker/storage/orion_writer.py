@@ -319,8 +319,9 @@ def update_weather_observed_entity(
         if observed_at is None:
             observed_at = datetime.utcnow()
         
-        # Build update payload (only changed attributes)
+        # Build update payload — @context required for application/ld+json
         update_payload = {
+            '@context': [CONTEXT_URL] if CONTEXT_URL else [],
             'dateObserved': {
                 'type': 'Property',
                 'value': {
