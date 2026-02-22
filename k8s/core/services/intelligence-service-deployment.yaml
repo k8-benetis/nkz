@@ -84,6 +84,12 @@ spec:
               value: "nekazari"
             - name: JWT_AUDIENCE
               value: "account"
+            # Platform integration — metadata-only predict fetches historical data internally
+            - name: TIMESERIES_READER_URL
+              value: "http://timeseries-reader-service:5000"
+            # CORS — explicit origin whitelist (never *)
+            - name: CORS_ORIGINS
+              value: '["https://nekazari.robotika.cloud"]'
           resources:
             # Higher limits for Data Science workloads
             requests:
