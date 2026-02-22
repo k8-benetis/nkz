@@ -1,0 +1,124 @@
+# =============================================================================
+# Headscale — ConfigMap de configuración y política ACL
+# =============================================================================
+# Headscale es el plano de control open-source para redes Tailscale/WireGuard.
+# Gestiona: peers, Pre-Auth Keys, rutas de subred y políticas ACL.
+#
+# Estado: PostgreSQL (DB 'headscale' en timescaledb-service).
+# Control plane: https://vpn.nkz.robotika.cloud (via Traefik ingress).
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-config
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: config
+data:
+  config.yaml: |
+    # URL pública del servidor — los clientes Tailscale se registran aquí
+    server_url: https://vpn.nkz.robotika.cloud
+
+    # Escucha interna del control plane (HTTP/gRPC)
+    listen_addr: 0.0.0.0:8080
+    grpc_listen_addr: 0.0.0.0:50443
+    grpc_allow_insecure: false
+
+    # Métricas Prometheus
+    metrics_listen_addr: 0.0.0.0:9090
+
+    # Base de datos: PostgreSQL existente del cluster
+    database:
+      type: postgres
+      postgres:
+        host: timescaledb-service
+        port: 5432
+        name: headscale
+        user: headscale
+        # password: inyectada como env var HEADSCALE_DATABASE_POSTGRES_PASSWORD
+        max_open_conns: 10
+        max_idle_conns: 5
+        conn_max_idle_time_secs: 3600
+
+    # Claves privadas del servidor (generadas en primer arranque)
+    # Almacenadas en el Secret 'headscale-keys' montado como volumen
+    private_key_path: /var/lib/headscale/private.key
+    noise:
+      private_key_path: /var/lib/headscale/noise_private.key
+
+    # Rango de IPs de la red SDN Tailscale
+    prefixes:
+      v4: 100.64.0.0/10
+      allocation: sequential
+
+    # DERP: servidores de relay para NAT traversal
+    # Usamos los servidores públicos de Tailscale como fallback.
+    # El tráfico directo (UDP 51820) es preferido siempre.
+    derp:
+      server:
+        enabled: false
+      urls:
+        - https://controlplane.tailscale.com/derpmap/default
+      auto_update_enabled: true
+      update_frequency: 24h
+
+    # Política ACL: archivo separado montado en /etc/headscale/acls.hujson
+    acls_policy_path: /etc/headscale/acls.hujson
+
+    # DNS
+    dns:
+      magic_dns: false
+      base_domain: sdn.nekazari.internal
+
+    # Timeouts
+    ephemeral_node_inactivity_timeout: 30m
+    node_update_check_interval: 10s
+
+    log:
+      level: info
+      format: text
+
+    disable_check_updates: true
+
+  # =============================================================================
+  # Política ACL (huJSON) — Zero Trust
+  # =============================================================================
+  # Filosofía: denegación por defecto.
+  # Los peers (robots, gateways) SOLO pueden alcanzar los servicios del cluster
+  # explícitamente permitidos. No hay comunicación peer-to-peer directa.
+  #
+  # El K8s node actúa como subnet router anunciando 10.43.0.0/16 (ClusterIPs).
+  # Las NetworkPolicies de K8s añaden una segunda capa de defensa dentro del
+  # cluster (defensa en profundidad).
+  #
+  # Cuando nkz-network-controller esté operativo, este archivo se ampliará
+  # con grupos por tenant para aislamiento intra-tenant en L3.
+  # =============================================================================
+  acls.hujson: |
+    {
+      // Los peers de campo (robots, gateways) tienen el tag 'tag:field-device'
+      // El subnet router del cluster tiene el tag 'tag:cluster-router'
+      "tagOwners": {
+        "tag:field-device":  ["autogroup:admin"],
+        "tag:cluster-router": ["autogroup:admin"]
+      },
+
+      "acls": [
+        // Dispositivos de campo → Zenoh router (teleoperation, telemetry)
+        {
+          "action": "accept",
+          "src":    ["tag:field-device"],
+          "dst":    ["tag:cluster-router:7447"]
+        },
+        // Dispositivos de campo → MQTT broker (management plane, slow data)
+        {
+          "action": "accept",
+          "src":    ["tag:field-device"],
+          "dst":    ["tag:cluster-router:1883"]
+        }
+        // Todo lo demás: denegado implícitamente (no hay catch-all accept).
+      ]
+    }

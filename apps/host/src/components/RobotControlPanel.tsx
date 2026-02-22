@@ -37,8 +37,6 @@ export const RobotControlPanel: React.FC<RobotControlPanelProps> = ({
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
 
-  // New states for simulation buttons
-  const [loadingVPN, setLoadingVPN] = useState(false);
   const [loadingROS, setLoadingROS] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -126,22 +124,15 @@ export const RobotControlPanel: React.FC<RobotControlPanelProps> = ({
           )}
 
           <div className="mb-6">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Conexión Remota (Simulación)</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Conexión Remota</h4>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  setLoadingVPN(true);
-                  setTimeout(() => {
-                    setLoadingVPN(false);
-                    showToastMsg('VPN Conectada (10.8.0.5)');
-                  }, 2000);
-                }}
-                disabled={loadingVPN}
-                className="bg-purple-600 text-white py-3 rounded-xl hover:bg-purple-700 transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+              <a
+                href="/devices"
+                className="bg-sky-600 text-white py-3 rounded-xl hover:bg-sky-700 transition flex items-center justify-center gap-2 shadow-sm text-sm font-medium"
               >
-                {loadingVPN ? <Loader className="w-5 h-5 animate-spin" /> : <Network className="w-5 h-5" />}
-                <span className="text-sm font-medium">{loadingVPN ? 'Conectando...' : 'Iniciar VPN'}</span>
-              </button>
+                <Network className="w-5 h-5" />
+                <span>Device SDN</span>
+              </a>
               <button
                 onClick={() => {
                   setLoadingROS(true);

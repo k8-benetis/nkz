@@ -1873,7 +1873,7 @@ class ApiService {
   }
 
   // =============================================================================
-  // Robot Provisioning (with WireGuard keys, ROS namespace, etc.)
+  // Robot Provisioning (UUID + ROS namespace; network via nkz-module-vpn Claim Code)
   // =============================================================================
 
   async provisionRobot(robotData: {
@@ -1889,12 +1889,8 @@ class ApiService {
     credentials: {
       robot_uuid: string;
       ros_namespace: string;
-      vpn_ip: string;
-      wireguard_private_key: string;
-      wireguard_public_key: string;
-      server_endpoint: string;
-      server_public_key: string;
     };
+    info?: string;
   }> {
     const response = await this.client.post('/entity-manager/api/robots/provision', robotData);
     return response.data;

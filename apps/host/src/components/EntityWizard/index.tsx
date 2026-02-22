@@ -4,7 +4,7 @@
  * Features:
  * - 5-step wizard for creating any SDM entity type
  * - Parent-child hierarchy support with geo-fencing validation
- * - Robot provisioning with WireGuard keys and ROS namespace
+ * - Robot provisioning with UUID and ROS namespace (network via nkz-module-vpn)
  * - Vercel Blob integration for icons and 3D models
  * - Dynamic forms based on SDM schemas
  */
@@ -1412,8 +1412,7 @@ export const EntityWizard: React.FC<EntityWizardProps> = ({ isOpen, onClose, onS
         {entityType === 'AgriculturalRobot' && (
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
-              <strong>Nota:</strong> Al crear el robot, recibirás las credenciales WireGuard para la conexión VPN.
-              Guárdalas de forma segura.
+              <strong>Nota:</strong> Tras crear el robot, ve a <a href="/devices" className="underline font-medium">Device Management</a> para activar su acceso a la red SDN con el Claim Code del chasis.
             </p>
           </div>
         )}

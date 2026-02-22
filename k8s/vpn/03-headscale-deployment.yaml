@@ -1,0 +1,204 @@
+# =============================================================================
+# Headscale — Deployment, Services e Ingress
+# =============================================================================
+# PRE-REQUISITOS (ver README.md):
+#   1. Secret 'headscale-db-secret' con credenciales PostgreSQL
+#   2. Secret 'headscale-keys' (vacío en primer deploy — Headscale lo rellena)
+#   3. DB 'headscale' y user 'headscale' creados en PostgreSQL
+#   4. ConfigMap 'headscale-config' aplicado (02-headscale-config.yaml)
+# =============================================================================
+
+---
+# Secret plantilla para credenciales de BD.
+# CREAR MANUALMENTE — no commitear valores reales:
+#
+#   kubectl create secret generic headscale-db-secret \
+#     --from-literal=db-password="$(openssl rand -base64 32)" \
+#     -n nekazari
+apiVersion: v1
+kind: Secret
+metadata:
+  name: headscale-db-secret
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: secrets
+type: Opaque
+data:
+  db-password: PLACEHOLDER_BASE64  # Sustituir antes de aplicar
+
+---
+# PVC para las claves privadas de Headscale (solo ~2KB, no es "estado de red").
+# Headscale las genera en primer arranque. Sin este PVC, cada restart regenera
+# claves nuevas e invalida todos los peers registrados.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: headscale-keys-pvc
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: keys
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Mi
+  storageClassName: local-path
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headscale
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: vpn-control-plane
+    layer: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headscale
+  strategy:
+    type: Recreate  # No rolling update: una sola instancia gestiona las claves
+  template:
+    metadata:
+      labels:
+        app: headscale
+        component: vpn-control-plane
+        layer: infrastructure
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: headscale-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: headscale
+          image: headscale/headscale:0.23
+          imagePullPolicy: IfNotPresent
+          command: ["headscale", "serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: grpc
+              containerPort: 50443
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            # Contraseña de PostgreSQL inyectada desde Secret
+            - name: HEADSCALE_DATABASE_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: headscale-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config
+              mountPath: /etc/headscale/config.yaml
+              subPath: config.yaml
+            - name: config
+              mountPath: /etc/headscale/acls.hujson
+              subPath: acls.hujson
+            - name: keys
+              mountPath: /var/lib/headscale
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: headscale-config
+        - name: keys
+          persistentVolumeClaim:
+            claimName: headscale-keys-pvc
+
+---
+# Service interno — control plane HTTP/gRPC
+apiVersion: v1
+kind: Service
+metadata:
+  name: headscale-service
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: vpn-control-plane
+spec:
+  selector:
+    app: headscale
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50443
+      targetPort: grpc
+      protocol: TCP
+  type: ClusterIP
+
+---
+# Ingress — expone el control plane en vpn.nkz.robotika.cloud
+# Los clientes Tailscale se conectan aquí para registrarse.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: headscale-ingress
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: vpn-control-plane
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
+    # Headscale necesita websockets y HTTP/2 para gRPC
+    traefik.ingress.kubernetes.io/router.middlewares: nekazari-headscale-headers@kubernetescrd
+spec:
+  rules:
+    - host: vpn.nkz.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: headscale-service
+                port:
+                  name: http
+
+---
+# ServiceAccount con permisos mínimos
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headscale-sa
+  namespace: nekazari
+  labels:
+    app: headscale
