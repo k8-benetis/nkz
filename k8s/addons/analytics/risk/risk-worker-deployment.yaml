@@ -16,8 +16,8 @@ metadata:
     app: risk-worker
     component: batch-evaluation
 spec:
-  # Schedule: Every hour at minute 0
-  schedule: "0 * * * *"
+  # Schedule: Every hour at minute 15 (weather-worker runs at :00, give it 15 min to finish)
+  schedule: "15 * * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
