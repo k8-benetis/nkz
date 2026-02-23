@@ -10,6 +10,7 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { ExternalApiCredentials } from '@/components/ExternalApiCredentials';
 import { TenantUsersManagement } from '@/components/TenantUsersManagement';
 import { RiskAlertSubscriptions } from '@/components/RiskAlertSubscriptions';
+import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import api from '@/services/api';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
 
@@ -217,6 +218,13 @@ export const Settings: React.FC = () => {
         {canViewRisks && (
           <div className="mb-6">
             <RiskAlertSubscriptions readOnly={isReadOnly} />
+          </div>
+        )}
+
+        {/* Risk Webhooks */}
+        {canViewRisks && (
+          <div className="mb-6">
+            <RiskWebhooksPanel readOnly={isReadOnly} />
           </div>
         )}
 

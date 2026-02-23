@@ -16,6 +16,7 @@ import { ProgressBar } from '@/components/dashboard/ProgressBar';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { TenantInfoWidget } from '@/components/dashboard/TenantInfoWidget';
 import { RobotsStatusCard } from '@/components/dashboard/RobotsStatusCard';
+import { RiskSummaryCard } from '@/components/dashboard/RiskSummaryCard';
 import { EnvironmentalSensorsCard } from '@/components/dashboard/EnvironmentalSensorsCard';
 import { AgriculturalMachinesCard } from '@/components/dashboard/AgriculturalMachinesCard';
 import { LivestockCard } from '@/components/dashboard/LivestockCard';
@@ -289,6 +290,9 @@ export const DashboardImproved: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Risk Summary */}
+        <RiskSummaryCard />
       </div>
 
       {/* Sensors Grid */}

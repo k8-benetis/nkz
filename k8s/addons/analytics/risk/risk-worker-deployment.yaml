@@ -89,85 +89,105 @@ metadata:
     app: risk-worker
 
 ---
-# Option 2: Deployment (Alternative - continuous worker)
-# Uncomment if you prefer a continuously running worker instead of CronJob
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: risk-worker
-#   namespace: nekazari
-#   labels:
-#     app: risk-worker
-#     component: batch-evaluation
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: risk-worker
-#   template:
-#     metadata:
-#       labels:
-#         app: risk-worker
-#         component: batch-evaluation
-#     spec:
-#       serviceAccountName: risk-worker-sa
-#       containers:
-#       - name: risk-worker
-#         image: nekazari/risk-worker:latest
-#         imagePullPolicy: Never
-#         env:
-#         - name: POSTGRES_HOST
-#           value: "postgresql-service"
-#         - name: POSTGRES_PORT
-#           value: "5432"
-#         - name: POSTGRES_DB
-#           value: "nekazari"
-#         - name: POSTGRES_USER
-#           value: "nekazari"
-#         - name: POSTGRES_PASSWORD
-#           valueFrom:
-#             secretKeyRef:
-#               name: postgresql-secret
-#               key: password
-#         - name: ORION_URL
-#           value: "http://orion-ld-service:1026"
-#         - name: REDIS_URL
-#           value: "redis://redis-service:6379"
-#         - name: REDIS_PASSWORD
-#           valueFrom:
-#             secretKeyRef:
-#               name: redis-secret
-#               key: password
-#               optional: true
-#         - name: WORKER_MODE
-#           value: "continuous"
-#         - name: WORKER_INTERVAL_SECONDS
-#           value: "3600"  # 1 hour
-#         - name: LOG_LEVEL
-#           value: "INFO"
-#         resources:
-#           requests:
-#             memory: "256Mi"
-#             cpu: "200m"
-#           limits:
-#             memory: "512Mi"
-#             cpu: "500m"
-#         livenessProbe:
-#           exec:
-#             command:
-#               - pgrep
-#               - -f
-#               - "risk_processor.py"
-#           initialDelaySeconds: 60
-#           periodSeconds: 30
-#           timeoutSeconds: 10
-#         readinessProbe:
-#           exec:
-#             command:
-#               - pgrep
-#               - -f
-#               - "risk_processor.py"
-#           initialDelaySeconds: 30
-#           periodSeconds: 10
-#           timeoutSeconds: 5
+# Option 2: Deployment (continuous worker for on-demand evaluation via Redis)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-worker-continuous
+  namespace: nekazari
+  labels:
+    app: risk-worker-continuous
+    component: continuous-evaluation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-worker-continuous
+  template:
+    metadata:
+      labels:
+        app: risk-worker-continuous
+        component: continuous-evaluation
+    spec:
+      serviceAccountName: risk-worker-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: risk-worker
+        image: ghcr.io/k8-benetis/nkz/risk-worker:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: CONTINUOUS_MODE
+          value: "true"
+        # PostgreSQL Configuration
+        - name: POSTGRES_HOST
+          value: "postgresql-service"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "nekazari"
+        - name: POSTGRES_USER
+          value: "nekazari"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        # Orion-LD Configuration
+        - name: ORION_URL
+          value: "http://orion-ld-service:1026"
+        # Redis Configuration
+        - name: REDIS_URL
+          value: "redis://redis-service:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+              optional: true
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+              - pgrep
+              - -f
+              - "risk_processor.py"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+              - pgrep
+              - -f
+              - "risk_processor.py"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      restartPolicy: Always
 

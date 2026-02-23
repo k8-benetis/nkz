@@ -352,11 +352,6 @@ class RiskProcessor:
                     %s, %s, %s,
                     %s, %s, %s
                 )
-                ON CONFLICT (id) DO UPDATE SET
-                    probability_score = EXCLUDED.probability_score,
-                    evaluation_data = EXCLUDED.evaluation_data,
-                    evaluation_timestamp = EXCLUDED.evaluation_timestamp,
-                    timestamp = EXCLUDED.timestamp
             """, (
                 tenant_id, entity_id, entity_type, risk_code,
                 probability_score, json.dumps(evaluation_data), datetime.utcnow(),
@@ -372,6 +367,17 @@ class RiskProcessor:
                 self.postgres.rollback()
             return False
     
+    def _compute_severity(self, probability_score: float, severity_levels: dict) -> str:
+        """Compute severity label from probability score and catalog thresholds"""
+        levels = severity_levels or {"low": 30, "medium": 60, "high": 80, "critical": 95}
+        if probability_score >= levels.get('critical', 95):
+            return 'critical'
+        if probability_score >= levels.get('high', 80):
+            return 'high'
+        if probability_score >= levels.get('medium', 60):
+            return 'medium'
+        return 'low'
+
     def _publish_risk_event(
         self,
         tenant_id: str,
@@ -481,7 +487,7 @@ class RiskProcessor:
                         
                         # Publish event if risk is significant (>= 50%)
                         if probability_score >= 50:
-                            severity = result.get('severity', 'medium')
+                            severity = self._compute_severity(probability_score, risk.get('severity_levels', {}))
                             self._publish_risk_event(
                                 tenant_id=tenant_id,
                                 entity_id=entity_id,
@@ -535,10 +541,54 @@ class RiskProcessor:
             logger.error(f"Error running batch evaluation: {e}")
 
 
+    def run_continuous(self):
+        """Run continuously: consume on-demand requests + hourly batch fallback"""
+        logger.info("Starting risk worker in continuous mode")
+        eval_queue = TaskQueue(stream_name='risk:eval-requests')
+        consumer_group = 'risk-worker'
+        consumer_name = f'worker-{os.getenv("HOSTNAME", "local")}'
+
+        last_batch_ts = 0.0
+        batch_interval = 3600  # 1 hour in seconds
+
+        while True:
+            try:
+                # Pull on-demand evaluation requests
+                tasks = eval_queue.consume_tasks(
+                    consumer_group=consumer_group,
+                    consumer_name=consumer_name,
+                    count=5
+                )
+                for task in (tasks or []):
+                    task_id = task.get('id')
+                    payload = task.get('payload', {})
+                    tenant_id = payload.get('tenant_id') or task.get('tenant_id')
+                    if tenant_id:
+                        logger.info(f"On-demand evaluation triggered for tenant: {tenant_id}")
+                        self.evaluate_risks_for_tenant(tenant_id)
+                    if task_id:
+                        eval_queue.acknowledge_task(consumer_group, task_id)
+
+                # Hourly batch fallback
+                now = time.time()
+                if now - last_batch_ts >= batch_interval:
+                    logger.info("Running scheduled batch evaluation")
+                    self.run_batch_evaluation()
+                    last_batch_ts = now
+
+            except Exception as e:
+                logger.error(f"Error in continuous loop: {e}")
+
+            time.sleep(10)
+
+
 def main():
     """Main entry point for risk worker"""
     processor = RiskProcessor()
-    processor.run_batch_evaluation()
+    if os.getenv('CONTINUOUS_MODE', '').lower() == 'true':
+        processor.run_continuous()
+    else:
+        processor.run_batch_evaluation()
 
 
 if __name__ == '__main__':

@@ -20,6 +20,7 @@ import type {
   RiskCatalog,
   RiskSubscription,
   RiskState,
+  RiskWebhook,
   EntityInventory,
 } from '@/types';
 import { getConfig } from '@/config/environment';
@@ -1817,6 +1818,36 @@ class ApiService {
       return [];
     }
   }
+
+  async getRiskWebhooks(): Promise<RiskWebhook[]> {
+    try {
+      const response = await this.client.get('/api/risks/webhooks');
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching risk webhooks:', error);
+      return [];
+    }
+  }
+
+  async createRiskWebhook(data: {
+    name: string;
+    url: string;
+    secret?: string;
+    min_severity?: string;
+  }): Promise<RiskWebhook> {
+    const response = await this.client.post('/api/risks/webhooks', data);
+    return response.data;
+  }
+
+  async deleteRiskWebhook(id: string): Promise<void> {
+    await this.client.delete(`/api/risks/webhooks/${id}`);
+  }
+
+  async triggerRiskEvaluation(): Promise<{ message: string; tenant_id: string }> {
+    const response = await this.client.post('/api/risks/trigger-evaluation');
+    return response.data;
+  }
+
   // IoT Provisioning
   async provisionDevice(payload: any): Promise<any> {
     const response = await this.client.post('/iot/provision', payload);

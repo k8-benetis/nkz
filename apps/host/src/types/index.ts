@@ -442,6 +442,17 @@ export interface RiskState {
   timestamp: string;
 }
 
+export interface RiskWebhook {
+  id: string;
+  tenant_id: string;
+  name: string;
+  url: string;
+  events: string[];
+  min_severity: 'low' | 'medium' | 'high' | 'critical';
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface EntityInventory {
   type: string;
   count: number;

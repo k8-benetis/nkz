@@ -37,7 +37,7 @@ spec:
       containers:
       - name: risk-orchestrator
         image: ghcr.io/k8-benetis/nkz/risk-orchestrator:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
@@ -71,6 +71,20 @@ spec:
               fieldPath: metadata.name
         - name: LOG_LEVEL
           value: "INFO"
+        # PostgreSQL Configuration (for webhook dispatch)
+        - name: POSTGRES_HOST
+          value: "postgresql-service"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "nekazari"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
         resources:
           requests:
             memory: "128Mi"

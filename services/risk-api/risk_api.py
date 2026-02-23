@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import logging
+import importlib.util
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 
@@ -19,6 +20,7 @@ from psycopg2.extras import RealDictCursor
 
 # Add common directory to path
 sys.path.insert(0, '/app/common')
+sys.path.insert(0, '/app/task-queue')
 from auth_middleware import require_auth
 from db_helper import set_tenant_context
 
@@ -27,6 +29,18 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+# Load TaskQueue module for on-demand trigger
+_TaskQueue = None
+try:
+    _tq_file = '/app/task-queue/task_queue.py'
+    if os.path.exists(_tq_file):
+        _spec = importlib.util.spec_from_file_location("task_queue", _tq_file)
+        _tq_mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_tq_mod)
+        _TaskQueue = _tq_mod.TaskQueue
+except Exception as _e:
+    logger.warning(f"TaskQueue not available: {_e}")
 
 # Configuration - Use POSTGRES_URL directly from environment (standard approach)
 # This ensures consistency with other services and GitOps configuration
@@ -390,6 +404,28 @@ def delete_risk_webhook(webhook_id: str):
         logger.error(f"Error deleting webhook: {e}")
         if conn:
             conn.rollback()
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/risks/trigger-evaluation', methods=['POST'])
+@require_auth
+def trigger_evaluation():
+    """Trigger an immediate risk evaluation for the current tenant"""
+    tenant = g.tenant
+    if not _TaskQueue:
+        return jsonify({'error': 'Evaluation queue not available'}), 503
+
+    try:
+        eval_queue = _TaskQueue(stream_name='risk:eval-requests')
+        eval_queue.enqueue_task(
+            tenant_id=tenant,
+            task_type='force_evaluate',
+            payload={'tenant_id': tenant},
+            max_retries=1
+        )
+        return jsonify({'message': 'Evaluation triggered', 'tenant_id': tenant}), 202
+    except Exception as e:
+        logger.error(f"Error triggering evaluation: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 
