@@ -5,18 +5,23 @@
 # Consumes risk events from Redis Streams and updates Orion-LD
 # Separates risk calculation from Orion-LD updates to avoid circular dependencies
 
+import hashlib
+import hmac
 import os
 import sys
 import logging
 import json
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import requests
 
 # Add paths for imports
 sys.path.insert(0, '/app/task-queue')
 sys.path.insert(0, '/app/common')
+sys.path.insert(0, '/app')
 
 # Import task_queue module
 try:
@@ -46,22 +51,89 @@ REDIS_URL = os.getenv('REDIS_URL', 'redis://redis-service:6379')
 CONSUMER_GROUP = 'risk-orchestrator'
 CONSUMER_NAME = f'risk-orchestrator-{os.getenv("HOSTNAME", "default")}'
 
+# PostgreSQL (for webhook dispatch)
+_POSTGRES_USER = os.getenv('POSTGRES_USER', 'nekazari')
+_POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+_POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'postgresql-service')
+_POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
+_POSTGRES_DB = os.getenv('POSTGRES_DB', 'nekazari')
+POSTGRES_URL = (
+    f"postgresql://{_POSTGRES_USER}:{_POSTGRES_PASSWORD}@{_POSTGRES_HOST}:{_POSTGRES_PORT}/{_POSTGRES_DB}"
+    if _POSTGRES_PASSWORD else None
+)
+
+SEVERITY_ORDER = {'low': 0, 'medium': 1, 'high': 2, 'critical': 3}
+
 
 class RiskOrchestrator:
     """Orchestrator for risk events - updates Orion-LD based on risk evaluations"""
-    
+
     def __init__(self):
         self.redis_queue = None
+        self.postgres = None
         self._init_connections()
-    
+
     def _init_connections(self):
-        """Initialize Redis connection"""
+        """Initialize Redis and optional PostgreSQL connections"""
         try:
             self.redis_queue = TaskQueue(stream_name='risk:events')
             logger.info("Redis Streams initialized")
         except Exception as e:
             logger.error(f"Redis Streams not available: {e}")
             raise
+
+        if POSTGRES_URL:
+            try:
+                self.postgres = psycopg2.connect(POSTGRES_URL, cursor_factory=RealDictCursor)
+                self.postgres.autocommit = True
+                logger.info("PostgreSQL connected (webhook dispatch)")
+            except Exception as e:
+                logger.warning(f"PostgreSQL not available for webhook dispatch: {e}")
+
+    def _get_active_webhooks(self, tenant_id: str, severity: str, event_type: str) -> List[Dict[str, Any]]:
+        """Fetch active webhooks for this tenant that match the event severity"""
+        if not self.postgres:
+            return []
+        try:
+            cursor = self.postgres.cursor()
+            cursor.execute("""
+                SELECT id, url, secret, events, min_severity
+                FROM tenant_risk_webhooks
+                WHERE tenant_id = %s AND is_active = true
+            """, (tenant_id,))
+            rows = cursor.fetchall()
+            cursor.close()
+        except Exception as e:
+            logger.error(f"Failed to query webhooks: {e}")
+            return []
+
+        event_level = SEVERITY_ORDER.get(severity, 0)
+        matching = []
+        for row in rows:
+            row = dict(row)
+            if event_type not in (row.get('events') or []):
+                continue
+            min_sev = row.get('min_severity', 'medium')
+            if event_level < SEVERITY_ORDER.get(min_sev, 1):
+                continue
+            matching.append(row)
+        return matching
+
+    def _dispatch_webhooks(self, webhooks: List[Dict[str, Any]], payload: Dict[str, Any]) -> None:
+        """Fire-and-forget: POST payload to each webhook URL"""
+        body = json.dumps(payload)
+        for webhook in webhooks:
+            url = webhook['url']
+            secret = webhook.get('secret')
+            headers = {'Content-Type': 'application/json'}
+            if secret:
+                sig = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+                headers['X-Nekazari-Signature'] = f'sha256={sig}'
+            try:
+                resp = requests.post(url, data=body, headers=headers, timeout=5)
+                logger.info(f"Webhook {url} → {resp.status_code}")
+            except Exception as e:
+                logger.warning(f"Webhook delivery failed for {url}: {e}")
     
     def _update_orion_entity(
         self,
@@ -125,24 +197,43 @@ class RiskOrchestrator:
         risk_code = event.get('risk_code')
         probability_score = event.get('probability_score', 0)
         severity = event.get('severity', 'low')
-        
+        timestamp = event.get('timestamp', '')
+
         if not tenant_id or not entity_id:
             logger.warning("Invalid event: missing tenant_id or entity_id")
             return False
-        
+
+        orion_updated = True
         # Only update Orion-LD for significant risks (>= 50% or high/critical severity)
         if probability_score >= 50 or severity in ['high', 'critical']:
             risk_status = {
                 'risk_code': risk_code,
                 'probability_score': probability_score,
                 'severity': severity,
-                'timestamp': event.get('timestamp', '')
+                'timestamp': timestamp
             }
-            
-            return self._update_orion_entity(tenant_id, entity_id, risk_status)
+            orion_updated = self._update_orion_entity(tenant_id, entity_id, risk_status)
         else:
-            logger.debug(f"Skipping low-risk event: {risk_code} (score: {probability_score:.1f})")
-            return True  # Not an error, just not significant enough
+            logger.debug(f"Skipping low-risk Orion update: {risk_code} (score: {probability_score:.1f})")
+
+        # Dispatch webhooks (fire-and-forget, does not affect return value)
+        try:
+            webhooks = self._get_active_webhooks(tenant_id, severity, 'risk_evaluation')
+            if webhooks:
+                webhook_payload = {
+                    'event': 'risk_evaluation',
+                    'tenant_id': tenant_id,
+                    'entity_id': entity_id,
+                    'risk_code': risk_code,
+                    'probability_score': probability_score,
+                    'severity': severity,
+                    'timestamp': timestamp
+                }
+                self._dispatch_webhooks(webhooks, webhook_payload)
+        except Exception as e:
+            logger.warning(f"Webhook dispatch error (non-fatal): {e}")
+
+        return orion_updated
     
     def run(self):
         """Main loop: consume events from Redis Streams"""

@@ -45,7 +45,7 @@ spec:
       containers:
       - name: weather-worker
         image: ghcr.io/k8-benetis/nkz/weather-worker:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false

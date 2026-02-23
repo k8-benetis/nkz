@@ -278,6 +278,121 @@ def delete_risk_subscription(subscription_id: str):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/risks/webhooks', methods=['GET'])
+@require_auth
+def get_risk_webhooks():
+    """List webhook registrations for current tenant"""
+    try:
+        tenant = g.tenant
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database unavailable'}), 500
+
+        set_tenant_context(conn, tenant)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, tenant_id, name, url, events, min_severity, is_active, created_at
+            FROM tenant_risk_webhooks
+            WHERE tenant_id = %s
+            ORDER BY created_at DESC
+        """, (tenant,))
+
+        webhooks = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify([dict(w) for w in webhooks]), 200
+
+    except Exception as e:
+        logger.error(f"Error getting webhooks: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/risks/webhooks', methods=['POST'])
+@require_auth
+def create_risk_webhook():
+    """Register a new webhook for risk push notifications"""
+    try:
+        tenant = g.tenant
+        data = request.get_json()
+
+        name = data.get('name')
+        url = data.get('url')
+        secret = data.get('secret')
+        events = data.get('events', ['risk_evaluation'])
+        min_severity = data.get('min_severity', 'medium')
+
+        if not name or not url:
+            return jsonify({'error': 'name and url are required'}), 400
+
+        if min_severity not in ('low', 'medium', 'high', 'critical'):
+            return jsonify({'error': 'min_severity must be low, medium, high, or critical'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database unavailable'}), 500
+
+        set_tenant_context(conn, tenant)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO tenant_risk_webhooks (
+                tenant_id, name, url, secret, events, min_severity
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, tenant_id, name, url, events, min_severity, is_active, created_at
+        """, (tenant, name, url, secret, events, min_severity))
+
+        webhook = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify(dict(webhook)), 201
+
+    except Exception as e:
+        logger.error(f"Error creating webhook: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/risks/webhooks/<webhook_id>', methods=['DELETE'])
+@require_auth
+def delete_risk_webhook(webhook_id: str):
+    """Delete a webhook registration"""
+    try:
+        tenant = g.tenant
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database unavailable'}), 500
+
+        set_tenant_context(conn, tenant)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            DELETE FROM tenant_risk_webhooks
+            WHERE id = %s AND tenant_id = %s
+            RETURNING id
+        """, (webhook_id, tenant))
+
+        deleted = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        if not deleted:
+            return jsonify({'error': 'Webhook not found'}), 404
+
+        return jsonify({'message': 'Webhook deleted'}), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting webhook: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint (no authentication required)"""

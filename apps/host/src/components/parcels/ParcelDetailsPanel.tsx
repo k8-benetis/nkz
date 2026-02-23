@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Ruler, Building2, Calendar, FileText, X, Loader2 } from 'lucide-react';
 import { ParcelAgroStatusDetail } from './ParcelAgroStatusDetail';
+import { ParcelRiskPanel } from './ParcelRiskPanel';
 import type { Parcel } from '@/types';
 import api from '@/services/api';
 
@@ -281,7 +282,8 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                 {/* Agronomic status */}
                 <ParcelAgroStatusDetail parcelId={parcel.id} />
 
-
+                {/* Risk evaluations */}
+                <ParcelRiskPanel parcelId={parcel.id} />
 
                 {/* Ubicación */}
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">

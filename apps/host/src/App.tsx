@@ -39,6 +39,7 @@ import { AdminPanel } from '@/pages/AdminPanel';
 import { Modules } from '@/pages/admin/Modules';
 // Entities page replaced by UnifiedViewer (Unified Command Center)
 import { AlertCenter } from '@/pages/AlertCenter';
+import { Risks } from '@/pages/Risks';
 import { IntelligenceInfoPage } from '@/pages/IntelligenceInfoPage';
 import { NotFound } from '@/components/error/NotFound';
 import MobileViewer from '@/pages/MobileViewer';
@@ -105,6 +106,17 @@ const DynamicRoutes = () => {
           element={
             <FarmerRoute>
               <AlertCenter />
+            </FarmerRoute>
+          }
+        />
+
+        <Route
+          path="/risks"
+          element={
+            <FarmerRoute>
+              <Layout>
+                <Risks />
+              </Layout>
             </FarmerRoute>
           }
         />

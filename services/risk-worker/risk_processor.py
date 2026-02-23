@@ -168,12 +168,13 @@ class RiskProcessor:
             set_tenant_context(cursor, tenant_id)
             
             query = """
-                SELECT 
+                SELECT
                     temp_avg, temp_min, temp_max,
                     humidity_avg, precip_mm,
                     solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
                     eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
                     wind_speed_ms, wind_direction_deg, pressure_hpa,
+                    delta_t,
                     observed_at
                 FROM weather_observations
                 WHERE tenant_id = %s
@@ -427,17 +428,18 @@ class RiskProcessor:
             target_sdm_type = risk['target_sdm_type']
             risk_domain = risk['risk_domain']
             model_config = risk.get('model_config', {})
-            
+            model_type = risk.get('model_type')
+
             logger.info(f"Evaluating risk: {risk_code} for entity type: {target_sdm_type}")
-            
+
             # Get entities of this type from Orion-LD
             entities = self._get_entities_from_orion(tenant_id, target_sdm_type)
             if not entities:
                 logger.info(f"No entities of type {target_sdm_type} found for tenant {tenant_id}")
                 continue
-            
-            # Create risk model using factory
-            model = RiskModelFactory.create_model(risk_code, risk_domain, model_config)
+
+            # Create risk model using factory (model_type takes precedence over domain)
+            model = RiskModelFactory.create_model(risk_code, risk_domain, model_config, model_type)
             if not model:
                 logger.error(f"Failed to create model for risk: {risk_code}")
                 errors += 1
