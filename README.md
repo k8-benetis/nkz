@@ -110,7 +110,7 @@ Screenshots below show the main areas of the platform. All images are from the c
 | `config/` | TimescaleDB, Prometheus, Grafana configuration |
 | `scripts/` | Deployment, build, and operations automation |
 | `docs/` | Platform documentation |
-| `module-template/` | Template for creating new addon modules |
+| `module-template/` | Platform copy of the module template (mirrors [`k8-benetis/nkz-module-template`](https://github.com/k8-benetis/nkz-module-template)) |
 
 ## Module Ecosystem
 
@@ -121,11 +121,13 @@ Nekazari supports a modular addon architecture with predefined frontend slots:
 | **Vegetation Health** | NDVI/vegetation indices from satellite imagery | Active |
 | **LiDAR Processing** | Point cloud analysis and terrain modeling | Active |
 | **Intelligence** | AI/ML features for predictive analytics | Active |
+| **DataHub** | Timeseries Data Canvas — multi-series chart + Arrow IPC adapter | Active |
 | **Cadastral Data** | Spanish cadastral registry integration | Active |
 | **Connectivity** | Cellular/network monitoring for IoT devices | Active |
 | **Robotics** | ROS2 integration, ISOBUS for agricultural equipment | Active |
 | **Odoo ERP** | Enterprise resource planning integration | Active |
 | **n8n Workflows** | Automation and workflow orchestration | Active |
+| **Carbon** | Carbon footprint tracking | In development |
 
 Modules are developed independently and installed through the Nekazari marketplace.
 

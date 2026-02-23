@@ -325,3 +325,9 @@ documentation/
 # Build caches
 .turbo/
 .deploy/
+
+# One-off debug/test scripts
+debug_*.py
+test_*.cjs
+test_*.js
+*.tar.gz
