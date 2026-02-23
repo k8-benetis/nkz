@@ -628,7 +628,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       case 'Point':
         return 'Click on the map to select a location.';
       case 'Polygon':
-        return 'Click to add points. Double-click to finish. Minimum 3 points required.';
+        return 'Click to add points. Double-click or right-click to finish. Minimum 3 points required.';
       case 'LineString':
         return 'Click to add points. Right-click to finish. Minimum 2 points required.';
       case 'MultiLineString':

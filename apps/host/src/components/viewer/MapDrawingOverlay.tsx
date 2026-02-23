@@ -32,6 +32,8 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
     const dynamicHierarchyRef = useRef<any>(null); // For Polygons
     const dynamicPositionsRef = useRef<any>(null); // For Lines
     const dynamicPointRef = useRef<any>(null);
+    const rubberBandEntityRef = useRef<any>(null);  // Rubber-band preview line
+    const cursorPositionRef = useRef<any>(null);    // Current cursor Cartesian3
     const pointEntitiesRef = useRef<any[]>([]);
     const cartesianPositionsRef = useRef<any[]>([]);
     const isDrawingRef = useRef(false);
@@ -56,6 +58,11 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
             cesiumViewer.entities.remove(dynamicPointRef.current);
             dynamicPointRef.current = null;
         }
+        if (rubberBandEntityRef.current && cesiumViewer) {
+            cesiumViewer.entities.remove(rubberBandEntityRef.current);
+            rubberBandEntityRef.current = null;
+        }
+        cursorPositionRef.current = null;
         pointEntitiesRef.current.forEach(point => {
             if (cesiumViewer) {
                 cesiumViewer.entities.remove(point);
@@ -93,6 +100,26 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
 
         // Create handler for drawing
         handlerRef.current = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+        // Rubber-band: dynamic preview line from last placed point to cursor
+        if (drawingType !== 'Point') {
+            const rubberBandPositions = new Cesium.CallbackProperty(() => {
+                if (cartesianPositionsRef.current.length === 0 || !cursorPositionRef.current) return [];
+                const last = cartesianPositionsRef.current[cartesianPositionsRef.current.length - 1];
+                return [last, cursorPositionRef.current];
+            }, false);
+            rubberBandEntityRef.current = viewer.entities.add({
+                polyline: {
+                    positions: rubberBandPositions,
+                    width: 2,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: Cesium.Color.WHITE.withAlpha(0.8),
+                        dashLength: 8,
+                    }),
+                    clampToGround: true,
+                },
+            });
+        }
 
         // Left click: Add point
         handlerRef.current.setInputAction((click: any) => {
@@ -228,6 +255,38 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                 onComplete(geometry, areaHectares);
             }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
+            // Double-click: finish polygon (alternative to right-click)
+            // Cesium fires LEFT_CLICK twice before LEFT_DOUBLE_CLICK — pop those 2 spurious points.
+            if (drawingType === 'Polygon') {
+                handlerRef.current.setInputAction(() => {
+                    if (!isDrawingRef.current) return;
+
+                    // Remove the 2 extra points added by the double-click's LEFT_CLICK events
+                    for (let i = 0; i < 2; i++) {
+                        const lastPoint = pointEntitiesRef.current.pop();
+                        if (lastPoint && cesiumViewer) {
+                            cesiumViewer.entities.remove(lastPoint);
+                        }
+                        cartesianPositionsRef.current.pop();
+                    }
+
+                    if (cartesianPositionsRef.current.length < 3) return;
+
+                    const coordinates = cartesianPositionsRef.current.map(cartesian => {
+                        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                        return [
+                            Cesium.Math.toDegrees(cartographic.longitude),
+                            Cesium.Math.toDegrees(cartographic.latitude)
+                        ];
+                    });
+                    coordinates.push([coordinates[0][0], coordinates[0][1]]);
+                    const geometry = { type: 'Polygon' as const, coordinates: [coordinates] };
+                    const areaHectares = calculatePolygonAreaHectares(geometry);
+                    cleanup();
+                    onComplete(geometry, areaHectares);
+                }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+            }
+
             // Mouse move: Preview
             handlerRef.current.setInputAction((movement: any) => {
                 if (!isDrawingRef.current || cartesianPositionsRef.current.length === 0) return;
@@ -239,7 +298,10 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                 }
                 if (!cartesian) return;
 
-                // Show dynamic point
+                // Update rubber-band cursor target
+                cursorPositionRef.current = cartesian;
+
+                // Show dynamic cursor point
                 if (!dynamicPointRef.current) {
                     dynamicPointRef.current = viewer.entities.add({
                         position: cartesian,
@@ -253,16 +315,6 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                     });
                 } else {
                     dynamicPointRef.current.position = cartesian;
-                }
-
-                // Update preview shape
-                if (cartesianPositionsRef.current.length >= 1 && drawingEntityRef.current) {
-                    // The CallbackProperty normally handles this validation, but we can force update
-                    // or augment the array being returned by the callback if we want "rubber banding"
-                    // For simplicity, we just rely on existing points, avoiding complexity of temporary points in array
-                    // To show rubber band line to cursor:
-                    // We would need to pass a different array to callback that includes the cursor position
-                    // For now, simple point preview is sufficient as implemented above
                 }
 
                 viewer.scene.requestRender();
@@ -283,7 +335,7 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
     const getInstructions = () => {
         switch (drawingType) {
             case 'Point': return 'Click to pick a location';
-            case 'Polygon': return 'Left click to add points. Right click to finish.';
+            case 'Polygon': return 'Click to add points. Double-click or right-click to finish.';
             case 'LineString': return 'Left click to add points. Right click to finish.';
             case 'MultiLineString': return 'Left click to add points. Right click to finish current line.';
             default: return 'Click map to draw';
