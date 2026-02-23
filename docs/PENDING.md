@@ -8,7 +8,7 @@ Living document. Add items here as they surface; close them with date and commit
 
 | # | Task | Context |
 |---|------|---------|
-| C1 | **Module template broken** — both `nkz/module-template/` and `nekazari-module-template/` (repo `k8-benetis/nkz-module-template`) still use `@originjs/vite-plugin-federation` + `remoteEntry.js`. Any developer cloning the template today gets a broken build. The standalone repo was force-pushed back to the pre-IIFE state. Needs full rewrite to `@nekazari/module-builder` + `nkzModulePreset` + `moduleEntry.ts`. See §Module Template below for the plan. | `nkz/module-template/`, `nekazari-module-template/` |
+| ~~C1~~ | ~~**Module template broken**~~ — **DONE 2026-02-23** (`69dd950`). `nekazari-module-template/` fully rewritten to IIFE+`@nekazari/module-builder`. `nkz/module-template/` marked deprecated with redirect README. | |
 | C2 | **No automated database backups** — no cron for PostgreSQL, MongoDB, or MinIO. Single point of failure on disk corruption or accidental delete. | ops |
 
 ---
@@ -88,10 +88,10 @@ Living document. Add items here as they surface; close them with date and commit
 
 | # | Task | Notes |
 |---|------|-------|
-| D1 | **`SETUP.md` in both module templates** — references old Module Federation architecture throughout. Blocked on C1 (template rewrite). | |
+| ~~D1~~ | ~~**`SETUP.md` in both module templates**~~ — **DONE 2026-02-23**. Rewritten as part of C1 fix. | |
 | D2 | **`docs/modules/EXTERNAL_MODULE_INSTALLATION.md`** — check if it references old deployment model (nginx frontend container). | `nkz/docs/modules/` |
-| D3 | **`ADAPTER_SPEC.md`** now complete and tracked in `nkz-module-datahub/`. Once C1 is resolved, add a short DataHub section to the new module template README. | `nkz-module-datahub/ADAPTER_SPEC.md` |
+| ~~D3~~ | ~~**`ADAPTER_SPEC.md`**~~ — **DONE 2026-02-23**. Complete and tracked in `nkz-module-datahub/`. DataHub section added to template README. | |
 
 ---
 
-_Last updated: 2026-02-23_
+_Last updated: 2026-02-23 — C1, D1, D3 closed_
