@@ -3,42 +3,44 @@
   "name": "MODULE_NAME",
   "display_name": "MODULE_DISPLAY_NAME",
   "version": "1.0.0",
-  "description": "A Nekazari module. Customize this in manifest.json after running init-module.sh.",
-  "short_description": "Your Nekazari module",
-  "author": {
-    "name": "Your Name",
-    "email": "your.email@example.com",
-    "organization": "Your Organization"
-  },
-  "category": "custom",
+  "description": "MODULE_DISPLAY_NAME — description of what this module does",
+  "short_description": "Short description for marketplace listing",
+  "icon": "puzzle",
+  "author": { "name": "YOUR_NAME", "email": "", "organization": "YOUR_ORG" },
+  "category": "analytics",
   "module_type": "ADDON_FREE",
   "required_plan_type": "basic",
   "pricing_tier": "FREE",
-  "route_path": "MODULE_ROUTE",
+  "route_path": "/MODULE_ROUTE",
   "label": "MODULE_DISPLAY_NAME",
-  "icon": "sparkles",
-  "icon_url": "assets/icon.png",
   "required_roles": ["Farmer", "TenantAdmin", "PlatformAdmin"],
+  "navigation": { "enabled": true, "priority": 50, "section": "modules" },
   "dependencies": {
-    "sdk_version": "^1.0.0",
+    "sdk_version": "^1.0.3",
     "react_version": "^18.3.1",
-    "platform_version": "^1.0.0"
+    "platform_version": "^2.0.0"
   },
   "permissions": {
-    "api_access": [],
+    "api_access": ["/api/MODULE_NAME/*"],
     "storage_access": false,
     "external_requests": []
   },
   "build_config": {
-    "type": "remote",
-    "remote_entry_url": "/modules/MODULE_NAME/assets/remoteEntry.js",
-    "scope": "MODULE_SCOPE",
-    "exposed_module": "./App"
+    "type": "iife",
+    "remote_entry_url": "/modules/MODULE_NAME/nkz-module.js"
+  },
+  "slots": {
+    "map-layer": [],
+    "layer-toggle": [],
+    "context-panel": ["ExampleSlot"],
+    "bottom-panel": [],
+    "entity-tree": [],
+    "dashboard-widget": []
   },
   "metadata": {
-    "icon": "✨",
+    "icon": "🔧",
     "color": "#3B82F6",
-    "features": ["Module Template"],
+    "features": [],
     "screenshots": []
   }
 }

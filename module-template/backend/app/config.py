@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     
     # API
     api_prefix: str = "/api/MODULE_NAME"
-    cors_origins: list[str] = ["*"]
-    
+    cors_origins: list[str] = []  # Set via CORS_ORIGINS env var; empty = deny all cross-origin
+
     # Keycloak / JWT Authentication
-    keycloak_url: str = "http://keycloak:8080/auth"
+    keycloak_url: str = "https://auth.example.com/auth"  # Override via KEYCLOAK_URL
     keycloak_realm: str = "nekazari"
     jwt_audience: str = "account"
     jwt_issuer: str = ""  # Auto-derived from keycloak_url + realm if empty

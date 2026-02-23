@@ -44,9 +44,12 @@ spec:
               value: "false"
             - name: API_PREFIX
               value: "/api/MODULE_NAME"
+            # CORS — explicit origin whitelist (never *)
+            - name: CORS_ORIGINS
+              value: '["https://your-frontend-domain"]'
             # Keycloak Configuration
             - name: KEYCLOAK_URL
-              value: "https://auth.robotika.cloud/auth"
+              value: "https://auth.your-domain/auth"  # Override per environment
             - name: KEYCLOAK_REALM
               value: "nekazari"
             - name: JWT_AUDIENCE

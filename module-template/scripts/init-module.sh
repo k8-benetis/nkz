@@ -23,7 +23,7 @@ echo -e "${NC}"
 
 # Check if we're in the right directory
 if [ ! -f "manifest.json" ] || [ ! -f "vite.config.ts" ]; then
-    echo -e "${RED}Error: This script must be run from the module-template directory.${NC}"
+    echo -e "${RED}Error: This script must be run from the module template directory.${NC}"
     echo "Please navigate to the module template directory first."
     exit 1
 fi
@@ -33,7 +33,7 @@ echo -e "${YELLOW}Please provide the following information for your module:${NC}
 echo ""
 
 # Module Name (lowercase, hyphens)
-read -p "Module Name (lowercase with hyphens, e.g., 'my-module'): " MODULE_NAME
+read -p "Module Name (lowercase with hyphens, e.g., 'soil-sensor'): " MODULE_NAME
 if [ -z "$MODULE_NAME" ]; then
     echo -e "${RED}Error: Module name is required.${NC}"
     exit 1
@@ -46,17 +46,10 @@ if [[ ! "$MODULE_NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
 fi
 
 # Module Display Name
-read -p "Display Name (e.g., 'My Module'): " MODULE_DISPLAY_NAME
+read -p "Display Name (e.g., 'Soil Sensor'): " MODULE_DISPLAY_NAME
 if [ -z "$MODULE_DISPLAY_NAME" ]; then
     MODULE_DISPLAY_NAME=$(echo "$MODULE_NAME" | sed -r 's/(^|-)([a-z])/\U\2/g')
     echo -e "${YELLOW}Using default display name: ${MODULE_DISPLAY_NAME}${NC}"
-fi
-
-# Module Scope (for Module Federation)
-MODULE_SCOPE=$(echo "$MODULE_NAME" | sed 's/-/_/g')
-read -p "Module Scope for Module Federation [${MODULE_SCOPE}]: " CUSTOM_SCOPE
-if [ -n "$CUSTOM_SCOPE" ]; then
-    MODULE_SCOPE="$CUSTOM_SCOPE"
 fi
 
 # Route Path
@@ -79,23 +72,16 @@ if [ -z "$AUTHOR_NAME" ]; then
     AUTHOR_NAME="Unknown"
 fi
 
-# Author Email
-read -p "Author Email: " AUTHOR_EMAIL
-if [ -z "$AUTHOR_EMAIL" ]; then
-    AUTHOR_EMAIL="dev@example.com"
-fi
-
 # Confirm
 echo ""
 echo -e "${BLUE}=============================================="
 echo "   Configuration Summary"
 echo "==============================================${NC}"
-echo "Module Name:     $MODULE_NAME"
-echo "Display Name:    $MODULE_DISPLAY_NAME"
-echo "Module Scope:    $MODULE_SCOPE"
-echo "Route Path:      $MODULE_ROUTE"
-echo "GitHub Org:      $YOUR_ORG"
-echo "Author:          $AUTHOR_NAME <$AUTHOR_EMAIL>"
+echo "Module Name:   $MODULE_NAME"
+echo "Display Name:  $MODULE_DISPLAY_NAME"
+echo "Route Path:    $MODULE_ROUTE"
+echo "GitHub Org:    $YOUR_ORG"
+echo "Author:        $AUTHOR_NAME"
 echo ""
 
 read -p "Proceed with initialization? (y/N): " CONFIRM
@@ -111,11 +97,9 @@ echo -e "${BLUE}Initializing module...${NC}"
 # Perform replacements
 # =============================================================================
 
-# Function to replace in files
 replace_in_files() {
     local search="$1"
     local replace="$2"
-    # Find all files (excluding node_modules, .git, dist)
     find . -type f \
         -not -path "*/node_modules/*" \
         -not -path "*/.git/*" \
@@ -134,23 +118,20 @@ echo -e "${GREEN}Replacing placeholders...${NC}"
 
 replace_in_files "MODULE_NAME" "$MODULE_NAME"
 replace_in_files "MODULE_DISPLAY_NAME" "$MODULE_DISPLAY_NAME"
-replace_in_files "MODULE_SCOPE" "$MODULE_SCOPE"
 replace_in_files "MODULE_ROUTE" "$MODULE_ROUTE"
 replace_in_files "YOUR_ORG" "$YOUR_ORG"
-replace_in_files "Your Name" "$AUTHOR_NAME"
-replace_in_files "your.email@example.com" "$AUTHOR_EMAIL"
+replace_in_files "YOUR_NAME" "$AUTHOR_NAME"
 
 # =============================================================================
 # Additional setup
 # =============================================================================
 
 echo ""
-echo -e "${GREEN}Creating additional files...${NC}"
+echo -e "${GREEN}Creating local env file...${NC}"
 
-# Create .env.local from .env.example if it doesn't exist
-if [ -f ".env.example" ] && [ ! -f ".env.local" ]; then
-    cp .env.example .env.local
-    echo "  Created: .env.local from .env.example"
+if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+    cp .env.example .env
+    echo "  Created: .env from .env.example (edit VITE_PROXY_TARGET)"
 fi
 
 # =============================================================================
@@ -159,18 +140,15 @@ fi
 
 echo ""
 echo -e "${GREEN}=============================================="
-echo "   ✅ Module initialization complete!"
+echo "   Module initialization complete!"
 echo "==============================================${NC}"
 echo ""
 echo "Next steps:"
-echo "  1. Review the generated configuration"
-echo "  2. Install dependencies: npm install"
-echo "  3. Start development: npm run dev"
-echo "  4. Install backend deps: cd backend && pip install -r requirements.txt"
+echo "  1. Edit .env — set VITE_PROXY_TARGET to your API domain"
+echo "  2. Install dependencies:  npm install"
+echo "  3. Start dev server:      npm run dev"
+echo "  4. Build IIFE bundle:     npm run build:module  →  dist/nkz-module.js"
 echo ""
-echo "For deployment:"
-echo "  1. Build Docker images (see README.md)"
-echo "  2. Apply Kubernetes manifests"
-echo "  3. Register module in database"
+echo "For deployment see SETUP.md."
 echo ""
-echo -e "${BLUE}Happy coding! 🚀${NC}"
+echo -e "${BLUE}Happy coding!${NC}"

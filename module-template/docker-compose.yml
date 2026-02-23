@@ -1,34 +1,18 @@
 # =============================================================================
 # MODULE_DISPLAY_NAME - Local Development with Docker Compose
 # =============================================================================
-# Use this for local development with all services
+# Runs the backend API locally. The frontend is a Vite dev server (npm run dev),
+# not a Docker container — IIFE modules don't ship a standalone frontend image.
 #
 # Usage:
-#   docker-compose up        # Start all services
+#   docker-compose up        # Start backend
 #   docker-compose up -d     # Start in background
-#   docker-compose down      # Stop all services
+#   docker-compose down      # Stop
 # =============================================================================
 
 version: '3.8'
 
 services:
-  # Frontend development server
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-    ports:
-      - "5003:80"
-    environment:
-      - NODE_ENV=development
-    volumes:
-      - ./dist:/usr/share/nginx/html:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # Backend API server
   backend:
     build:
@@ -40,10 +24,10 @@ services:
       - APP_NAME=MODULE_DISPLAY_NAME
       - DEBUG=true
       - API_PREFIX=/api/MODULE_NAME
-      - KEYCLOAK_URL=https://auth.robotika.cloud/auth
+      - KEYCLOAK_URL=https://auth.example.com/auth
       - KEYCLOAK_REALM=nekazari
       - JWT_AUDIENCE=account
-      - CORS_ORIGINS=["http://localhost:5003","http://localhost:5173","http://localhost:8000"]
+      - CORS_ORIGINS=["http://localhost:5003","http://localhost:5173"]
     volumes:
       - ./backend/app:/app/app:ro
     healthcheck:
@@ -60,7 +44,7 @@ services:
 
   # PostgreSQL database (uncomment if needed)
   # db:
-  #   image: postgres:15-alpine
+  #   image: timescale/timescaledb:latest-pg15
   #   ports:
   #     - "5432:5432"
   #   environment:
