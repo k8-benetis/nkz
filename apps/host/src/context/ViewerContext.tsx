@@ -570,13 +570,10 @@ export const useViewerOptional = (): ViewerContextType | null => {
     return useContext(ViewerContext) ?? null;
 };
 
-// Expose useViewer globally for remote modules
-// This allows remote modules to access the viewer context even if they can't import it directly
-// IMPORTANT: This must be done AFTER both hooks are defined to avoid "can't access before initialization" errors
-if (typeof window !== 'undefined') {
-    (window as any).__nekazariViewerContext = {
-        useViewer: useViewer,
-        useViewerOptional: useViewerOptional,
-    };
-    console.log('[ViewerContext] ✅ Viewer context exposed to window.__nekazariViewerContext for external modules');
-}
+// NOTE: Do NOT expose hook functions on window.
+// Hooks called outside React's render cycle (e.g. in callbacks, effects cleanup, module init)
+// cause React error #300 ("Hooks can only be called inside a function component").
+// External modules must use window.__nekazariViewerContextInstance with useContext() inside
+// their own React component render functions:
+//   const ctx = React.useContext(window.__nekazariViewerContextInstance);
+// The @nekazari/sdk useViewer() hook wraps this correctly.
