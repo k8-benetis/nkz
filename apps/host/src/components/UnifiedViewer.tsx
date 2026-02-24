@@ -23,6 +23,7 @@ import { cadastralApi } from '@/services/cadastralApi';
 // Removed hardcoded vegetation layer data import - modules should use slot system
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
+import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import {
     ChevronLeft,
@@ -33,6 +34,7 @@ import {
     X,
     Loader2,
     Maximize2,
+    AlertTriangle,
 } from 'lucide-react';
 
 // Styles for glassmorphism panels
@@ -296,6 +298,9 @@ const UnifiedViewerInner: React.FC = () => {
     const [crops, setCrops] = useState<any[]>([]);
     const [buildings, setBuildings] = useState<any[]>([]);
     const [trees, setTrees] = useState<any[]>([]); // OliveTree, AgriTree, FruitTree, Vine
+
+    // Risk overlay
+    const { enabled: riskEnabled, setEnabled: setRiskEnabled, overlay: riskOverlay } = useRiskOverlay();
 
     // UI state
     const [_isLoading, setIsLoading] = useState(true);
@@ -637,6 +642,7 @@ const UnifiedViewerInner: React.FC = () => {
                     mode={mapMode === 'VIEW' ? 'view' : (['SELECT_CADASTRAL', 'PICK_LOCATION', 'PREVIEW_MODEL', 'STAMP_INSTANCES'].includes(mapMode)) ? 'picker' : 'view'}
                     onMapClick={mapMode === 'SELECT_CADASTRAL' ? handleMapClickForCadastral : mapMode === 'PICK_LOCATION' ? handleMapClickForPicking : undefined}
                     onEntitySelect={handleEntityMapSelect}
+                    riskOverlay={riskOverlay}
                 />
 
                 {/* Map Layer Slot - Dynamic widgets overlaying the map (Search, Controls, etc.) */}
@@ -678,6 +684,22 @@ const UnifiedViewerInner: React.FC = () => {
                         </button>
                     </div>
                     <div className="p-2">
+                        {/* Risk overlay toggle */}
+                        <button
+                            type="button"
+                            onClick={() => setRiskEnabled(!riskEnabled)}
+                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors mb-1 ${
+                                riskEnabled
+                                    ? 'bg-red-50 text-red-700 border border-red-200'
+                                    : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                        >
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            <span>Overlay de Riesgos</span>
+                            <span className={`ml-auto text-xs px-1.5 py-0.5 rounded ${riskEnabled ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
+                                {riskEnabled ? 'ON' : 'OFF'}
+                            </span>
+                        </button>
                         <Suspense fallback={<PanelLoadingFallback />}>
                             <SlotRenderer slot="layer-toggle" />
                         </Suspense>

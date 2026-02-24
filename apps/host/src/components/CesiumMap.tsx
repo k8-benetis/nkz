@@ -23,7 +23,15 @@ import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 import { logger } from '@/utils/logger';
 import { normalizeAssetUrl } from '@/utils/urlNormalizer';
+import type { RiskOverlayInfo } from '@/hooks/cesium/useRiskOverlay';
 // Removed hardcoded vegetation layer import - modules should use slot system
+
+const RISK_SEVERITY_COLORS: Record<RiskOverlayInfo['severity'], string> = {
+  critical: '#ef4444',
+  high:     '#f97316',
+  medium:   '#eab308',
+  low:      '#22c55e',
+};
 
 // Import Cesium CSS
 import 'cesium/Build/Cesium/Widgets/widgets.css';
@@ -66,6 +74,7 @@ interface CesiumMapProps {
   onEntitySelect?: (entity: { id: string; type: string }) => void; // Callback when an entity is clicked
   parcelIndexData?: ParcelIndexData; // Optional: Index data for parcel coloring (NDVI, EVI, etc.)
   indexType?: 'ndvi' | 'evi' | 'savi' | 'gndvi' | 'ndre'; // Type of index for coloring (default: 'ndvi')
+  riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
   // Module layer configurations (extensible for future modules)
   // Removed vegetationLayerConfig - modules should register layers via slot system
 }
@@ -247,6 +256,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   onEntitySelect,
   parcelIndexData = {},
   indexType = 'ndvi',
+  riskOverlay,
   // vegetationLayerConfig removed - modules use slot system
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -689,6 +699,10 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           const robotName = typeof robot.name === 'string' ? robot.name : robot.name.value;
           const robotStatus = typeof robot.status === 'string' ? robot.status : robot.status?.value;
+          const robotRisk = riskOverlay?.get(robot.id);
+          const robotPointColor = robotRisk
+            ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[robotRisk.severity])
+            : getRobotColor(robotStatus);
 
           viewer.entities.add({
             id: `robot-${robot.id}`,
@@ -696,7 +710,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             name: robotName,
             point: {
               pixelSize: 15,
-              color: getRobotColor(robotStatus),
+              color: robotPointColor,
               outlineColor: Cesium.Color.WHITE,
               outlineWidth: 2,
               heightReference: heightReference,
@@ -744,6 +758,10 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           const modelUrl = getEntityModel(sensor);
           const iconUrl = getEntityIconUrl(sensor, '/assets/icons/sensor-default.png'); // Default fallback
+          const sensorRisk = riskOverlay?.get(sensor.id);
+          const sensorPointColor = sensorRisk
+            ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[sensorRisk.severity])
+            : Cesium.Color.CYAN;
 
           // Common entity properties
           const entityOptions: any = {
@@ -815,7 +833,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               // Fallback to Point
               entityOptions.point = {
                 pixelSize: 10,
-                color: Cesium.Color.CYAN,
+                color: sensorPointColor,
                 outlineColor: Cesium.Color.WHITE,
                 outlineWidth: 1,
                 heightReference: heightReference,
@@ -825,7 +843,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             // Default Point
             entityOptions.point = {
               pixelSize: 10,
-              color: Cesium.Color.CYAN,
+              color: sensorPointColor,
               outlineColor: Cesium.Color.WHITE,
               outlineWidth: 1,
               heightReference: heightReference,
@@ -1406,23 +1424,31 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           const isSelected = selectedEntity?.id === parcel.id;
 
-          // Get color from index data if available, otherwise use default
+          // Get color: default → NDVI → risk overlay → selection (highest priority)
           let fillColor: any;
           let outlineColor: any;
 
+          // 1. Default colors
+          fillColor = Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4);
+          outlineColor = Cesium.Color.fromCssColorString('#4ade80');
+
+          // 2. Index-based coloring (NDVI / EVI / etc.)
           if (parcelIndexData && parcelIndexData[parcel.id]) {
-            // Use index-based coloring
             const indexValue = parcelIndexData[parcel.id].mean;
             const cssColor = getIndexColor(indexType as IndexType, indexValue);
             fillColor = Cesium.Color.fromCssColorString(cssColor).withAlpha(0.6);
             outlineColor = Cesium.Color.fromCssColorString(cssColor).withAlpha(0.9);
-          } else {
-            // Default colors
-            fillColor = Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4); // Friendly Green
-            outlineColor = Cesium.Color.fromCssColorString('#4ade80');
           }
 
-          // Override with selection highlight if selected
+          // 3. Risk overlay (overrides NDVI — risk is more actionable)
+          const riskInfo = riskOverlay?.get(parcel.id);
+          if (riskInfo) {
+            const riskCss = RISK_SEVERITY_COLORS[riskInfo.severity];
+            fillColor = Cesium.Color.fromCssColorString(riskCss).withAlpha(0.55);
+            outlineColor = Cesium.Color.fromCssColorString(riskCss);
+          }
+
+          // 4. Selection highlight (always wins)
           if (isSelected) {
             fillColor = Cesium.Color.CYAN.withAlpha(0.08);
             outlineColor = Cesium.Color.CYAN;
@@ -1500,6 +1526,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     enable3DTerrain,
     enable3DTiles,
     selectedEntity,
+    riskOverlay,
     // Add context dependencies for preview
     viewerContext?.mapMode,
     viewerContext?.modelPlacement
@@ -1643,6 +1670,19 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Risk severity legend — shown when risk overlay is active */}
+      {riskOverlay && riskOverlay.size > 0 && (
+        <div className="absolute bottom-4 left-4 z-10 bg-slate-900/85 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-white border border-slate-600 pointer-events-none">
+          <p className="font-semibold mb-1.5 text-slate-300">Riesgo</p>
+          {(['critical', 'high', 'medium', 'low'] as const).map(sev => (
+            <div key={sev} className="flex items-center gap-1.5 mb-0.5">
+              <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: RISK_SEVERITY_COLORS[sev] }} />
+              <span className="capitalize text-slate-200">{{ critical: 'Crítico', high: 'Alto', medium: 'Medio', low: 'Bajo' }[sev]}</span>
+            </div>
+          ))}
         </div>
       )}
 
