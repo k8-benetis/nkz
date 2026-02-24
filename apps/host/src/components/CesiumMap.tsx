@@ -140,27 +140,6 @@ const getEntityGeometryType = (entity: any): string | undefined => {
   return undefined;
 };
 
-// Detect WebGL support once at module level (avoids re-checking on every render)
-const detectWebGL = (): { supported: boolean; version: number } => {
-  try {
-    const canvas = document.createElement('canvas');
-    const gl2 = canvas.getContext('webgl2');
-    if (gl2) {
-      const ext = gl2.getExtension('WEBGL_lose_context');
-      ext?.loseContext();
-      return { supported: true, version: 2 };
-    }
-    const gl1 = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    if (gl1) {
-      const ext = (gl1 as WebGLRenderingContext).getExtension('WEBGL_lose_context');
-      ext?.loseContext();
-      return { supported: true, version: 1 };
-    }
-  } catch (_) { /* ignore */ }
-  return { supported: false, version: 0 };
-};
-
-const webglStatus = detectWebGL();
 
 /** Fallback UI shown when the browser cannot create a WebGL context */
 const WebGLFallback: React.FC = () => {
@@ -242,7 +221,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const viewerRef = useRef<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isViewerReady, setIsViewerReady] = useState(false);
-  const [webglFailed, setWebglFailed] = useState(!webglStatus.supported);
+  const [webglFailed, setWebglFailed] = useState(false);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
   const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('osm');
@@ -272,7 +251,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         return;
       }
 
-      logger.debug('[CesiumMap] WebGL status:', webglStatus);
       logger.debug('[CesiumMap] Creating Cesium viewer');
 
       // Initialize Cesium Viewer with error handling
