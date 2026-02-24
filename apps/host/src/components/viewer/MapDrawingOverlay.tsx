@@ -36,6 +36,7 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
     const cursorPositionRef = useRef<any>(null);    // Current cursor Cartesian3
     const pointEntitiesRef = useRef<any[]>([]);
     const cartesianPositionsRef = useRef<any[]>([]);
+    const clickTimestampsRef = useRef<number[]>([]);  // Timestamps for each LEFT_CLICK, for double-click cleanup
     const isDrawingRef = useRef(false);
 
     // Cleanup function
@@ -70,18 +71,16 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
         });
         pointEntitiesRef.current = [];
         cartesianPositionsRef.current = [];
+        clickTimestampsRef.current = [];
         isDrawingRef.current = false;
     }, [cesiumViewer]);
 
     // Setup drawing handler
     useEffect(() => {
-        console.log('[MapDrawingOverlay] useEffect triggered', { enabled, hasCesiumViewer: !!cesiumViewer, drawingType });
         if (!enabled || !cesiumViewer) {
-            console.log('[MapDrawingOverlay] Early return - enabled:', enabled, 'cesiumViewer:', !!cesiumViewer);
             cleanup();
             return;
         }
-        console.log('[MapDrawingOverlay] Setting up drawing handler for', drawingType);
 
 
         // @ts-ignore
@@ -133,6 +132,7 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
             }
 
             cartesianPositionsRef.current.push(cartesian);
+            clickTimestampsRef.current.push(Date.now());
 
             // Add point marker
             const pointEntity = viewer.entities.add({
@@ -256,13 +256,25 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
             }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
             // Double-click: finish polygon (alternative to right-click)
-            // Cesium fires LEFT_CLICK twice before LEFT_DOUBLE_CLICK — pop those 2 spurious points.
+            // Cesium event order for a double-click varies by version:
+            //   Order A: LEFT_CLICK → LEFT_DOUBLE_CLICK → LEFT_CLICK
+            //   Order B: LEFT_CLICK → LEFT_CLICK → LEFT_DOUBLE_CLICK
+            // Use timestamps to remove all spurious LEFT_CLICK points that fired within the
+            // double-click window. Points fired AFTER cleanup() are already blocked by
+            // isDrawingRef.current = false in the LEFT_CLICK handler.
             if (drawingType === 'Polygon') {
                 handlerRef.current.setInputAction(() => {
                     if (!isDrawingRef.current) return;
 
-                    // Remove the 2 extra points added by the double-click's LEFT_CLICK events
-                    for (let i = 0; i < 2; i++) {
+                    // Remove any LEFT_CLICK points added within the double-click time window.
+                    // These are spurious clicks that are part of the double-click gesture itself.
+                    const now = Date.now();
+                    const DOUBLE_CLICK_WINDOW_MS = 400;
+                    while (
+                        clickTimestampsRef.current.length > 0 &&
+                        now - clickTimestampsRef.current[clickTimestampsRef.current.length - 1] < DOUBLE_CLICK_WINDOW_MS
+                    ) {
+                        clickTimestampsRef.current.pop();
                         const lastPoint = pointEntitiesRef.current.pop();
                         if (lastPoint && cesiumViewer) {
                             cesiumViewer.entities.remove(lastPoint);

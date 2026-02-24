@@ -665,7 +665,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  console.log('[GeometryEditor] Button clicked, starting drawing mode', { geometryType, hasCesiumViewer: !!cesiumViewer });
                   startDrawing(geometryType, (geom) => {
                     setCurrentGeometry(geom);
                     onGeometryChange(geom);
