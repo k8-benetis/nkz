@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search, X, Activity } from 'lucide-react';
+import { Search, X, Activity, MapPin, ArrowRight } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { ENTITY_TYPE_METADATA, MACRO_CATEGORIES, ENTITY_CATEGORIES } from '../entityTypes';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -24,10 +24,15 @@ function getColorStyle(color: string, selected: boolean) {
 }
 
 export function StepTypeSelection() {
-  const { entityType, setEntityType } = useWizard();
+  const { entityType, setEntityType, goNext } = useWizard();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeMacro, setActiveMacro] = useState<keyof typeof MACRO_CATEGORIES | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const handleQuickCreate = (type: string) => {
+    setEntityType(type);
+    goNext();
+  };
 
   const filteredTypes = useMemo(() => {
     return Object.keys(ENTITY_TYPE_METADATA).filter(type => {
@@ -61,8 +66,26 @@ export function StepTypeSelection() {
 
   return (
     <div className="space-y-5">
+      {/* Quick actions — most common entities */}
       <div>
-        <h3 className="text-lg font-semibold mb-1">¿Qué quieres crear?</h3>
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Acceso rápido</p>
+        <button
+          onClick={() => handleQuickCreate('AgriParcel')}
+          className="w-full flex items-center justify-between px-5 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <MapPin className="w-5 h-5 flex-shrink-0" />
+            <div className="text-left">
+              <div className="font-semibold">Crear nueva parcela</div>
+              <div className="text-xs text-green-200">AgriParcel · Parcela agrícola</div>
+            </div>
+          </div>
+          <ArrowRight className="w-5 h-5 flex-shrink-0" />
+        </button>
+      </div>
+
+      <div className="border-t border-gray-100 pt-4">
+        <h3 className="text-lg font-semibold mb-1">Otros tipos de entidad</h3>
         <p className="text-sm text-gray-600">Busca por nombre, tipo o fabricante, o selecciona una categoría.</p>
       </div>
 
