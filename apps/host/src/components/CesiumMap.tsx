@@ -160,9 +160,10 @@ const WebGLFallback: React.FC = () => {
             <p className="font-medium text-amber-400">Firefox — pasos para activar WebGL:</p>
             <ol className="list-decimal list-inside space-y-1 text-slate-300">
               <li>Escribe <code className="bg-slate-700 px-1 rounded">about:config</code> en la barra de direcciones</li>
-              <li>Busca <code className="bg-slate-700 px-1 rounded">webgl.disabled</code> y ponlo a <strong>false</strong></li>
-              <li>Busca <code className="bg-slate-700 px-1 rounded">webgl.enable-webgl2</code> y ponlo a <strong>true</strong></li>
-              <li>Reinicia Firefox</li>
+              <li>Busca <code className="bg-slate-700 px-1 rounded">webgl.disabled</code> → ponlo a <strong>false</strong></li>
+              <li>Busca <code className="bg-slate-700 px-1 rounded">webgl.enable-webgl2</code> → ponlo a <strong>true</strong></li>
+              <li>Busca <code className="bg-slate-700 px-1 rounded">WebglAllowWindowsNativeGl</code> → ponlo a <strong>true</strong></li>
+              <li>Recarga la página (no hace falta reiniciar Firefox)</li>
             </ol>
           </>
         )}
@@ -219,6 +220,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
+  const initAttemptedRef = useRef(false); // prevent double-init on remount
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isViewerReady, setIsViewerReady] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
@@ -238,7 +240,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   }, [terrainProvider]);
 
   useEffect(() => {
-    if (!containerRef.current || viewerRef.current || webglFailed) return;
+    if (!containerRef.current || viewerRef.current || webglFailed || initAttemptedRef.current) return;
+    initAttemptedRef.current = true;
 
     logger.debug('[CesiumMap] Initializing Cesium viewer');
 
