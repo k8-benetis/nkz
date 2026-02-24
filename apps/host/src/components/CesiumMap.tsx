@@ -11,13 +11,11 @@ import {
   Mountain
 } from 'lucide-react';
 import { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, AgriCrop, AgriBuilding, Device } from '@/types';
-import { getIndexColor, type IndexType } from '@/utils/ndviColors';
 import { useViewerOptional } from '@/context/ViewerContext';
 import { SlotRenderer } from '@/components/SlotRenderer';
 import { CesiumStampRenderer } from '@/components/CesiumStampRenderer';
 import { useTerrainProvider } from '@/hooks/cesium/useTerrainProvider';
 import { use3DTiles } from '@/hooks/cesium/use3DTiles';
-import { useNdviLayer } from '@/hooks/cesium/useNdviLayer';
 import { useEntitySelection } from '@/hooks/cesium/useEntitySelection';
 import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
@@ -35,13 +33,6 @@ const RISK_SEVERITY_COLORS: Record<RiskOverlayInfo['severity'], string> = {
 
 // Import Cesium CSS
 import 'cesium/Build/Cesium/Widgets/widgets.css';
-
-interface ParcelIndexData {
-  [parcelId: string]: {
-    mean: number;
-    date: string;
-  };
-}
 
 interface CesiumMapProps {
   title?: string;
@@ -61,19 +52,10 @@ interface CesiumMapProps {
   terrainProvider?: 'idena' | 'ign' | 'auto' | string; // Terrain provider: 'idena' (Navarra), 'ign' (España), 'auto' (detect by location), or custom URL
   enable3DTiles?: boolean; // Enable 3D Tiles layer (buildings, terrain)
   tilesetUrl?: string; // Optional: specific 3D Tiles tileset URL (default: Navarra)
-  ndviOverlayUrl?: string; // Optional: NDVI raster overlay URL (will be clamped to terrain) - DEPRECATED: use ndviWmsLayer instead
-  ndviWmsLayer?: {
-    workspace: string; // GeoServer workspace (e.g., 'nekazari')
-    layer: string; // Layer name (e.g., 'ndvi_parcel_123' or 'ndvi_tenant_abc')
-    date?: string; // Optional: date filter for time-based layers (ISO format)
-    opacity?: number; // Optional: layer opacity (0-1, default: 0.8)
-  };
   selectedEntity?: any; // Selected entity to zoom to
   mode?: 'view' | 'picker'; // Map mode: 'view' (default) or 'picker' (for selecting location)
   onMapClick?: (lat: number, lon: number) => void; // Callback for map clicks in picker mode
   onEntitySelect?: (entity: { id: string; type: string }) => void; // Callback when an entity is clicked
-  parcelIndexData?: ParcelIndexData; // Optional: Index data for parcel coloring (NDVI, EVI, etc.)
-  indexType?: 'ndvi' | 'evi' | 'savi' | 'gndvi' | 'ndre'; // Type of index for coloring (default: 'ndvi')
   riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
   // Module layer configurations (extensible for future modules)
   // Removed vegetationLayerConfig - modules should register layers via slot system
@@ -248,14 +230,10 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   terrainProvider = 'auto', // Auto-detect based on location
   enable3DTiles = true, // Enable by default for Navarra tileset
   tilesetUrl = 'https://idena.navarra.es/3dtiles/Pamplona2025/tileset.json', // Default: Navarra 3D Tiles
-  ndviOverlayUrl, // DEPRECATED: use ndviWmsLayer instead
-  ndviWmsLayer,
   selectedEntity,
   mode = 'view',
   onMapClick,
   onEntitySelect,
-  parcelIndexData = {},
-  indexType = 'ndvi',
   riskOverlay,
   // vegetationLayerConfig removed - modules use slot system
 }) => {
@@ -508,10 +486,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   // Handle 3D Tiles Updates (extracted hook)
   use3DTiles(viewerRef, enable3DTiles, tilesetUrl);
 
-  // Handle NDVI WMS Layer Updates (extracted hook)
-  useNdviLayer(viewerRef, ndviWmsLayer, ndviOverlayUrl, parcels);
-
-  // NOTE: Module-specific Cesium layers should be registered through the slot system
+  // NOTE: Module-specific Cesium layers (NDVI, vegetation indices) must use the slot system (map-layer slot)
   // External modules should expose their layers via the 'map-layer' slot
   // This hardcoded vegetation layer integration has been removed to maintain core independence
   // Modules must implement their own layer integration through the slot system
@@ -1424,7 +1399,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
           const isSelected = selectedEntity?.id === parcel.id;
 
-          // Get color: default → NDVI → risk overlay → selection (highest priority)
+          // Get color: default → risk overlay → selection (highest priority)
+          // Vegetation index overlays (NDVI, EVI, etc.) are handled by the vegetation-health
+          // module via the map-layer slot — NOT by a flat per-parcel color in this component.
           let fillColor: any;
           let outlineColor: any;
 
@@ -1432,15 +1409,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           fillColor = Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4);
           outlineColor = Cesium.Color.fromCssColorString('#4ade80');
 
-          // 2. Index-based coloring (NDVI / EVI / etc.)
-          if (parcelIndexData && parcelIndexData[parcel.id]) {
-            const indexValue = parcelIndexData[parcel.id].mean;
-            const cssColor = getIndexColor(indexType as IndexType, indexValue);
-            fillColor = Cesium.Color.fromCssColorString(cssColor).withAlpha(0.6);
-            outlineColor = Cesium.Color.fromCssColorString(cssColor).withAlpha(0.9);
-          }
-
-          // 3. Risk overlay (overrides NDVI — risk is more actionable)
+          // 2. Risk overlay (overrides default)
           const riskInfo = riskOverlay?.get(parcel.id);
           if (riskInfo) {
             const riskCss = RISK_SEVERITY_COLORS[riskInfo.severity];
@@ -1481,22 +1450,13 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5000), // Only show when close
               show: isSelected || true, // Always show label, but maybe highlight if selected?
             },
-            description: (() => {
-              const indexInfo = parcelIndexData && parcelIndexData[parcel.id];
-              const indexValue = indexInfo ? indexInfo.mean.toFixed(3) : 'N/A';
-              const indexDate = indexInfo ? new Date(indexInfo.date).toLocaleDateString() : 'N/A';
-              return `
+            description: `
                 <div class="p-2">
                   <h3 class="font-bold">${parcelName}</h3>
-                  <p>Area: ${parcel.area || 'N/A'} ha</p>
-                  <p>Crop: ${parcel.cropType || 'None'}</p>
-                  ${indexInfo ? `
-                    <p><strong>${indexType.toUpperCase()}:</strong> ${indexValue}</p>
-                    <p><strong>Fecha:</strong> ${indexDate}</p>
-                  ` : '<p class="text-gray-500">Sin datos de índice</p>'}
+                  <p>Área: ${parcel.area || 'N/A'} ha</p>
+                  <p>Cultivo: ${parcel.cropType || '—'}</p>
                 </div>
-              `;
-            })()
+              `
           });
 
         } catch (e) {
@@ -1514,8 +1474,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     robots,
     sensors,
     machines,
-    parcelIndexData,
-    indexType,
     livestock,
     weatherStations,
     crops,
