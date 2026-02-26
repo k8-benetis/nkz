@@ -2,30 +2,13 @@
 # Headscale — Deployment, Services e Ingress
 # =============================================================================
 # PRE-REQUISITOS (ver README.md):
-#   1. Secret 'headscale-db-secret' con credenciales PostgreSQL
-#   2. Secret 'headscale-keys' (vacío en primer deploy — Headscale lo rellena)
-#   3. DB 'headscale' y user 'headscale' creados en PostgreSQL
-#   4. ConfigMap 'headscale-config' aplicado (02-headscale-config.yaml)
+#   1. Secret 'headscale-db-secret' — CREAR MANUALMENTE (no en Git):
+#        kubectl create secret generic headscale-db-secret \
+#          --from-literal=db-password="$(openssl rand -base64 32)" \
+#          -n nekazari
+#   2. DB 'headscale' y user 'headscale' en PostgreSQL
+#   3. ConfigMap 'headscale-config' (02-headscale-config.yaml)
 # =============================================================================
-
----
-# Secret plantilla para credenciales de BD.
-# CREAR MANUALMENTE — no commitear valores reales:
-#
-#   kubectl create secret generic headscale-db-secret \
-#     --from-literal=db-password="$(openssl rand -base64 32)" \
-#     -n nekazari
-apiVersion: v1
-kind: Secret
-metadata:
-  name: headscale-db-secret
-  namespace: nekazari
-  labels:
-    app: headscale
-    component: secrets
-type: Opaque
-data:
-  db-password: PLACEHOLDER_BASE64  # Sustituir antes de aplicar
 
 ---
 # PVC para las claves privadas de Headscale (solo ~2KB, no es "estado de red").
@@ -97,8 +80,8 @@ spec:
               containerPort: 9090
               protocol: TCP
           env:
-            # Contraseña de PostgreSQL inyectada desde Secret
-            - name: HEADSCALE_DATABASE_POSTGRES_PASSWORD
+            # Contraseña de PostgreSQL inyectada desde Secret (Headscale usa PASS, no PASSWORD)
+            - name: HEADSCALE_DATABASE_POSTGRES_PASS
               valueFrom:
                 secretKeyRef:
                   name: headscale-db-secret

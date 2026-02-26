@@ -4,7 +4,7 @@
 # Headscale es el plano de control open-source para redes Tailscale/WireGuard.
 # Gestiona: peers, Pre-Auth Keys, rutas de subred y políticas ACL.
 #
-# Estado: PostgreSQL (DB 'headscale' en timescaledb-service).
+# Estado: PostgreSQL (DB 'headscale' en postgresql-service).
 # Control plane: https://vpn.nkz.robotika.cloud (via Traefik ingress).
 # =============================================================================
 
@@ -22,6 +22,9 @@ data:
     # URL pública del servidor — los clientes Tailscale se registran aquí
     server_url: https://vpn.nkz.robotika.cloud
 
+    # Socket Unix (debe ser ruta escribible; el pod corre como UID 1000)
+    unix_socket: /var/lib/headscale/headscale.sock
+
     # Escucha interna del control plane (HTTP/gRPC)
     listen_addr: 0.0.0.0:8080
     grpc_listen_addr: 0.0.0.0:50443
@@ -34,11 +37,11 @@ data:
     database:
       type: postgres
       postgres:
-        host: timescaledb-service
+        host: postgresql-service
         port: 5432
         name: headscale
         user: headscale
-        # password: inyectada como env var HEADSCALE_DATABASE_POSTGRES_PASSWORD
+        # password: inyectada como env var HEADSCALE_DATABASE_POSTGRES_PASS
         max_open_conns: 10
         max_idle_conns: 5
         conn_max_idle_time_secs: 3600
