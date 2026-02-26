@@ -216,6 +216,14 @@ spec:
                 name: datahub-api-service
                 port:
                   number: 8000
+          # Odoo ERP Module API (tenant provisioning, sync, NGSI-LD)
+          - path: /api/odoo
+            pathType: Prefix
+            backend:
+              service:
+                name: odoo-backend-service
+                port:
+                  number: 80
           # - path: /ros2-fiware-bridge-service
           #   pathType: Prefix
           #   backend:
@@ -291,10 +299,11 @@ spec:
                 port:
                   number: 8000
           # =================================================================
-          # Module Federation - All modules served from MinIO via frontend-static
+          # IIFE module bundles — ONLY frontend-static (MinIO). No per-module ingress.
           # =================================================================
-          # All federated modules are stored in MinIO and served through nginx.
-          # This centralizes module serving and eliminates per-module deployments.
+          # All module bundles are at /modules/<id>/nkz-module.js from MinIO.
+          # Do NOT add another Ingress with path /modules/vegetation-prime (or any
+          # /modules/<id>) — it would intercept the URL and serve HTML, breaking registration.
           - path: /modules
             pathType: Prefix
             backend:
