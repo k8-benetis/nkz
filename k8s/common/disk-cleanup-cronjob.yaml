@@ -1,0 +1,174 @@
+# =============================================================================
+# Disk Monitoring & Cleanup CronJob
+# =============================================================================
+# Runs every 4 hours. Checks disk usage on the host node.
+# - If disk > WARNING_THRESHOLD (80%): logs alert + prunes unused container images
+# - If disk > CRITICAL_THRESHOLD (87%): also truncates old container logs
+# - If ALERT_WEBHOOK_URL is set: sends POST with disk state JSON
+#
+# Requires: privileged pod with nsenter to access host namespaces
+# Apply: sudo kubectl apply -f k8s/common/disk-cleanup-cronjob.yaml
+# Logs:  sudo kubectl logs -n nekazari job/<name> (last run) or cronjob logs
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: disk-cleanup
+  namespace: nekazari
+
+---
+# ClusterRole to list nodes (for labeling/node-info)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: disk-cleanup
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: disk-cleanup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: disk-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: disk-cleanup
+    namespace: nekazari
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: disk-cleanup
+  namespace: nekazari
+  labels:
+    app: disk-cleanup
+    layer: ops
+spec:
+  # Every 4 hours
+  schedule: "0 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: disk-cleanup
+        spec:
+          serviceAccountName: disk-cleanup
+          restartPolicy: Never
+          hostPID: true
+          hostNetwork: false
+          tolerations:
+            - operator: Exists
+              effect: NoSchedule
+          containers:
+            - name: cleaner
+              image: alpine:3.19
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                privileged: true
+              env:
+                - name: WARNING_THRESHOLD
+                  value: "80"
+                - name: CRITICAL_THRESHOLD
+                  value: "87"
+                - name: ALERT_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: disk-cleanup-config
+                      key: ALERT_WEBHOOK_URL
+                      optional: true
+              volumeMounts:
+                - name: host-root
+                  mountPath: /host
+                  readOnly: false
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  # ── helpers ───────────────────────────────────────────────
+                  log() { echo "[$(date -u +%H:%M:%S)] $*"; }
+                  nsenter_host() { nsenter -t 1 -m -u -i -n -p -- "$@"; }
+
+                  # ── read disk usage ───────────────────────────────────────
+                  DISK_PCT=$(nsenter_host df / | awk 'NR==2{gsub(/%/,"",$5); print $5}')
+                  DISK_AVAIL=$(nsenter_host df -h / | awk 'NR==2{print $4}')
+                  DISK_USED=$(nsenter_host df -h / | awk 'NR==2{print $3}')
+                  DISK_TOTAL=$(nsenter_host df -h / | awk 'NR==2{print $2}')
+
+                  log "Disk: ${DISK_USED}/${DISK_TOTAL} used (${DISK_PCT}%), ${DISK_AVAIL} free"
+
+                  CLEANED=false
+
+                  # ── warning level: prune unused container images ──────────
+                  if [ "${DISK_PCT}" -ge "${WARNING_THRESHOLD}" ]; then
+                    log "WARNING: disk at ${DISK_PCT}% (threshold: ${WARNING_THRESHOLD}%) — pruning unused container images"
+
+                    # Remove unused containerd/k3s images
+                    nsenter_host k3s crictl rmi --prune 2>/dev/null && log "Pruned unused container images" || log "crictl prune skipped (no unused images or command not found)"
+
+                    # Remove dangling overlay directories older than 24h
+                    nsenter_host find /var/lib/rancher/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
+
+                    CLEANED=true
+                  fi
+
+                  # ── critical level: also clean logs ───────────────────────
+                  if [ "${DISK_PCT}" -ge "${CRITICAL_THRESHOLD}" ]; then
+                    log "CRITICAL: disk at ${DISK_PCT}% (threshold: ${CRITICAL_THRESHOLD}%) — cleaning logs"
+
+                    # Rotate journal to max 500MB
+                    nsenter_host journalctl --vacuum-size=500M 2>/dev/null && log "Journal rotated to 500MB max" || log "journalctl not available"
+
+                    # Truncate container logs larger than 100MB (keeps file, clears content)
+                    nsenter_host find /var/log/containers -name "*.log" -size +100M 2>/dev/null | while read f; do
+                      log "Truncating large log: ${f} ($(nsenter_host du -sh "$f" 2>/dev/null | cut -f1))"
+                      nsenter_host truncate -s 0 "$f" 2>/dev/null || true
+                    done
+
+                    # Clean old rotated logs
+                    nsenter_host find /var/log -name "*.gz" -mtime +7 -delete 2>/dev/null || true
+                    nsenter_host find /var/log -name "*.1" -mtime +3 -delete 2>/dev/null || true
+
+                    CLEANED=true
+                  fi
+
+                  # ── re-read disk after cleanup ────────────────────────────
+                  if [ "${CLEANED}" = "true" ]; then
+                    DISK_PCT_AFTER=$(nsenter_host df / | awk 'NR==2{gsub(/%/,"",$5); print $5}')
+                    DISK_AVAIL_AFTER=$(nsenter_host df -h / | awk 'NR==2{print $4}')
+                    log "After cleanup: ${DISK_PCT_AFTER}% used, ${DISK_AVAIL_AFTER} free"
+                  fi
+
+                  # ── webhook alert ─────────────────────────────────────────
+                  if [ -n "${ALERT_WEBHOOK_URL}" ] && [ "${DISK_PCT}" -ge "${WARNING_THRESHOLD}" ]; then
+                    SEVERITY="warning"
+                    [ "${DISK_PCT}" -ge "${CRITICAL_THRESHOLD}" ] && SEVERITY="critical"
+
+                    apk add --quiet --no-cache curl 2>/dev/null || true
+                    curl -s -X POST "${ALERT_WEBHOOK_URL}" \
+                      -H "Content-Type: application/json" \
+                      -d "{\"severity\":\"${SEVERITY}\",\"disk_pct\":${DISK_PCT},\"disk_avail\":\"${DISK_AVAIL}\",\"cleaned\":${CLEANED},\"host\":\"$(nsenter_host hostname)\"}" \
+                      2>/dev/null && log "Alert sent to webhook" || log "Webhook send failed (non-fatal)"
+                  fi
+
+                  log "Done."
+          volumes:
+            - name: host-root
+              hostPath:
+                path: /
+                type: Directory
