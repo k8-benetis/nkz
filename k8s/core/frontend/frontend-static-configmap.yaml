@@ -73,23 +73,20 @@ data:
             }
 
             # =================================================================
-            # Module Federation - Federated Micro-frontends
+            # IIFE module bundles from MinIO (nkz-module.js per module)
             # =================================================================
-            # Serves external module bundles (remoteEntry.js) from MinIO.
-            # These are third-party or external modules loaded via Module Federation.
-            # CORS is critical for cross-origin module loading.
+            # Serves module bundles. Use must-revalidate so cached wrong responses (e.g. index.html)
+            # are revalidated and real JS is served (CLAUDE.md: wrong MIME breaks register()).
             location /modules/ {
                 proxy_pass http://minio-service:9000/nekazari-frontend/modules/;
                 proxy_set_header Host minio-service:9000;
                 proxy_hide_header x-amz-id-2;
                 proxy_hide_header x-amz-request-id;
                 
-                # CORS headers - CRITICAL for Module Federation
                 add_header Access-Control-Allow-Origin "*" always;
                 add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
                 add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range" always;
                 
-                # Handle preflight requests
                 if ($request_method = 'OPTIONS') {
                     add_header Access-Control-Allow-Origin "*" always;
                     add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
@@ -99,9 +96,8 @@ data:
                     return 204;
                 }
                 
-                # Cache - remoteEntry.js gets short cache, other assets longer
-                # Browser will use hash in filename for cache busting on updates
-                add_header Cache-Control "public, max-age=3600";
+                # Short max-age + must-revalidate so wrong cached responses don't persist
+                add_header Cache-Control "public, max-age=300, must-revalidate";
             }
 
             # Explicit index.html handler (for SPA fallback)
