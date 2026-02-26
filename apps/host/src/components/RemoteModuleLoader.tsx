@@ -83,28 +83,39 @@ const DefaultLoadingFallback: React.FC = () => (
 // IIFE Module Loading (single code path — no Module Federation)
 // =============================================================================
 
+/** Poll registry for module (handles async script execution). */
+function getRegistered(moduleName: string, remoteEntryUrl: string): any {
+  const possibleIds = [moduleName, moduleName.replace('./', '')];
+  for (const id of possibleIds) {
+    const reg = window.__NKZ__?.getRegistered(id);
+    if (reg) return reg;
+  }
+  const ids = window.__NKZ__?.getRegisteredIds() || [];
+  const match = ids.find(id => remoteEntryUrl.includes(id) || moduleName.includes(id));
+  if (match) return window.__NKZ__?.getRegistered(match);
+  return undefined;
+}
+
 /**
  * Load a module component from the NKZ runtime registry.
  * IIFE modules register via window.__NKZ__.register() when their <script>
  * runs (injected by ModuleContext/moduleLoader). Exported for SlotRenderer.
+ * Waits up to 2s for registration in case the script is still executing.
  */
 export const loadRemoteModule = async (
   moduleName: string,
-  _remoteEntryUrl: string
+  remoteEntryUrl: string
 ): Promise<any> => {
-  // Direct registry lookup by ID (preferred for IIFE)
-  // moduleName is often "./App" (legacy) or the module ID
-  const possibleIds = [
-    moduleName,
-    moduleName.replace('./', ''),
-    // If we can't find it by name, we might need to rely on the module ID passed in props
-  ];
+  const REGISTRY_WAIT_MS = 2000;
+  const POLL_MS = 150;
 
-  let registered: any = undefined;
-  for (const id of possibleIds) {
-    if (window.__NKZ__?.getRegistered(id)) {
-      registered = window.__NKZ__.getRegistered(id);
-      break;
+  let registered: any = getRegistered(moduleName, remoteEntryUrl);
+  if (!registered) {
+    const deadline = Date.now() + REGISTRY_WAIT_MS;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, POLL_MS));
+      registered = getRegistered(moduleName, remoteEntryUrl);
+      if (registered) break;
     }
   }
 
@@ -121,17 +132,11 @@ export const loadRemoteModule = async (
     );
   }
 
-  // One more try: loose match by URL or name (script may have registered with different key)
-  const ids = window.__NKZ__?.getRegisteredIds() || [];
-  const match = ids.find(id => _remoteEntryUrl.includes(id) || moduleName.includes(id));
-  if (match) {
-    const reg = window.__NKZ__?.getRegistered(match);
-    if (reg?.main) return reg.main;
-  }
-
-  const available = ids.length ? ids.join(', ') : 'none';
+  const available = (window.__NKZ__?.getRegisteredIds() || []).join(', ') || 'none';
+  const scriptUrl = remoteEntryUrl.startsWith('http') ? remoteEntryUrl : `${window.location.origin}${remoteEntryUrl}`;
   throw new Error(
-    `Module "${moduleName}" not found in registry. Ensure the module script loaded and called window.__NKZ__.register(). Available: ${available}`
+    `Module "${moduleName}" not found in registry. Ensure the module script loaded and called window.__NKZ__.register(). ` +
+    `Script URL: ${scriptUrl} — open in a new tab to check (404 or wrong MIME type will prevent registration). Available: ${available}`
   );
 };
 

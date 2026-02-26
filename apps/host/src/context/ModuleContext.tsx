@@ -305,11 +305,17 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         .filter(m => m.remoteEntry && !m.isLocal)
         .map(m => ({ id: m.id, bundleUrl: m.remoteEntry! }));
 
+      const scriptLoadFailedIds = new Set<string>();
       if (modulesToLoad.length > 0) {
         const results = await loadModuleScripts(modulesToLoad);
         results.forEach(r => {
           if (!r.success) {
-            console.warn(`[ModuleContext] Failed to load module "${r.id}":`, r.error?.message);
+            scriptLoadFailedIds.add(r.id);
+            console.warn(
+              `[ModuleContext] Failed to load module "${r.id}":`,
+              r.error?.message,
+              `— Check that the bundle exists at the remoteEntry URL (e.g. MinIO /modules/${r.id}/nkz-module.js) and DB marketplace_modules.remote_entry_url is set.`
+            );
           }
         });
       }
@@ -326,7 +332,12 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         });
       }
 
-      setModules(Array.from(moduleMap.values()));
+      // Exclude remote modules whose script failed to load (404, CORS, etc.)
+      // so the sidebar does not show them and users don't hit "not found in registry"
+      const finalModules = Array.from(moduleMap.values()).filter(
+        m => !m.remoteEntry || !scriptLoadFailedIds.has(m.id)
+      );
+      setModules(finalModules);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
       console.error('[ModuleContext] Error loading modules:', error);
