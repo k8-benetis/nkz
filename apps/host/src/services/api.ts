@@ -1188,65 +1188,6 @@ class ApiService {
     return response.data;
   }
 
-  // =============================================================================
-  // ROS2 Robot Control Methods
-  // =============================================================================
-
-  async getROS2Robots(): Promise<any[]> {
-    try {
-      const response = await this.client.get('/ros2-fiware-bridge-service/api/robots');
-      return response.data?.robots || [];
-    } catch (error) {
-      logger.warn('Error fetching ROS2 robots:', error);
-      return [];
-    }
-  }
-
-  async getROS2RobotNodes(robotId: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/ros2-fiware-bridge-service/api/robots/${robotId}/nodes`);
-      return response.data;
-    } catch (error) {
-      logger.warn('Error fetching ROS2 robot nodes:', error);
-      return { nodes: [], metrics: {} };
-    }
-  }
-
-  async getROS2RobotTopics(robotId: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/ros2-fiware-bridge-service/api/robots/${robotId}/topics`);
-      return response.data;
-    } catch (error) {
-      logger.warn('Error fetching ROS2 robot topics:', error);
-      return { topics: [] };
-    }
-  }
-
-  async getROS2RobotAlerts(robotId: string): Promise<any> {
-    try {
-      const response = await this.client.get(`/ros2-fiware-bridge-service/api/robots/${robotId}/alerts`);
-      return response.data;
-    } catch (error) {
-      logger.warn('Error fetching ROS2 robot alerts:', error);
-      return { alerts: [] };
-    }
-  }
-
-  async sendRobotEmergencyStop(robotId: string): Promise<void> {
-    await this.client.post(`/ros2-fiware-bridge-service/api/robots/${robotId}/emergency-stop`);
-  }
-
-  async sendRobotResume(robotId: string): Promise<void> {
-    await this.client.post(`/ros2-fiware-bridge-service/api/robots/${robotId}/resume`);
-  }
-
-  async sendRobotCommand(robotId: string, linear: number, angular: number): Promise<void> {
-    await this.client.post(`/ros2-fiware-bridge-service/api/robots/${robotId}/command`, {
-      linear,
-      angular
-    });
-  }
-
   async createParcel(parcel: Partial<Parcel>): Promise<Parcel> {
     const response = await this.client.post('/ngsi-ld/v1/entities', parcel, {
       headers: {
@@ -1885,6 +1826,14 @@ class ApiService {
         'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
       },
     });
+    return response.data;
+  }
+
+  async batchCreateEntities(
+    entityType: string,
+    entities: Array<{ name: string; lat?: number | null; lng?: number | null; [key: string]: any }>
+  ): Promise<{ created: number; errors: any[]; entity_ids: string[] }> {
+    const response = await this.client.post(`/sdm/entities/${entityType}/batch`, { entities });
     return response.data;
   }
 

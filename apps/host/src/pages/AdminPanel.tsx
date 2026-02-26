@@ -284,8 +284,8 @@ export const AdminPanel: React.FC = () => {
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
                 >
                   <Users className="h-6 w-6 text-green-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">Códigos NEK</h3>
-                  <p className="text-sm text-gray-600">Generar códigos de activación NEK</p>
+                  <h3 className="font-medium text-gray-900">{t('admin.nek_codes')}</h3>
+                  <p className="text-sm text-gray-600">{t('admin.nek_codes_desc')}</p>
                 </button>
 
                 <button
@@ -293,8 +293,8 @@ export const AdminPanel: React.FC = () => {
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
                 >
                   <Users className="h-6 w-6 text-purple-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">Gestión de Usuarios</h3>
-                  <p className="text-sm text-gray-600">Ver, asignar y borrar usuarios</p>
+                  <h3 className="font-medium text-gray-900">{t('admin.user_management_panel')}</h3>
+                  <p className="text-sm text-gray-600">{t('admin.user_management_panel_desc')}</p>
                 </button>
 
                 <button
@@ -380,8 +380,8 @@ export const AdminPanel: React.FC = () => {
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
                 >
                   <FileText className="h-6 w-6 text-indigo-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">Audit Logs</h3>
-                  <p className="text-sm text-gray-600">View system audit logs and compliance records</p>
+                  <h3 className="font-medium text-gray-900">{t('admin.audit_logs')}</h3>
+                  <p className="text-sm text-gray-600">{t('admin.audit_logs_desc')}</p>
                 </button>
 
                 <button
@@ -389,8 +389,8 @@ export const AdminPanel: React.FC = () => {
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
                 >
                   <Activity className="h-6 w-6 text-cyan-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">Configuración IoT</h3>
-                  <p className="text-sm text-gray-600">Perfiles de procesamiento y estadísticas de telemetría</p>
+                  <h3 className="font-medium text-gray-900">{t('admin.iot_configuration')}</h3>
+                  <p className="text-sm text-gray-600">{t('admin.iot_configuration_desc')}</p>
                 </button>
 
                 <button
@@ -398,8 +398,8 @@ export const AdminPanel: React.FC = () => {
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
                 >
                   <Package className="h-6 w-6 text-orange-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">Global Asset Manager</h3>
-                  <p className="text-sm text-gray-600">Manage public 3D models and icons</p>
+                  <h3 className="font-medium text-gray-900">{t('admin.global_assets')}</h3>
+                  <p className="text-sm text-gray-600">{t('admin.global_assets_desc')}</p>
                 </button>
 
                 <button
@@ -407,42 +407,41 @@ export const AdminPanel: React.FC = () => {
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
                 >
                   <BookOpen className="h-6 w-6 text-purple-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">Librería de Dispositivos</h3>
-                  <p className="text-sm text-gray-600">Perfiles de mapeo IoT para sensores</p>
+                  <h3 className="font-medium text-gray-900">{t('admin.device_library')}</h3>
+                  <p className="text-sm text-gray-600">{t('admin.device_library_desc')}</p>
                 </button>
 
-                <button
-                  onClick={() => {
-                    const config = getConfig();
-                    const grafanaUrl = config.external.grafanaUrl || `${window.location.origin}/grafana`;
-                    if (grafanaUrl) {
-                      window.open(grafanaUrl, '_blank');
-                    }
-                  }}
-                  className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
-                >
-                  <Activity className="h-6 w-6 text-indigo-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">{t('admin.grafana')}</h3>
-                  <p className="text-sm text-gray-600">{t('admin.grafana_desc')}</p>
-                </button>
+                {(() => {
+                  const config = getConfig();
+                  const grafanaUrl = config.external?.grafanaUrl;
+                  if (!grafanaUrl) return null;
+                  return (
+                    <button
+                      onClick={() => window.open(grafanaUrl, '_blank')}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
+                    >
+                      <Activity className="h-6 w-6 text-indigo-600 mb-2" />
+                      <h3 className="font-medium text-gray-900">{t('admin.grafana')}</h3>
+                      <p className="text-sm text-gray-600">{t('admin.grafana_desc')}</p>
+                    </button>
+                  );
+                })()}
 
-                <button
-                  onClick={() => {
-                    const config = getConfig();
-                    // Prometheus está en /prometheus con path rewrite
-                    const prometheusUrl = config.external.prometheusUrl || `${window.location.origin}/prometheus`;
-                    if (prometheusUrl) {
-                      window.open(prometheusUrl, '_blank');
-                    } else {
-                      console.error('Prometheus URL no configurada');
-                    }
-                  }}
-                  className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
-                >
-                  <Gauge className="h-6 w-6 text-red-600 mb-2" />
-                  <h3 className="font-medium text-gray-900">{t('admin.prometheus')}</h3>
-                  <p className="text-sm text-gray-600">{t('admin.prometheus_desc')}</p>
-                </button>
+                {(() => {
+                  const config = getConfig();
+                  const prometheusUrl = config.external?.prometheusUrl;
+                  if (!prometheusUrl) return null;
+                  return (
+                    <button
+                      onClick={() => window.open(prometheusUrl, '_blank')}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition duration-200"
+                    >
+                      <Gauge className="h-6 w-6 text-red-600 mb-2" />
+                      <h3 className="font-medium text-gray-900">{t('admin.prometheus')}</h3>
+                      <p className="text-sm text-gray-600">{t('admin.prometheus_desc')}</p>
+                    </button>
+                  );
+                })()}
               </>
             )}
 
@@ -499,12 +498,6 @@ export const AdminPanel: React.FC = () => {
                 <div className="space-y-4">
                   <p className="text-gray-600">{t('admin.device_management_desc')}</p>
                   <div className="flex gap-4">
-                    <button
-                      onClick={() => navigate('/robots')}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                    >
-                      {t('admin.manage_robots')}
-                    </button>
                     <button
                       onClick={() => navigate('/sensors')}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"

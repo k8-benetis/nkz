@@ -1,28 +1,26 @@
 // =============================================================================
-// Improved Dashboard - Modern and Professional
+// Dashboard — Nekazari Platform
 // =============================================================================
+// Operational view: weather + agroclimate, active risks, entity inventory.
+// All data is real. No hardcoded content.
 
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Layout } from '@/components/Layout';
-// CesiumMap removed from Dashboard to avoid WebGL context conflicts with UnifiedViewer
-import { GrafanaAccess } from '@/components/GrafanaAccess';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { WeatherAgroPanel } from '@/components/WeatherAgroPanel';
 import { PlanSummaryCard } from '@/components/dashboard/PlanSummaryCard';
 import { ProgressBar } from '@/components/dashboard/ProgressBar';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { TenantInfoWidget } from '@/components/dashboard/TenantInfoWidget';
-import { RobotsStatusCard } from '@/components/dashboard/RobotsStatusCard';
 import { RiskSummaryCard } from '@/components/dashboard/RiskSummaryCard';
 import { EnvironmentalSensorsCard } from '@/components/dashboard/EnvironmentalSensorsCard';
 import { AgriculturalMachinesCard } from '@/components/dashboard/AgriculturalMachinesCard';
 import { LivestockCard } from '@/components/dashboard/LivestockCard';
 import { WeatherStationsCard } from '@/components/dashboard/WeatherStationsCard';
 import { ParcelsOverviewCard } from '@/components/dashboard/ParcelsOverviewCard';
-import { AlertsCard } from '@/components/dashboard/AlertsCard';
 import { useDashboardData } from '@/hooks/dashboard/useDashboardData';
 import { getExpirationAlert } from '@/utils/keycloakHelpers';
 import {
@@ -32,9 +30,7 @@ import {
   Activity,
   TrendingUp,
   AlertCircle,
-  Clock,
-  Zap,
-  Plus
+  Layers,
 } from 'lucide-react';
 import { EntityWizard } from '@/components/EntityWizard';
 import { SlotRegistryProvider } from '@/context/SlotRegistry';
@@ -44,18 +40,14 @@ export const DashboardImproved: React.FC = () => {
   const navigate = useNavigate();
   const { hasAnyRole } = useAuth();
   const { t } = useI18n();
-  // useViewer() removed — no longer needed without CesiumMap
 
-  // Check permissions
   const canManageDevices = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
 
-  // Data loading via extracted hook
   const {
     robots, sensors, parcels, machines, livestock, weatherStations,
     isLoading, expirationInfo, tenantUsage, loadData
   } = useDashboardData();
 
-  // Entity Wizard State
   const [showEntityWizard, setShowEntityWizard] = useState(false);
   const [wizardInitialType, setWizardInitialType] = useState<string | undefined>(undefined);
 
@@ -65,12 +57,6 @@ export const DashboardImproved: React.FC = () => {
   }, []);
 
   const activeRobots = robots.filter(r => r.status?.value === 'working').length;
-  const idleRobots = robots.filter(r => r.status?.value === 'idle').length;
-  const chargingRobots = robots.filter(r => r.status?.value === 'charging').length;
-
-  const avgTemperature = sensors.length > 0
-    ? sensors.reduce((sum, s) => sum + (s.temperature?.value || 0), 0) / sensors.length
-    : 0;
 
   const usageStats = tenantUsage?.usage;
   const robotLimit = tenantUsage?.limits?.maxRobots ?? null;
@@ -78,256 +64,202 @@ export const DashboardImproved: React.FC = () => {
   const areaLimit = tenantUsage?.limits?.maxAreaHectares ?? null;
   const lastUsageUpdate = tenantUsage?.timestamp;
 
+  const totalEntities =
+    robots.length + sensors.length + parcels.length +
+    machines.length + livestock.length + weatherStations.length;
+
   const expirationAlert = getExpirationAlert(expirationInfo);
 
   return (
     <Layout className="host-layout-protected">
       <SlotRegistryProvider>
-      {/* Expiration Alert */}
-      {expirationAlert && (
-        <div className={`mb-6 p-4 rounded-lg border ${expirationAlert.color} flex items-center justify-between`}>
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 mr-3" />
-            <p className="font-medium">{expirationAlert.message}</p>
-            {expirationInfo?.expires_at && (
-              <span className="ml-2 text-sm opacity-75">
-                (Expira: {new Date(expirationInfo.expires_at).toLocaleDateString('es-ES')})
-              </span>
-            )}
+
+        {/* ── Expiration alert ───────────────────────────────────────────── */}
+        {expirationAlert && (
+          <div className={`mb-6 p-4 rounded-lg border ${expirationAlert.color} flex items-center justify-between`}>
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 mr-3 flex-shrink-0" />
+              <p className="font-medium">{expirationAlert.message}</p>
+              {expirationInfo?.expires_at && (
+                <span className="ml-2 text-sm opacity-75">
+                  (Expira: {new Date(expirationInfo.expires_at).toLocaleDateString('es-ES')})
+                </span>
+              )}
+            </div>
+            <a
+              href="/settings"
+              className="px-4 py-2 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition font-medium text-sm text-gray-900 dark:text-gray-100 flex-shrink-0 ml-4"
+            >
+              Renovar
+            </a>
           </div>
-          <a
-            href="/settings"
-            className="px-4 py-2 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition font-medium text-sm text-gray-900 dark:text-gray-100"
+        )}
+
+        {/* ── Tenant header ──────────────────────────────────────────────── */}
+        <TenantInfoWidget />
+
+        {/* ── KPI row ────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <MetricCard
+            title={t('dashboard.registered_parcels')}
+            value={parcels.length}
+            description={t('dashboard.monitoring')}
+            icon={MapPin}
+            accentIcon={TrendingUp}
+            gradientFrom="from-green-500"
+            gradientTo="to-green-600"
+            footer={usageStats && areaLimit
+              ? t('dashboard.area', { current: usageStats.areaHectares.toFixed(1), limit: areaLimit.toString() })
+              : undefined}
           >
-            Renovar
-          </a>
-        </div>
-      )}
+            {usageStats && areaLimit ? (
+              <ProgressBar
+                value={usageStats.areaHectares}
+                max={areaLimit}
+                label={t('dashboard.area_label', { area: usageStats.areaHectares.toFixed(1) })}
+                showLabel
+                labelClassName="text-white text-xs text-opacity-80"
+                valueClassName="text-white font-semibold"
+                barClassName="bg-white dark:bg-gray-700"
+              />
+            ) : null}
+          </MetricCard>
 
-      {/* Welcome Section - Replaced by TenantInfoWidget */}
-      <TenantInfoWidget />
+          <MetricCard
+            title="Sensores Activos"
+            value={sensors.length}
+            description="en línea"
+            icon={Gauge}
+            accentIcon={Activity}
+            gradientFrom="from-blue-500"
+            gradientTo="to-blue-600"
+            footer={usageStats && sensorLimit ? `Capacidad: ${usageStats.sensors}/${sensorLimit}` : undefined}
+          >
+            {usageStats && sensorLimit ? (
+              <ProgressBar
+                value={usageStats.sensors}
+                max={sensorLimit}
+                label={`${usageStats.sensors}/${sensorLimit}`}
+                showLabel
+                labelClassName="text-white text-xs text-opacity-80"
+                valueClassName="text-white font-semibold"
+                barClassName="bg-white dark:bg-gray-700"
+              />
+            ) : null}
+          </MetricCard>
 
-      {/* Plan Summary */}
-      <PlanSummaryCard
-        planType={tenantUsage?.limits?.planType || expirationInfo?.plan}
-        daysRemaining={expirationInfo?.days_remaining ?? null}
-        expiresAt={expirationInfo?.expires_at ?? null}
-        limits={tenantUsage?.limits}
-        usage={usageStats}
-        updatedAt={lastUsageUpdate}
-      />
+          <MetricCard
+            title="Robots"
+            value={robots.length}
+            description={`${activeRobots} activos`}
+            icon={Bot}
+            accentIcon={Activity}
+            gradientFrom="from-indigo-500"
+            gradientTo="to-indigo-600"
+            footer={usageStats && robotLimit ? `Capacidad: ${usageStats.robots}/${robotLimit}` : undefined}
+          >
+            {usageStats && robotLimit ? (
+              <ProgressBar
+                value={usageStats.robots}
+                max={robotLimit}
+                label={`${usageStats.robots}/${robotLimit}`}
+                showLabel
+                labelClassName="text-white text-xs text-opacity-80"
+                valueClassName="text-white font-semibold"
+                barClassName="bg-white dark:bg-gray-700"
+              />
+            ) : null}
+          </MetricCard>
 
-      {/* Quick Stats - Modern Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <MetricCard
-          title="Robots Totales"
-          value={robots.length}
-          description={`${activeRobots} activos • ${idleRobots} inactivos`}
-          icon={Bot}
-          accentIcon={TrendingUp}
-          gradientFrom="from-blue-500"
-          gradientTo="to-blue-600"
-          footer={usageStats && robotLimit ? `Capacidad: ${usageStats.robots}/${robotLimit}` : undefined}
-        >
-          {usageStats && robotLimit ? (
-            <ProgressBar
-              value={usageStats.robots}
-              max={robotLimit ?? undefined}
-              label={`Uso ${usageStats.robots}/${robotLimit}`}
-              showLabel
-              labelClassName="text-white text-xs text-opacity-80"
-              valueClassName="text-white font-semibold"
-              barClassName="bg-white dark:bg-gray-700"
-            />
-          ) : null}
-        </MetricCard>
-
-        <MetricCard
-          title="Sensores Activos"
-          value={sensors.length}
-          description={`${sensors.length} en línea • ${avgTemperature.toFixed(1)}°C promedio`}
-          icon={Gauge}
-          accentIcon={Activity}
-          gradientFrom="from-green-500"
-          gradientTo="to-green-600"
-          footer={usageStats && sensorLimit ? `Capacidad: ${usageStats.sensors}/${sensorLimit}` : undefined}
-        >
-          {usageStats && sensorLimit ? (
-            <ProgressBar
-              value={usageStats.sensors}
-              max={sensorLimit ?? undefined}
-              label={`Uso ${usageStats.sensors}/${sensorLimit}`}
-              showLabel
-              labelClassName="text-white text-xs text-opacity-80"
-              valueClassName="text-white font-semibold"
-              barClassName="bg-white dark:bg-gray-700"
-            />
-          ) : null}
-        </MetricCard>
-
-        <MetricCard
-          title={t('dashboard.registered_parcels')}
-          value={parcels.length}
-          description={t('dashboard.monitoring')}
-          icon={MapPin}
-          accentIcon={Zap}
-          gradientFrom="from-yellow-500"
-          gradientTo="to-yellow-600"
-          footer={usageStats && areaLimit ? t('dashboard.area', { current: usageStats.areaHectares.toFixed(2), limit: areaLimit.toString() }) : undefined}
-        >
-          {usageStats && areaLimit ? (
-            <ProgressBar
-              value={usageStats.areaHectares}
-              max={areaLimit ?? undefined}
-              label={t('dashboard.area_label', { area: usageStats.areaHectares.toFixed(2) })}
-              showLabel
-              labelClassName="text-white text-xs text-opacity-80"
-              valueClassName="text-white font-semibold"
-              barClassName="bg-white dark:bg-gray-700"
-            />
-          ) : null}
-        </MetricCard>
-
-        <MetricCard
-          title={t('dashboard.system_operational')}
-          value="100%"
-          description={t('dashboard.all_services_active')}
-          icon={Activity}
-          gradientFrom="from-purple-500"
-          gradientTo="to-purple-600"
-          footer={lastUsageUpdate ? t('dashboard.last_update', { time: new Date(lastUsageUpdate).toLocaleTimeString('es-ES') }) : undefined}
-        >
-          <div className="flex items-center gap-2 text-xs text-white text-opacity-80">
-            <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
-            {t('dashboard.nominal_status')}
-          </div>
-        </MetricCard>
-      </div>
-
-      {/* Weather Widget Section - Uses tenant municipality */}
-      <div className="mb-8">
-        <WeatherWidget />
-      </div>
-
-      {/* Weather Agro Panel Section - Auto-detects tenant municipality */}
-      <div className="mb-8">
-        <WeatherAgroPanel />
-      </div>
-
-      {/* Grafana Access Section */}
-      <div className="mb-8">
-        <GrafanaAccess />
-      </div>
-
-      {/* 3D Map Section */}
-      <div className="mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <MapPin className="w-6 h-6" />
-              {t('dashboard.overview')}
-            </h2>
-            {canManageDevices && (
-              <button
-                onClick={() => navigate('/entities')}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
-                title={t('dashboard.add_parcel')}
-              >
-                <Plus className="w-4 h-4" />
-                {t('dashboard.add_parcel')}
-              </button>
-            )}
-          </div>
-          <div className="p-6 flex items-center justify-center h-[200px] text-gray-500 dark:text-gray-400">
+          <MetricCard
+            title="Entidades Registradas"
+            value={isLoading ? '…' : totalEntities}
+            description={`${parcels.length} parcelas · ${sensors.length} sensores · ${robots.length} robots`}
+            icon={Layers}
+            gradientFrom="from-purple-500"
+            gradientTo="to-purple-600"
+            footer={lastUsageUpdate
+              ? `Actualizado ${new Date(lastUsageUpdate).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+              : undefined}
+          >
             <button
               onClick={() => navigate('/entities')}
-              className="flex items-center gap-3 px-6 py-3 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 rounded-xl transition text-green-700 dark:text-green-400 font-medium"
+              className="text-xs text-white/80 hover:text-white underline underline-offset-2 transition"
             >
-              <MapPin className="w-5 h-5" />
-              {t('dashboard.overview')} →
+              Ver todas las entidades →
             </button>
-          </div>
+          </MetricCard>
         </div>
-      </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Robots Status */}
-        <RobotsStatusCard robots={robots} isLoading={isLoading} canManageDevices={canManageDevices} />
-
-        {/* Activity Feed */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-6 py-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Clock className="w-6 h-6" />
-              {t('dashboard.recent_activity')}
-            </h2>
+        {/* ── Weather + Risks (main) ──────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Left: weather stacked */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <WeatherWidget />
+            <WeatherAgroPanel />
           </div>
 
-          <div className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('dashboard.robot_activated')}</p>
-                  <p className="text-xs text-gray-500">{t('dashboard.minutes_ago', { minutes: '5' })}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('dashboard.new_sensor_registered')}</p>
-                  <p className="text-xs text-gray-500">{t('dashboard.hour_ago', { hours: '1' })}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('dashboard.data_update')}</p>
-                  <p className="text-xs text-gray-500">{t('dashboard.hours_ago', { hours: '2' })}</p>
-                </div>
-              </div>
-            </div>
+          {/* Right: risk summary — sticky context while scrolling */}
+          <div className="lg:col-span-1">
+            <RiskSummaryCard />
           </div>
         </div>
 
-        {/* Risk Summary */}
-        <RiskSummaryCard />
-      </div>
+        {/* ── Sensors + Parcels ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <EnvironmentalSensorsCard
+            sensors={sensors}
+            canManageDevices={canManageDevices}
+            onOpenWizard={openWizard}
+          />
+          <ParcelsOverviewCard parcels={parcels} />
+        </div>
 
-      {/* Sensors Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EnvironmentalSensorsCard sensors={sensors} canManageDevices={canManageDevices} onOpenWizard={openWizard} />
-        <AgriculturalMachinesCard machines={machines} canManageDevices={canManageDevices} onOpenWizard={openWizard} />
-      </div>
+        {/* ── Machines + Livestock + Weather Stations ────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <AgriculturalMachinesCard
+            machines={machines}
+            canManageDevices={canManageDevices}
+            onOpenWizard={openWizard}
+          />
+          <LivestockCard
+            livestock={livestock}
+            canManageDevices={canManageDevices}
+            onOpenWizard={openWizard}
+          />
+          <WeatherStationsCard
+            weatherStations={weatherStations}
+            canManageDevices={canManageDevices}
+            onOpenWizard={openWizard}
+          />
+        </div>
 
-      {/* Livestock and Weather Stations Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <LivestockCard livestock={livestock} canManageDevices={canManageDevices} onOpenWizard={openWizard} />
-        <WeatherStationsCard weatherStations={weatherStations} canManageDevices={canManageDevices} onOpenWizard={openWizard} />
-      </div>
+        {/* ── Plan & limits ──────────────────────────────────────────────── */}
+        <div className="mb-6">
+          <PlanSummaryCard
+            planType={tenantUsage?.limits?.planType || expirationInfo?.plan}
+            daysRemaining={expirationInfo?.days_remaining ?? null}
+            expiresAt={expirationInfo?.expires_at ?? null}
+            limits={tenantUsage?.limits}
+            usage={usageStats}
+            updatedAt={lastUsageUpdate}
+          />
+        </div>
 
-      {/* Module Dashboard Widgets */}
-      <SlotRenderer
-        slot="dashboard-widget"
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
-      />
+        {/* ── Module dashboard widgets ───────────────────────────────────── */}
+        <SlotRenderer
+          slot="dashboard-widget"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
+        />
 
-      {/* Parcels Overview */}
-      <ParcelsOverviewCard parcels={parcels} />
+        {/* ── Entity wizard ──────────────────────────────────────────────── */}
+        <EntityWizard
+          isOpen={showEntityWizard}
+          onClose={() => setShowEntityWizard(false)}
+          initialEntityType={wizardInitialType}
+          onSuccess={loadData}
+        />
 
-      {/* Alerts Section */}
-      <AlertsCard chargingRobots={chargingRobots} />
-
-      {/* Unified Entity Wizard */}
-      <EntityWizard
-        isOpen={showEntityWizard}
-        onClose={() => setShowEntityWizard(false)}
-        initialEntityType={wizardInitialType}
-        onSuccess={() => {
-          loadData();
-        }}
-      />
       </SlotRegistryProvider>
     </Layout>
   );

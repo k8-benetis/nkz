@@ -79,17 +79,8 @@ export const localAddonRegistry: Record<string, LocalAddonEntry> = {
     ),
   },
 
-  // Robots - Agricultural robotics management
-  'robots': {
-    component: lazy(() =>
-      import('@/pages/Robots').then(module => {
-        if (!module || !module.Robots) {
-          throw new Error('Robots component not found in module');
-        }
-        return { default: module.Robots };
-      })
-    ),
-  },
+  // Robots (core) removed — replaced entirely by nkz-module-robotics (Zenoh/ROS2)
+  // External module handles /robotics route. No internal addon registered.
 
   // Predictions - AI-powered predictions
   'predictions': {

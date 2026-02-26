@@ -17,12 +17,14 @@ import {
   Gauge,
   RefreshCw,
   Search,
-  Plus
+  Plus,
+  Upload,
 } from 'lucide-react';
 import type { Robot, Sensor, AgriculturalMachine, LivestockAnimal, WeatherStation, Parcel } from '@/types';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SensorInspector } from '@/components/SensorInspector';
+import { BulkImportModal } from '@/components/BulkImport/BulkImportModal';
 
 export const Entities: React.FC = () => {
   const { t: _t } = useI18n();
@@ -44,7 +46,8 @@ export const Entities: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEntity, setSelectedEntity] = useState<EntityListItem | null>(null);
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen]   = useState(false);
+  const [isImportOpen, setIsImportOpen]   = useState(false);
 
   const canManageDevices = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant', 'Farmer']);
 
@@ -322,13 +325,22 @@ export const Entities: React.FC = () => {
                 Actualizar
               </button>
               {canManageDevices && (
-                <button
-                  onClick={() => setIsWizardOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nueva Entidad
-                </button>
+                <>
+                  <button
+                    onClick={() => setIsImportOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Importar
+                  </button>
+                  <button
+                    onClick={() => setIsWizardOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nueva Entidad
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -443,6 +455,12 @@ export const Entities: React.FC = () => {
             loadAllEntities();
             setIsWizardOpen(false);
           }}
+        />
+
+        <BulkImportModal
+          isOpen={isImportOpen}
+          onClose={() => setIsImportOpen(false)}
+          onSuccess={loadAllEntities}
         />
       </Layout >
     </ErrorBoundary>
