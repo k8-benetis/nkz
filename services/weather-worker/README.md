@@ -2,17 +2,36 @@
 
 Worker service for ingesting weather data from multiple sources (Open-Meteo, AEMET) and calculating derived metrics for predictive models.
 
+**Status:** ✅ Production-ready | **Last Updated:** 2026-02-26
+
 ## Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Open-Meteo     │     │  Weather Worker  │     │  TimescaleDB    │
+│  (Primary API)  │────▶│  (FastAPI)       │────▶│  (Analytics)    │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌──────────────┐
+                        │   Orion-LD   │
+                        │ (Digital     │
+                        │  Twins)      │
+                        └──────────────┘
+```
 
 - **Sources**: Open-Meteo (primary), AEMET (secondary for alerts only)
 - **Database**: PostgreSQL + TimescaleDB (weather_observations hypertable)
-- **Processing**: Automatic ingestion every hour via CronJob
-- **Metrics**: GDD, ET₀, Solar Radiation (GHI/DNI) for predictive models
+- **Dual-write**: TimescaleDB (analytics) + Orion-LD (WeatherObserved entities)
+- **Processing**: Automatic ingestion every hour
+- **Metrics**: GDD, ET₀, Delta-T, Water Balance, Soil Moisture, Solar Radiation (GHI/DNI)
 
 ## Features
 
 ### Current (Phase 1)
-- ✅ Multi-source support (Open-Meteo, AEMET)
+- ✅ **Multi-source support**:
+  - **Open-Meteo** (primary): Cobertura global UE + UK + worldwide
+  - **AEMET** (secondary): Solo España — alertas oficiales
 - ✅ Historical data ingestion (yesterday to close real data)
 - ✅ Forecast data ingestion (7-14 days for simulations)
 - ✅ Critical metrics: Temperature, Humidity, Precipitation, Wind
@@ -20,7 +39,7 @@ Worker service for ingesting weather data from multiple sources (Open-Meteo, AEM
 - ✅ **ET₀ (Evapotranspiration)** - For irrigation models
 - ✅ **Soil Moisture** (0-10cm, 10-40cm) - For sensor validation
 - ✅ **GDD (Growing Degree Days)** - For pest and flowering prediction
-- ✅ AEMET official alerts ingestion (yellow/orange/red)
+- ✅ AEMET official alerts ingestion (Spain only: yellow/orange/red)
 - ✅ Multi-tenant support (RLS)
 - ✅ Prometheus metrics
 
@@ -28,6 +47,8 @@ Worker service for ingesting weather data from multiple sources (Open-Meteo, AEM
 - ⏳ Integration with Simulation Engine
 - ⏳ Real-time alert notifications (N8N)
 - ⏳ Weather data validation against sensor readings
+- ⏳ Additional alert providers for other EU countries (MeteoFrance, DWD, MetOffice)
+- ⏳ Additional alert providers for other EU countries (MeteoFrance, DWD, MetOffice)
 
 ## Usage
 
@@ -49,23 +70,40 @@ result = worker.ingest_weather_data(
 ### Automatic Ingestion (CronJob)
 
 Worker automatically runs every hour and:
-1. Fetches all active `tenant_weather_locations`
-2. Ingests historical data (yesterday) from Open-Meteo
-3. Ingests forecast data (7-14 days) from Open-Meteo
-4. Fetches AEMET alerts for each municipality
-5. Calculates derived metrics (GDD, ET₀)
-6. Stores everything in `weather_observations` and `weather_alerts`
+1. Fetches all active `tenant_weather_locations` (all EU + UK locations)
+2. Ingests historical data (yesterday) from **Open-Meteo** (global coverage)
+3. Ingests forecast data (7-14 days) from **Open-Meteo** (global coverage)
+4. Fetches **AEMET alerts** (Spain-only municipalities, skips if no API key)
+5. Calculates derived metrics (GDD, ET₀, Delta-T, Water Balance)
+6. Dual-write: TimescaleDB + Orion-LD sync
+
+> **Coverage**: Open-Meteo provides data for all EU + UK locations. AEMET alerts are only fetched for Spanish municipalities (INE codes).
 
 ## Configuration
 
-Environment variables:
-- `POSTGRES_URL`: PostgreSQL connection string
-- `OPENMETEO_API_URL`: Open-Meteo API URL (default: https://api.open-meteo.com/v1)
-- `AEMET_API_KEY`: AEMET OpenData API key (for alerts only)
-- `AEMET_API_URL`: AEMET API URL (default: https://opendata.aemet.es/opendata/api)
-- `WEATHER_INGESTION_INTERVAL_HOURS`: Ingestion interval (default: 1)
-- `METRICS_HOST`: Prometheus metrics host (default: 0.0.0.0)
-- `METRICS_PORT`: Prometheus metrics port (default: 9106)
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `POSTGRES_URL` | ✅ | — | PostgreSQL connection string |
+| `OPENMETEO_API_URL` | — | `https://api.open-meteo.com/v1` | Open-Meteo API (global UE+UK) |
+| `AEMET_API_KEY` | — | — | AEMET API key (Spain alerts only) |
+| `AEMET_API_URL` | — | `https://opendata.aemet.es/opendata/api` | AEMET API endpoint |
+| `WEATHER_INGESTION_INTERVAL_HOURS` | — | `1` | Polling interval |
+| `WEATHER_FORECAST_DAYS` | — | `14` | Forecast horizon (max 16) |
+| `METRICS_HOST` | — | `0.0.0.0` | Prometheus metrics host |
+| `METRICS_PORT` | — | `9106` | Prometheus metrics port |
+| `ORION_URL` | — | `http://orion-ld-service:1026` | Orion-LD endpoint |
+| `CONTEXT_URL` | — | — | NGSI-LD @context URL |
+
+### Coverage
+
+| Provider | Coverage | Use Case |
+|----------|----------|----------|
+| **Open-Meteo** | Global (UE + UK + worldwide) | Primary source for all locations |
+| **AEMET** | Spain only | Official alerts (BOE state) |
+
+> **Recommendation**: All tenants in UE + UK should work with Open-Meteo alone. AEMET is optional for Spanish tenants who want official BOE alerts.
 
 ## Deployment
 
