@@ -48,7 +48,6 @@ Worker service for ingesting weather data from multiple sources (Open-Meteo, AEM
 - ⏳ Real-time alert notifications (N8N)
 - ⏳ Weather data validation against sensor readings
 - ⏳ Additional alert providers for other EU countries (MeteoFrance, DWD, MetOffice)
-- ⏳ Additional alert providers for other EU countries (MeteoFrance, DWD, MetOffice)
 
 ## Usage
 
