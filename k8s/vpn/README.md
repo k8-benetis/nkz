@@ -152,6 +152,52 @@ kubectl exec -n nekazari deploy/headscale -- headscale routes list
 
 ---
 
+## ArgoCD — App health "Degraded"
+
+Si la aplicación **headscale** en ArgoCD está **Synced** pero **Degraded**, suele deberse a ReplicaSets antiguos (0 réplicas) que ArgoCD marca como no sanos.
+
+**Solución (una vez en el cluster):** personalizar la salud de `ReplicaSet` en ArgoCD para que los RS escalados a 0 se consideren Healthy.
+
+1. En el servidor, obtener el ConfigMap actual y añadir la clave:
+
+```bash
+# Opción A: con jq (script en variable)
+LUA='hs = {}
+if obj.spec and obj.spec.replicas == 0 then
+  hs.status = "Healthy"
+  hs.message = "Scaled to 0"
+elseif obj.status and obj.spec and obj.status.readyReplicas == obj.spec.replicas then
+  hs.status = "Healthy"
+  hs.message = "All replicas ready"
+else
+  hs.status = "Progressing"
+  hs.message = "Waiting for replicas"
+end
+return hs'
+sudo kubectl get cm argocd-cm -n argocd -o json | jq --arg s "$LUA" '.data["resource.customizations.health.apps_ReplicaSet"] = $s' | sudo kubectl apply -f -
+
+# Opción B: edición manual
+sudo kubectl edit cm argocd-cm -n argocd
+# Añadir bajo data: (conservando el resto de claves):
+#   resource.customizations.health.apps_ReplicaSet: |
+#     hs = {}
+#     if obj.spec and obj.spec.replicas == 0 then
+#       hs.status = "Healthy"
+#       hs.message = "Scaled to 0"
+#     elseif obj.status and obj.spec and obj.status.readyReplicas == obj.spec.replicas then
+#       hs.status = "Healthy"
+#       hs.message = "All replicas ready"
+#     else
+#       hs.status = "Progressing"
+#       hs.message = "Waiting for replicas"
+#     end
+#     return hs
+```
+
+2. Recargar ArgoCD o esperar unos segundos; la app headscale debería pasar a **Healthy**.
+
+---
+
 ## Seguridad
 
 - La clave privada CA (`iot-ca.key`) NUNCA se sube a git ni al servidor.
