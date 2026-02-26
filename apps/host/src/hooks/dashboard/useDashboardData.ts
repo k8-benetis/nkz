@@ -209,7 +209,8 @@ export function useDashboardData(): DashboardData {
     if (user) {
       logger.debug('[Dashboard] User authenticated, loading data');
       loadData();
-      const interval = setInterval(loadData, 30000);
+      // Poll every 120s (was 30s) to reduce API load: 8 calls × 30/hour → 8 calls × 15/hour
+      const interval = setInterval(loadData, 120000);
       return () => clearInterval(interval);
     } else {
       logger.debug('[Dashboard] User not authenticated yet, waiting...');
