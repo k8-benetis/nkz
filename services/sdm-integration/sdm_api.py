@@ -9,6 +9,7 @@ import json
 import logging
 import secrets
 import hashlib
+import uuid
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import requests
@@ -955,6 +956,105 @@ def delete_sdm_entity_instance(entity_type, entity_id):
     except Exception as e:
         logger.error(f"Error deleting SDM entity instance: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_type>/batch', methods=['POST'])
+@require_auth
+def create_entity_batch(entity_type):
+    """
+    Batch create entities of <entity_type> from a simplified list of records.
+
+    Body: { "entities": [ { "name": str, "lat": float, "lng": float, ... }, ... ] }
+    Response 201: { "created": N, "errors": [], "entity_ids": [...] }
+    Response 207: { "created": N, "errors": [...], "entity_ids": [...] }
+
+    Skips IoT provisioning — intended for static assets (trees, crop elements,
+    structural assets) imported from GPS surveys or GeoJSON/CSV files.
+    Maximum 500 entities per request.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'entities' not in data:
+            return jsonify({'error': 'Body must contain an "entities" array'}), 400
+
+        rows = data['entities']
+        if not isinstance(rows, list) or len(rows) == 0:
+            return jsonify({'error': '"entities" must be a non-empty array'}), 400
+
+        MAX_BATCH = 500
+        if len(rows) > MAX_BATCH:
+            return jsonify({'error': f'Maximum {MAX_BATCH} entities per batch request'}), 400
+
+        RESERVED = {'name', 'lat', 'lng', 'latitude', 'longitude', 'description', 'id'}
+
+        ngsi_entities = []
+        for i, row in enumerate(rows):
+            name = row.get('name') or f'{entity_type}_{i + 1}'
+            lat  = row.get('lat') or row.get('latitude')
+            lng  = row.get('lng') or row.get('longitude')
+
+            entity_id = f"urn:ngsi-ld:{entity_type}:{uuid.uuid4().hex[:16]}"
+
+            entity: dict = {
+                '@context': [
+                    'https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld',
+                    'https://raw.githubusercontent.com/smart-data-models/dataModel.Agrifood/master/context.jsonld',
+                ],
+                'id': entity_id,
+                'type': entity_type,
+                'name': {'type': 'Property', 'value': name},
+            }
+
+            if row.get('description'):
+                entity['description'] = {'type': 'Property', 'value': row['description']}
+
+            if lat is not None and lng is not None:
+                entity['location'] = {
+                    'type': 'GeoProperty',
+                    'value': {'type': 'Point', 'coordinates': [float(lng), float(lat)]},
+                }
+
+            # Forward any extra columns as Properties
+            for k, v in row.items():
+                if k in RESERVED or v is None or v == '':
+                    continue
+                entity[k] = {'type': 'Property', 'value': v}
+
+            ngsi_entities.append(entity)
+
+        # Orion-LD batch create endpoint
+        batch_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/create"
+        headers = {'Content-Type': 'application/ld+json'}
+        headers = inject_fiware_headers(headers, g.tenant)
+
+        response = requests.post(batch_url, json=ngsi_entities, headers=headers)
+
+        entity_ids = [e['id'] for e in ngsi_entities]
+
+        if response.status_code in [200, 201, 204]:
+            log_entity_operation(
+                'batch_create', entity_type, entity_type, g.tenant, g.farmer_id,
+                {'count': len(ngsi_entities)}
+            )
+            return jsonify({'created': len(ngsi_entities), 'errors': [], 'entity_ids': entity_ids}), 201
+
+        # 207 Multi-Status: Orion returns partial success
+        if response.status_code == 207:
+            result = response.json() if response.content else {}
+            success_ids = result.get('success', entity_ids)
+            errors = result.get('errors', [])
+            log_entity_operation(
+                'batch_create', entity_type, entity_type, g.tenant, g.farmer_id,
+                {'count': len(success_ids), 'errors': len(errors)}
+            )
+            return jsonify({'created': len(success_ids), 'errors': errors, 'entity_ids': success_ids}), 207
+
+        logger.error(f"Orion batch create failed {response.status_code}: {response.text[:300]}")
+        return jsonify({'error': 'Batch create failed', 'detail': response.text[:300]}), 500
+
+    except Exception as e:
+        logger.error(f"Error in batch create ({entity_type}): {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/sdm/migrate', methods=['POST'])
 @require_auth
