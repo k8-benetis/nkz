@@ -12,6 +12,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari
+  # Secret nekazari-iot-ca-secret is created manually with real cert/key; Git has placeholders
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: nekazari-iot-ca-secret
+      namespace: cert-manager
+      jqPathExpressions:
+        - .data
   syncPolicy:
     automated:
       prune: true
