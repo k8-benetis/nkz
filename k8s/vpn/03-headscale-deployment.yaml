@@ -42,6 +42,7 @@ metadata:
     layer: infrastructure
 spec:
   replicas: 1
+  revisionHistoryLimit: 1  # Evita acumular ReplicaSets viejos (ArgoCD health)
   selector:
     matchLabels:
       app: headscale
