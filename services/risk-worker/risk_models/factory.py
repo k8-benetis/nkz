@@ -15,16 +15,28 @@ try:
     from .robotic_model import RoboticRiskModel
     from .energy_model import EnergyRiskModel
     from .spray_suitability_model import SpraySuitabilityRiskModel
+    from .frost_model import FrostRiskModel
+    from .wind_spray_model import WindSprayRiskModel
+    from .water_stress_model import WaterStressRiskModel
+    from .gdd_pest_model import GDDPestRiskModel
 except ImportError as e:
     logger.warning(f"Failed to import risk models: {e}")
     AgronomicRiskModel = None
     RoboticRiskModel = None
     EnergyRiskModel = None
     SpraySuitabilityRiskModel = None
+    FrostRiskModel = None
+    WindSprayRiskModel = None
+    WaterStressRiskModel = None
+    GDDPestRiskModel = None
 
 # Models dispatched by model_type (takes precedence over domain mapping)
 MODEL_TYPE_MAP = {
     'spray_suitability': SpraySuitabilityRiskModel,
+    'frost': FrostRiskModel,
+    'wind_spray': WindSprayRiskModel,
+    'water_stress': WaterStressRiskModel,
+    'gdd_pest': GDDPestRiskModel,
 }
 
 # Fallback dispatch by risk_domain

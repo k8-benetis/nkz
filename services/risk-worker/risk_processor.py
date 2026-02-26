@@ -126,37 +126,53 @@ class RiskProcessor:
             return []
     
     def _get_entities_from_orion(self, tenant_id: str, entity_type: str) -> List[Dict[str, Any]]:
-        """Get entities from Orion-LD"""
+        """Get entities from Orion-LD, paginating through all results."""
+        all_entities: List[Dict[str, Any]] = []
+        headers = {
+            'Accept': 'application/ld+json',
+            'Fiware-Service': tenant_id,
+            'Fiware-ServicePath': '/'
+        }
+        page_size = 200
+        offset = 0
+
         try:
-            headers = {
-                'Accept': 'application/ld+json',
-                'Fiware-Service': tenant_id,
-                'Fiware-ServicePath': '/'
-            }
-            
-            params = {
-                'type': entity_type,
-                'limit': 1000
-            }
-            
-            response = requests.get(
-                f"{ORION_URL}/ngsi-ld/v1/entities",
-                headers=headers,
-                params=params,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                entities = response.json()
-                if isinstance(entities, list):
-                    return entities
-                return []
-            else:
-                logger.warning(f"Failed to get entities from Orion: {response.status_code}")
-                return []
+            while True:
+                params = {
+                    'type': entity_type,
+                    'limit': page_size,
+                    'offset': offset,
+                }
+
+                response = requests.get(
+                    f"{ORION_URL}/ngsi-ld/v1/entities",
+                    headers=headers,
+                    params=params,
+                    timeout=30
+                )
+
+                if response.status_code != 200:
+                    logger.warning(
+                        f"Failed to get entities from Orion: {response.status_code} "
+                        f"(tenant={tenant_id}, type={entity_type}, offset={offset})"
+                    )
+                    break
+
+                batch = response.json()
+                if not isinstance(batch, list) or not batch:
+                    break
+
+                all_entities.extend(batch)
+
+                if len(batch) < page_size:
+                    break  # last page
+
+                offset += page_size
+
         except Exception as e:
             logger.error(f"Error getting entities from Orion: {e}")
-            return []
+
+        return all_entities
     
     def _get_weather_data(self, tenant_id: str, municipality_code: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get latest weather data for tenant"""
@@ -174,7 +190,8 @@ class RiskProcessor:
                     solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
                     eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
                     wind_speed_ms, wind_direction_deg, pressure_hpa,
-                    delta_t,
+                    delta_t, gdd_accumulated,
+                    COALESCE(precip_mm, 0) - COALESCE(eto_mm, 0) AS water_balance,
                     observed_at
                 FROM weather_observations
                 WHERE tenant_id = %s
@@ -235,6 +252,64 @@ class RiskProcessor:
             logger.error(f"Failed to get NDVI data: {e}")
             return None
     
+    def _get_gdd_accumulated(
+        self,
+        tenant_id: str,
+        season_start_doy: int = 1,
+        municipality_code: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Return the cumulative GDD accumulated since `season_start_doy` (1=Jan 1).
+
+        Queries weather_observations and sums gdd_accumulated (daily GDD)
+        for rows from the start of the current agronomic season to now.
+        Returns dict with:
+          gdd_season_total: float  — summed GDD
+          season_start_doy: int    — day of year used
+          days_accumulated: int    — number of days with data
+        """
+        if not self.postgres:
+            return None
+
+        try:
+            cursor = self.postgres.cursor()
+            set_tenant_context(cursor, tenant_id)
+
+            # Build the season start date from DOY (current year)
+            query = """
+                SELECT
+                    COALESCE(SUM(gdd_accumulated), 0)  AS gdd_season_total,
+                    COUNT(*)                            AS days_accumulated
+                FROM weather_observations
+                WHERE tenant_id = %s
+                  AND data_type = 'HISTORY'
+                  AND gdd_accumulated IS NOT NULL
+                  AND observed_at >= make_date(
+                        EXTRACT(year FROM CURRENT_DATE)::int,
+                        1, 1
+                      ) + INTERVAL '1 day' * (%s - 1)
+            """
+
+            params: list = [tenant_id, season_start_doy]
+            if municipality_code:
+                query += " AND municipality_code = %s"
+                params.append(municipality_code)
+
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            cursor.close()
+
+            if row:
+                return {
+                    'gdd_season_total': float(row['gdd_season_total']),
+                    'season_start_doy': season_start_doy,
+                    'days_accumulated': int(row['days_accumulated']),
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get GDD accumulated: {e}")
+            return None
+
     def _get_telemetry_data(self, tenant_id: str, device_id: str, metric_name: str, hours: int = 24) -> Optional[List[Dict[str, Any]]]:
         """Get latest telemetry data for device"""
         if not self.postgres:
@@ -284,6 +359,16 @@ class RiskProcessor:
             if weather_data:
                 data_sources['weather'] = weather_data
         
+        # Get accumulated GDD if needed (for pest cycle models)
+        if 'gdd' in required_sources:
+            # season_start_doy from the risk's model_config (default Jan 1)
+            model_config = risk.get('model_config', {})
+            season_start_doy = model_config.get('season_start_doy', 1)
+            municipality_code = None  # could be enriched from entity location in future
+            gdd_data = self._get_gdd_accumulated(tenant_id, season_start_doy, municipality_code)
+            if gdd_data:
+                data_sources['gdd'] = gdd_data
+
         # Get NDVI data if needed
         if 'ndvi' in required_sources:
             parcel_id = None
