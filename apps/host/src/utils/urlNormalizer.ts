@@ -5,12 +5,14 @@
  */
 export function normalizeAssetUrl(url: string): string {
   if (!url || typeof url !== 'string') return '';
+  // Data URIs must be returned unchanged (new URL() would strip the "data:" prefix)
+  if (url.startsWith('data:')) return url;
   try {
     // Convert absolute URLs to relative paths — works regardless of deployment domain
     const { pathname, search, hash } = new URL(url);
     return pathname + search + hash;
   } catch {
-    // Not a valid absolute URL — return as-is (already relative or a data URI)
+    // Not a valid absolute URL — return as-is (already relative)
     return url;
   }
 }
