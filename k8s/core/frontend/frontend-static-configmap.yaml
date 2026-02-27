@@ -96,8 +96,8 @@ data:
                     return 204;
                 }
                 
-                # Short max-age + must-revalidate so wrong cached responses don't persist
-                add_header Cache-Control "public, max-age=300, must-revalidate";
+                # No cache for module bundles so deploys are visible immediately (no stale JS)
+                add_header Cache-Control "no-cache, must-revalidate";
             }
 
             # Explicit index.html handler (for SPA fallback)
