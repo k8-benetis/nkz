@@ -56,6 +56,13 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
+          - path: /odoo
+            pathType: Prefix
+            backend:
+              service:
+                name: odoo-service
+                port:
+                  number: 8069
           - path: /ngsi-ld
             pathType: Prefix
             backend:
