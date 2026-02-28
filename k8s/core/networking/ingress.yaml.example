@@ -24,22 +24,9 @@ spec:
     - hosts:
         - nkz.your-domain.com
       secretName: nkz-tls
-    - hosts:
-        - odoo.your-domain.com
-      secretName: nkz-tls
+    # Odoo: use the module ingress (odoo-direct-ingress) only; do not add odoo host here.
 
   rules:
-    - host: odoo.your-domain.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: odoo-service
-                port:
-                  number: 8069
-
     - host: nkz.your-domain.com
       http:
         paths:
