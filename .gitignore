@@ -248,6 +248,8 @@ docker-volumes/
 
 # Kubernetes
 *.kubeconfig
+# Production ingress (server-specific; use ingress.yaml.example as template)
+k8s/core/networking/ingress.yaml
 
 # Terraform
 *.tfstate
