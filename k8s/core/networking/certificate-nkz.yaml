@@ -17,4 +17,5 @@ spec:
   commonName: nkz.robotika.cloud
   dnsNames:
     - nkz.robotika.cloud
+    - odoo.robotika.cloud
 
