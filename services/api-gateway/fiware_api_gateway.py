@@ -201,7 +201,7 @@ def get_request_token():
         return auth_header.split(' ')[1]
     return request.cookies.get('nkz_token')
 
-@app.route('/auth/session', methods=['POST', 'OPTIONS'])
+@app.route('/api/auth/session', methods=['POST', 'OPTIONS'])
 def create_session():
     """Set httpOnly cookie with JWT token (BFF session endpoint)"""
     if request.method == 'OPTIONS':
@@ -237,7 +237,7 @@ def create_session():
     )
     return set_cors_headers(resp)
 
-@app.route('/auth/session', methods=['DELETE'])
+@app.route('/api/auth/session', methods=['DELETE'])
 def delete_session():
     """Clear httpOnly session cookie"""
     resp = make_response(jsonify({'ok': True}))

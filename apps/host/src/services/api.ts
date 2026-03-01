@@ -303,11 +303,11 @@ class ApiService {
   // --- httpOnly cookie session management ---
 
   async setSession(token: string): Promise<void> {
-    await this.client.post('/auth/session', { token });
+    await this.client.post('/api/auth/session', { token });
   }
 
   async clearSession(): Promise<void> {
-    await this.client.delete('/auth/session');
+    await this.client.delete('/api/auth/session');
   }
 
   // I18N is now handled entirely in the frontend via I18nContext
