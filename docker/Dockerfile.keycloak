@@ -1,0 +1,21 @@
+# =============================================================================
+# Keycloak for docker-compose local development
+# =============================================================================
+# Uses Keycloak 25.0.6 to avoid jgroups_ping migration bug in 26.x
+# Production uses services/keycloak/Dockerfile (Keycloak 26.4.7)
+
+FROM quay.io/keycloak/keycloak:25.0.6
+
+# Copy script mappers JAR (tenant_id extraction from group attributes)
+COPY services/keycloak/keycloak-script-mappers.jar /opt/keycloak/providers/
+
+# Build with features and relative path
+RUN /opt/keycloak/bin/kc.sh build \
+    --db=postgres \
+    --features=scripts \
+    --http-relative-path=/auth \
+    --health-enabled=true
+
+USER keycloak
+
+EXPOSE 8080

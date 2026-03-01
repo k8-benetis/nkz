@@ -148,7 +148,7 @@ services:
   keycloak:
     build:
       context: .
-      dockerfile: services/keycloak/Dockerfile
+      dockerfile: docker/Dockerfile.keycloak
     depends_on:
       postgresql:
         condition: service_healthy
@@ -162,7 +162,6 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY: edge
       KC_HTTP_ENABLED: "true"
-      KC_TRANSACTION_XA_ENABLED: "false"
       KC_FEATURES: scripts
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
