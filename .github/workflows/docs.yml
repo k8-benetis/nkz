@@ -29,11 +29,11 @@ jobs:
 
       - name: Install dependencies
         working-directory: docs
-        run: npm install vitepress
+        run: npm install
 
       - name: Build docs
         working-directory: docs
-        run: npx vitepress build
+        run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
