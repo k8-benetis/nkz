@@ -1,0 +1,425 @@
+# =============================================================================
+# Nekazari Platform — docker-compose for local development / evaluation
+# =============================================================================
+# Usage:
+#   cp .env.example .env
+#   docker compose up -d
+#   open http://localhost:3000
+#   Login: demo@nekazari.local / Demo1234!
+#
+# First build takes ~10 min (frontend multistage). Subsequent starts are fast.
+# =============================================================================
+
+services:
+
+  # ===========================================================================
+  # Infrastructure
+  # ===========================================================================
+
+  postgresql:
+    image: timescale/timescaledb-ha:pg14-latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/home/postgres/pgdata/data
+      - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mongodb:
+    image: mongo:6
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "-u", "admin", "-p", "${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}", "--authenticationDatabase", "admin", "--quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-nekazari-redis-dev}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-nekazari-redis-dev}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+
+  # ===========================================================================
+  # Init containers (run-once)
+  # ===========================================================================
+
+  init-minio:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./docker/init-minio.sh:/docker/init-minio.sh:ro
+    entrypoint: ["/bin/sh", "/docker/init-minio.sh"]
+    restart: "no"
+
+  migrations:
+    image: python:3.11-slim
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+    volumes:
+      - ./config/timescaledb/migrations:/migrations:ro
+      - ./docker/seed.sql:/docker/seed.sql:ro
+      - ./docker/run-migrations.sh:/docker/run-migrations.sh:ro
+    command: ["/bin/bash", "-c", "apt-get update -qq && apt-get install -yqq postgresql-client > /dev/null 2>&1 && /docker/run-migrations.sh"]
+    restart: "no"
+
+  seed-orion:
+    image: curlimages/curl:latest
+    depends_on:
+      orion-ld:
+        condition: service_healthy
+    volumes:
+      - ./docker/seed-orion.sh:/docker/seed-orion.sh:ro
+    entrypoint: ["/bin/sh", "/docker/seed-orion.sh"]
+    restart: "no"
+
+  # ===========================================================================
+  # Auth + FIWARE
+  # ===========================================================================
+
+  keycloak:
+    build:
+      context: .
+      dockerfile: services/keycloak/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgresql:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      KC_HOSTNAME_URL: http://localhost:3000/auth
+      KC_HOSTNAME_ADMIN_URL: http://localhost:3000/auth
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY: edge
+      KC_HTTP_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    command: start-dev --import-realm
+    volumes:
+      - ./docker/keycloak-realm.json:/opt/keycloak/data/import/nekazari-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /auth/health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  orion-ld:
+    image: fiware/orion-ld:1.5.1
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ORIONLD_MONGO_HOST: mongodb
+      ORIONLD_MONGO_USER: ${MONGODB_ROOT_USER:-admin}
+      ORIONLD_MONGO_PASSWORD: ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}
+      ORIONLD_MULTI_SERVICE: "TRUE"
+    command: -dbhost mongodb -dbuser ${MONGODB_ROOT_USER:-admin} -dbpwd ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev} -logLevel WARN
+    ports:
+      - "1026:1026"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1026/ngsi-ld/v1/entities?type=Probe&limit=1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ===========================================================================
+  # Core services (build from repo root)
+  # ===========================================================================
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      orion-ld:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      ORION_URL: http://orion-ld:1026
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
+      ENTITY_MANAGER_URL: http://entity-manager:5000
+      CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      POSTGRES_HOST: postgresql
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      TRUST_API_GATEWAY: "false"
+      KEYCLOAK_REALM: nekazari
+      KEYCLOAK_CLIENT_ID: nekazari-frontend
+      PRODUCTION_DOMAIN: localhost:3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  entity-manager:
+    build:
+      context: .
+      dockerfile: services/entity-manager/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      orion-ld:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      ORION_URL: http://orion-ld:1026
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
+      KEYCLOAK_REALM: nekazari
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      POSTGRES_HOST: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: nekazari-frontend
+      REDIS_URL: redis://:${REDIS_PASSWORD:-nekazari-redis-dev}@redis:6379
+      CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
+      PRODUCTION_DOMAIN: localhost:3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  risk-api:
+    build:
+      context: .
+      dockerfile: services/risk-api/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      POSTGRES_HOST: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
+      KEYCLOAK_REALM: nekazari
+
+  risk-worker:
+    build:
+      context: .
+      dockerfile: services/risk-worker/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      POSTGRES_HOST: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-nekazari-redis-dev}@redis:6379
+      CONTINUOUS_MODE: "true"
+
+  risk-orchestrator:
+    build:
+      context: .
+      dockerfile: services/risk-orchestrator/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-nekazari-redis-dev}@redis:6379
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+
+  weather-worker:
+    build:
+      context: .
+      dockerfile: services/weather-worker/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      orion-ld:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      POSTGRES_HOST: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      ORION_URL: http://orion-ld:1026
+      CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
+
+  sdm-integration:
+    build:
+      context: .
+      dockerfile: services/sdm-integration/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      orion-ld:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      ORION_URL: http://orion-ld:1026
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
+      KEYCLOAK_REALM: nekazari
+      CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  timeseries-reader:
+    build:
+      context: .
+      dockerfile: services/timeseries-reader/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
+      KEYCLOAK_REALM: nekazari
+
+  tenant-webhook:
+    build:
+      context: .
+      dockerfile: services/tenant-webhook/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      POSTGRES_HOST: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+
+  tenant-user-api:
+    build:
+      context: .
+      dockerfile: services/tenant-user-api/Dockerfile
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
+      KEYCLOAK_REALM: nekazari
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+
+  # ===========================================================================
+  # Frontend
+  # ===========================================================================
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/host/Dockerfile
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      VITE_API_URL: http://localhost:3000
+      VITE_KEYCLOAK_URL: http://localhost:3000/auth
+      VITE_KEYCLOAK_REALM: nekazari
+      VITE_KEYCLOAK_CLIENT_ID: nekazari-frontend
+      VITE_CESIUM_TOKEN: ${CESIUM_TOKEN:-}
+      VITE_ENABLE_WEATHER: "true"
+      VITE_ENABLE_RISK: "true"
+      VITE_ENABLE_NDVI: "true"
+      VITE_MODULES_CDN_URL: /modules
+    ports:
+      - "3000:80"
+    volumes:
+      - ./docker/nginx-compose.conf:/etc/nginx/conf.d/default.conf:ro
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  pg_data:
+  mongo_data:
+  minio_data:
+  mosquitto_data:

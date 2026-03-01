@@ -1,0 +1,421 @@
+{
+  "realm": "nekazari",
+  "displayName": "Nekazari Platform",
+  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Nekazari</span></div>",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
+  "defaultRoles": [
+    "offline_access",
+    "uma_authorization"
+  ],
+  "requiredCredentials": [
+    "password"
+  ],
+  "passwordPolicy": "length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpSupportedApplications": [
+    "FreeOTP",
+    "Google Authenticator"
+  ],
+  "clients": [
+    {
+      "clientId": "nekazari-frontend",
+      "name": "Nekazari Frontend",
+      "description": "Frontend application for Nekazari platform",
+      "enabled": true,
+      "publicClient": true,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "refresh.token.max.reuse": "0",
+        "pkce.code.challenge.method": "S256"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "role_list",
+        "profile",
+        "roles",
+        "email",
+        "tenant-id",
+        "basic"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "tenant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "multivalued": "false"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "group-tenant-attributes-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-script-based-protocol-mapper",
+          "consentRequired": false,
+          "config": {
+            "script": "var groups = user.getGroups();\nvar tenantId = null;\nvar tenantType = null;\nfor (var i = 0; i < groups.size(); i++) {\n    var group = groups.get(i);\n    var attributes = group.getAttributes();\n    if (attributes.containsKey(\"tenant_id\")) {\n        var tenantIdValues = attributes.get(\"tenant_id\");\n        if (tenantIdValues != null && tenantIdValues.size() > 0) {\n            tenantId = tenantIdValues.get(0);\n        }\n    }\n    if (attributes.containsKey(\"tenant_type\")) {\n        var tenantTypeValues = attributes.get(\"tenant_type\");\n        if (tenantTypeValues != null && tenantTypeValues.size() > 0) {\n            tenantType = tenantTypeValues.get(0);\n        }\n    }\n    if (tenantId != null) {\n        break;\n    }\n}\nif (tenantId != null) {\n    token.setOtherClaims(\"tenant_id\", tenantId);\n}\nif (tenantType != null) {\n    token.setOtherClaims(\"tenant_type\", tenantType);\n}",
+            "token.claim.name": "tenant_id",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "nekazari-admin",
+      "name": "Nekazari Admin Panel",
+      "description": "Administration panel for Nekazari platform",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "admin-secret-change-in-production",
+      "redirectUris": [
+        "http://localhost:3000/admin/*",
+        "http://localhost:5173/admin/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "refresh.token.max.reuse": "0",
+        "pkce.code.challenge.method": "S256"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "role_list",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "nekazari-api-gateway",
+      "name": "Nekazari API Gateway",
+      "description": "API Gateway service for Nekazari platform",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "api-gateway-secret-change-in-production",
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "3600",
+        "refresh.token.max.reuse": "0"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "role_list",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "tenant-id",
+      "description": "Tenant ID for multi-tenancy",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Tenant ID"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant-id",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "name": "user-roles",
+      "description": "User roles for authorization",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "User Roles"
+      },
+      "protocolMappers": [
+        {
+          "name": "user-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "PlatformAdmin",
+        "description": "Platform administrator with full access",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "TenantAdmin",
+        "description": "Tenant administrator with tenant-level access",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "TechnicalConsultant",
+        "description": "Technical consultant with device management and data analysis permissions",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "DashboardViewer",
+        "description": "Dashboard viewer with read-only access",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "Farmer",
+        "description": "Farmer with basic access to their data",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "Platform Administrators",
+      "path": "/Platform Administrators",
+      "subGroups": [],
+      "attributes": {
+        "tenant_id": ["platformadmin"]
+      },
+      "realmRoles": ["PlatformAdmin"],
+      "clientRoles": {}
+    },
+    {
+      "name": "Demo Farm",
+      "path": "/Demo Farm",
+      "subGroups": [],
+      "attributes": {
+        "tenant_id": ["demo-farm"]
+      },
+      "realmRoles": ["Farmer"],
+      "clientRoles": {}
+    },
+    {
+      "name": "Tenant Administrators",
+      "path": "/Tenant Administrators",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": ["TenantAdmin"],
+      "clientRoles": {}
+    },
+    {
+      "name": "Technical Consultants",
+      "path": "/Technical Consultants",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": ["TechnicalConsultant"],
+      "clientRoles": {}
+    },
+    {
+      "name": "Farmers",
+      "path": "/Farmers",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": ["Farmer"],
+      "clientRoles": {}
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "role_list",
+    "profile",
+    "email",
+    "roles",
+    "web-origins"
+  ],
+  "defaultOptionalClientScopes": [
+    "offline_access",
+    "address",
+    "phone",
+    "microprofile-jwt"
+  ],
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+  "smtpServer": {},
+  "loginTheme": "keycloak",
+  "accountTheme": "keycloak",
+  "adminTheme": "keycloak",
+  "emailTheme": "keycloak",
+  "eventsEnabled": false,
+  "adminEventsEnabled": false,
+  "internationalizationEnabled": false,
+  "browserFlow": "browser",
+  "registrationFlow": "registration",
+  "directGrantFlow": "direct grant",
+  "resetCredentialsFlow": "reset credentials",
+  "clientAuthenticationFlow": "clients",
+  "dockerAuthenticationFlow": "docker auth",
+  "attributes": {
+    "cibaBackchannelTokenDeliveryMode": "poll",
+    "cibaExpiresIn": "120",
+    "cibaInterval": "5",
+    "cibaAuthRequestedUserHint": "login_hint",
+    "parRequestUriLifespan": "60"
+  },
+  "users": [
+    {
+      "username": "demo@nekazari.local",
+      "enabled": true,
+      "email": "demo@nekazari.local",
+      "firstName": "Demo",
+      "lastName": "Farmer",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo1234!",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "tenant_id": ["demo-farm"]
+      },
+      "groups": ["/Demo Farm"],
+      "realmRoles": ["Farmer"]
+    },
+    {
+      "username": "admin@nekazari.local",
+      "enabled": true,
+      "email": "admin@nekazari.local",
+      "firstName": "Admin",
+      "lastName": "Nekazari",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin1234!",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "tenant_id": ["platformadmin"]
+      },
+      "groups": ["/Platform Administrators"],
+      "realmRoles": ["PlatformAdmin"]
+    }
+  ]
+}

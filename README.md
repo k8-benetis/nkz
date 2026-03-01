@@ -1,72 +1,105 @@
-# Nekazari Platform
-
-**Open-source, modular platform for precision agriculture, industry, and environmental sciences.**
-
-Built on [FIWARE NGSI-LD](https://www.fiware.org/) standards, Nekazari provides a complete operating system for IoT-driven operations with digital twins, real-time telemetry, geospatial analysis, and a curated module marketplace.
-
 <p align="center">
-  <img src="images/NKZ_landing_Page_1.png" alt="Nekazari landing" width="800" />
+  <img src="images/NKZ_landing_Page_1.png" alt="Nekazari Platform" width="800" />
 </p>
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-
-## Key Features
-
-- **NGSI-LD Context Broker** — Digital twin management via Orion-LD
-- **Multi-tenant architecture** — Keycloak OIDC, row-level security in PostgreSQL, tenant isolation
-- **Time-series telemetry** — TimescaleDB for high-frequency sensor data
-- **IoT ingestion** — MQTT, HTTP, with API-key and JWT authentication
-- **3D geospatial visualization** — CesiumJS maps with custom layer system
-- **Modular addon system** — Slot-based frontend integration with curated marketplace
-- **Risk management** — Automated agronomic and energy risk evaluation
-- **Weather integration** — OpenMeteo and AEMET data ingestion
-- **Multi-language** — 6 languages (ES, EN, CA, EU, FR, PT)
-
-## Platform Overview
-
-Screenshots below show the main areas of the platform. All images are from the current UI.
-
-| Area | Description |
-|------|--------------|
-| **Landing** | Entry point, authentication, and platform positioning (architecture overview). |
-| **Command Center** | Unified viewer with 3D map (CesiumJS), entity tree, and layer management. |
-| **Modules** | Marketplace and per-tenant module management. |
-| **Admin** | System administration, tenants, users, and configuration. |
+<h1 align="center">Nekazari</h1>
 
 <p align="center">
-  <strong>Landing</strong><br />
-  <img src="images/nkz_landing_page_2.png" alt="Landing" width="700" />
+  <strong>Open-source operating system for precision agriculture, industry, and environmental sciences.</strong>
 </p>
 
 <p align="center">
-  <strong>Landing — platform architecture &amp; positioning</strong><br />
-  <img src="images/nkz_landing_page_3.png" alt="Landing — architecture overview" width="700" />
+  <a href="https://github.com/k8-benetis/nkz/actions/workflows/test.yml"><img src="https://github.com/k8-benetis/nkz/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
+  <a href="https://github.com/k8-benetis/nkz/actions/workflows/docker-build.yml"><img src="https://github.com/k8-benetis/nkz/actions/workflows/docker-build.yml/badge.svg" alt="Docker Build" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="License: AGPL-3.0" /></a>
+  <a href="https://www.npmjs.com/package/@nekazari/sdk"><img src="https://img.shields.io/npm/v/@nekazari/sdk?label=SDK" alt="npm SDK" /></a>
+</p>
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/k8-benetis/nkz.git && cd nkz
+cp .env.example .env
+docker compose up -d          # first build ~10 min (frontend multistage)
+# wait ~3 min for healthchecks
+open http://localhost:3000     # login: demo@nekazari.local / Demo1234!
+```
+
+> **Cleanup:** `docker compose down -v` removes all containers and data.
+
+## What is Nekazari?
+
+Nekazari is a **modular, multi-tenant platform** built on [FIWARE NGSI-LD](https://www.fiware.org/) standards. It provides cooperatives, energy companies, and research centers with a single platform to manage:
+
+- **Agricultural operations** — parcels, crops, weather, irrigation, and agronomic risk alerts
+- **IoT device fleets** — sensors, drones, tractors (ISOBUS), with real-time telemetry
+- **Environmental monitoring** — NDVI vegetation health, LiDAR terrain analysis, carbon tracking
+- **Industrial assets** — digital twins, predictive maintenance, ERP integration (Odoo)
+
+Each organization gets its own isolated tenant with role-based access, and can extend the platform through a **module marketplace** — no vendor lock-in.
+
+## Screenshots
+
+<p align="center">
+  <img src="images/nkz_landing_page_2.png" alt="Landing page" width="700" />
 </p>
 
 <p align="center">
-  <strong>Command Center — Entities &amp; map</strong><br />
+  <strong>Command Center</strong> — 3D map (CesiumJS), entity tree, and layer management<br />
   <img src="images/nkz_entities_4.png" alt="Command Center" width="700" />
 </p>
 
 <p align="center">
-  <img src="images/nkz_entities_5.png" alt="Map and layers" width="700" />
+  <img src="images/nkz_entities_5.png" alt="Map layers" width="700" />
 </p>
 
 <p align="center">
-  <strong>Modules</strong><br />
-  <img src="images/nkz_modules_6.png" alt="Module management" width="700" />
+  <strong>Module Marketplace</strong><br />
+  <img src="images/nkz_modules_6.png" alt="Modules" width="700" />
 </p>
 
 <p align="center">
-  <strong>Admin panel</strong><br />
-  <img src="images/nkz_admin_panel_7.png" alt="Admin panel" width="700" />
+  <strong>Admin Panel</strong><br />
+  <img src="images/nkz_admin_panel_7.png" alt="Admin" width="700" />
 </p>
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Digital Twins (NGSI-LD)** | Manage parcels, devices, and assets as interoperable entities via Orion-LD Context Broker |
+| **Multi-Tenant Isolation** | Keycloak OIDC, row-level security in PostgreSQL, per-tenant data partitioning |
+| **Real-Time Telemetry** | MQTT/HTTP ingestion into TimescaleDB hypertables with sub-second query performance |
+| **Agronomic Risk Engine** | Automated hourly evaluation: spray suitability, frost, wind, water stress, GDD pest alerts |
+| **Weather Integration** | OpenMeteo and AEMET data with Delta-T and GDD accumulation |
+| **3D Geospatial** | CesiumJS viewer with custom layer system, LiDAR 3D tiles, NDVI overlays |
+| **Module Marketplace** | Install/uninstall addons per tenant — no rebuild, no redeploy |
+| **6 Languages** | Spanish, English, Catalan, Basque, French, Portuguese |
+
+## Module Ecosystem
+
+| Module | Description | Status |
+|--------|-------------|--------|
+| [DataHub](https://github.com/k8-benetis/nkz-module-data-hub) | Timeseries Data Canvas with multi-series charts | Active |
+| [Vegetation Health](https://github.com/k8-benetis/vegetation-health-nkz) | NDVI/vegetation indices from satellite imagery | Active |
+| [LiDAR](https://github.com/k8-benetis/nkz-module-lidar) | Point cloud analysis and 3D terrain tiles | Active |
+| [Intelligence](https://github.com/k8-benetis/nekazari-module-intelligence) | AI/ML predictive analytics | Active |
+| [Connectivity](https://github.com/k8-benetis/nkz-module-conectivity) | Cellular/network monitoring for IoT | Active |
+| [Cadastral](https://github.com/k8-benetis/catastro-sp-module-nekazari) | Spanish cadastral registry integration | Active |
+| [Robotics](https://github.com/k8-benetis/nkz-module-robotics) | ROS2 + ISOBUS agricultural equipment | Active |
+| [Odoo ERP](https://github.com/k8-benetis/nkz-module-odoo) | Enterprise resource planning integration | Active |
+| [n8n Workflows](https://github.com/k8-benetis/n8n-module-nkz) | Automation and workflow orchestration | Active |
+| Carbon | Carbon footprint tracking | In development |
+
+Modules are independent repos that build to a single IIFE bundle. See the [Module Template](https://github.com/k8-benetis/nkz-module-template) to create your own.
 
 ## Architecture
 
 ```
                     ┌─────────────────────────────────┐
-                    │         Traefik Ingress          │
+                    │       Ingress (Traefik/nginx)    │
                     └──────────┬──────────┬────────────┘
                                │          │
                     ┌──────────▼──┐  ┌────▼───────────┐
@@ -87,6 +120,39 @@ Screenshots below show the main areas of the platform. All images are from the c
     └─────────────────────────────────────────────┘
 ```
 
+## For Developers
+
+### Create a Module
+
+```bash
+# Use the template
+git clone https://github.com/k8-benetis/nkz-module-template.git my-module
+cd my-module && npm install
+npm run dev        # local development with hot reload
+npm run build      # produces dist/nkz-module.js (IIFE bundle)
+```
+
+Modules self-register at runtime via `window.__NKZ__.register()` and receive shared dependencies (React, Router, SDK, UI Kit) from the host — no build-time coupling.
+
+- [External Developer Guide](docs/development/EXTERNAL_DEVELOPER_GUIDE.md) — full walkthrough
+- [Module Architecture](docs/architecture/MODULE_SYSTEM_ARCHITECTURE.md) — slot system, registration
+- [@nekazari/sdk](https://www.npmjs.com/package/@nekazari/sdk) (v1.0.3) — auth, i18n, API client
+- [@nekazari/ui-kit](https://www.npmjs.com/package/@nekazari/ui-kit) (v1.0.0) — shared components
+
+### API Integration
+
+```bash
+# REST API (local docker-compose)
+curl -b nkz_token=... http://localhost:3000/api/entities
+
+# Device telemetry (MQTT)
+mosquitto_pub -h localhost -t "nekazari/demo-farm/telemetry" -m '{"temperature": 22.5}'
+```
+
+- [API Getting Started](docs/api/01-getting-started.md)
+- [Authentication](docs/api/02-authentication.md)
+- [Device Integration](docs/api/devices/)
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -97,75 +163,24 @@ Screenshots below show the main areas of the platform. All images are from the c
 | Auth | Keycloak 26 (OIDC/OAuth2, RS256 JWKs, multi-tenant) |
 | Messaging | MQTT (Mosquitto), Redis queues |
 | Infrastructure | Kubernetes (K3s), Traefik, cert-manager, MinIO |
-| Monitoring | Prometheus, Grafana (manifests ready, not yet deployed) |
-| i18n | react-i18next (6 languages) |
+| i18n | react-i18next (ES, EN, CA, EU, FR, PT) |
 
 ## Repository Structure
 
-| Directory | Description |
-|-----------|-------------|
-| `apps/` | Frontend applications (React, Cesium 3D maps) |
-| `services/` | Backend microservices (Python/Flask, FastAPI) |
-| `k8s/` | Kubernetes manifests and deployment configs |
-| `config/` | TimescaleDB, Prometheus, Grafana configuration |
-| `scripts/` | Deployment, build, and operations automation |
-| `docs/` | Platform documentation |
-| `module-template/` | Platform copy of the module template (mirrors [`k8-benetis/nkz-module-template`](https://github.com/k8-benetis/nkz-module-template)) |
-
-## Module Ecosystem
-
-Nekazari supports a modular addon architecture with predefined frontend slots:
-
-| Module | Description | Status |
-|--------|-------------|--------|
-| **Vegetation Health** | NDVI/vegetation indices from satellite imagery | Active |
-| **LiDAR Processing** | Point cloud analysis and terrain modeling | Active |
-| **Intelligence** | AI/ML features for predictive analytics | Active |
-| **DataHub** | Timeseries Data Canvas — multi-series chart + Arrow IPC adapter | Active |
-| **Cadastral Data** | Spanish cadastral registry integration | Active |
-| **Connectivity** | Cellular/network monitoring for IoT devices | Active |
-| **Robotics** | ROS2 integration, ISOBUS for agricultural equipment | Active |
-| **Odoo ERP** | Enterprise resource planning integration | Active |
-| **n8n Workflows** | Automation and workflow orchestration | Active |
-| **Carbon** | Carbon footprint tracking | In development |
-
-Modules are developed independently and installed through the Nekazari marketplace.
-
-## Quick Start
-
-```bash
-git clone https://github.com/k8-benetis/nkz.git
-cd nkz
-
-# Copy and configure environment
-cp env.example .env
-# Edit .env with your configuration
-
-# Deploy to Kubernetes
-./scripts/deploy-platform.sh
 ```
-
-See the [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
-
-### Frontend (host) — verify build and tests
-
-From repo root after `pnpm install`:
-
-```bash
-pnpm --filter nekazari-frontend run typecheck   # TypeScript, 0 errors
-pnpm --filter nekazari-frontend run lint        # ESLint (max 774 warnings)
-pnpm --filter nekazari-frontend run test        # Unit tests (Vitest)
-pnpm --filter nekazari-frontend run test:e2e    # Playwright smoke tests (starts dev server if needed)
+apps/host/          React frontend (Vite, CesiumJS, Tailwind)
+services/           Python microservices (Flask, FastAPI)
+  api-gateway/      JWT validation, rate limiting, FIWARE headers
+  entity-manager/   NGSI-LD CRUD, module marketplace, S3 uploads
+  risk-*/           Agronomic risk evaluation engine
+  weather-worker/   Meteorological data ingestion
+  ...
+config/             TimescaleDB migrations, monitoring configs
+k8s/                Kubernetes manifests
+docker/             docker-compose support files
+docs/               Platform documentation
+packages/           @nekazari/sdk, @nekazari/ui-kit, module-builder
 ```
-
-First-time E2E: `pnpm --filter nekazari-frontend exec playwright install chromium`
-
-## Documentation
-
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Installation and operations
-- [API Integration](docs/api/README.md) — Device and system API reference
-- [External Developer Guide](docs/development/EXTERNAL_DEVELOPER_GUIDE.md) — Building modules
-- [Module Installation](docs/modules/EXTERNAL_MODULE_INSTALLATION.md) — Installing addons
 
 ## Contributing
 
@@ -173,4 +188,5 @@ We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+- **Platform (this repo):** [GNU Affero General Public License v3.0](LICENSE)
+- **SDK + UI Kit:** Apache License 2.0
