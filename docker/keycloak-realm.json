@@ -376,46 +376,5 @@
     "cibaAuthRequestedUserHint": "login_hint",
     "parRequestUriLifespan": "60"
   },
-  "users": [
-    {
-      "username": "demo@nekazari.local",
-      "enabled": true,
-      "email": "demo@nekazari.local",
-      "firstName": "Demo",
-      "lastName": "Farmer",
-      "emailVerified": true,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "Demo1234!",
-          "temporary": false
-        }
-      ],
-      "attributes": {
-        "tenant_id": ["demo-farm"]
-      },
-      "groups": ["/Demo Farm"],
-      "realmRoles": ["Farmer"]
-    },
-    {
-      "username": "admin@nekazari.local",
-      "enabled": true,
-      "email": "admin@nekazari.local",
-      "firstName": "Admin",
-      "lastName": "Nekazari",
-      "emailVerified": true,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "Admin1234!",
-          "temporary": false
-        }
-      ],
-      "attributes": {
-        "tenant_id": ["platformadmin"]
-      },
-      "groups": ["/Platform Administrators"],
-      "realmRoles": ["PlatformAdmin"]
-    }
-  ]
+  "users": []
 }

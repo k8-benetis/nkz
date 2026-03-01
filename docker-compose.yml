@@ -126,6 +126,21 @@ services:
     entrypoint: ["/bin/sh", "/docker/seed-orion.sh"]
     restart: "no"
 
+  init-keycloak-users:
+    image: curlimages/curl:latest
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Demo1234!}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin1234!}
+    volumes:
+      - ./docker/init-keycloak-users.sh:/docker/init-keycloak-users.sh:ro
+    entrypoint: ["/bin/sh", "/docker/init-keycloak-users.sh"]
+    restart: "no"
+
   # ===========================================================================
   # Auth + FIWARE
   # ===========================================================================

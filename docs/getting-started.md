@@ -40,10 +40,12 @@ docker compose logs -f migrations
 
 ### Demo Credentials
 
-| User | Password | Role |
-|------|----------|------|
-| `demo@nekazari.local` | `Demo1234!` | Farmer (tenant: demo-farm) |
-| `admin@nekazari.local` | `Admin1234!` | Platform Admin |
+Passwords are defined in your `.env` file (`DEMO_PASSWORD` and `ADMIN_PASSWORD`):
+
+| User | Env Variable | Role |
+|------|-------------|------|
+| `demo@nekazari.local` | `DEMO_PASSWORD` | Farmer (tenant: demo-farm) |
+| `admin@nekazari.local` | `ADMIN_PASSWORD` | Platform Admin |
 
 ### What You'll See
 

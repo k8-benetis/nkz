@@ -24,7 +24,7 @@ git clone https://github.com/k8-benetis/nkz.git && cd nkz
 cp .env.example .env
 docker compose up -d          # first build ~10 min (frontend multistage)
 # wait ~3 min for healthchecks
-open http://localhost:3000     # login: demo@nekazari.local / Demo1234!
+open http://localhost:3000     # login: demo@nekazari.local (password in .env)
 ```
 
 > **Cleanup:** `docker compose down -v` removes all containers and data.
