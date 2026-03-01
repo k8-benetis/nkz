@@ -41,7 +41,8 @@ logger = logging.getLogger(__name__)
 
 # Inicializar Flask app
 app = Flask(__name__)
-CORS(app)
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
+CORS(app, origins=_cors_origins, supports_credentials=True)
 
 class EmailConfig:
     """Configuración del servicio de email desde variables de entorno"""
