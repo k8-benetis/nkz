@@ -23,9 +23,7 @@ class CadastralApiService {
 
     // Add auth token to requests
     this.client.interceptors.request.use((requestConfig) => {
-      const token = sessionStorage.getItem('auth_token') || 
-                    (window as any).__keycloak?.token || 
-                    '';
+      const token = (window as any).keycloak?.token || '';
       if (token) {
         requestConfig.headers.Authorization = `Bearer ${token}`;
       }

@@ -94,7 +94,7 @@ export const AdminUserManagement: React.FC = () => {
     try {
       setLoading(true);
       // Obtener API-KEY del admin actual
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       const response = await api.get('/api/admin/api-keys', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -128,7 +128,7 @@ export const AdminUserManagement: React.FC = () => {
 
   const createAdminApiKey = async () => {
     try {
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       const response = await api.post('/api/admin/api-keys', {
         tenant: user?.tenant || 'admin',
         name: `API Key for ${user?.email}`,
@@ -148,7 +148,7 @@ export const AdminUserManagement: React.FC = () => {
 
   const loadActivationCodes = async () => {
     try {
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       const response = await api.get('/webhook/admin/codes', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -178,7 +178,7 @@ export const AdminUserManagement: React.FC = () => {
 
   const loadTenants = async () => {
     try {
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       const response = await api.get('/api/admin/tenants', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -200,7 +200,7 @@ export const AdminUserManagement: React.FC = () => {
       try {
         const altResponse = await api.get('/admin/tenants', {
           headers: {
-            'Authorization': `Bearer ${getToken() || sessionStorage.getItem('auth_token') || ''}`
+            'Authorization': `Bearer ${getToken() || ''}`
           }
         });
         const tenantsData = altResponse.data.tenants || altResponse.data || [];
@@ -230,7 +230,7 @@ export const AdminUserManagement: React.FC = () => {
     setSuccess(null);
 
     try {
-      const tokenForWebhook = getToken() || sessionStorage.getItem('auth_token') || '';
+      const tokenForWebhook = getToken() || '';
       
       // Intentar primero con /webhook/admin/generate-code
       let response;
@@ -298,7 +298,7 @@ export const AdminUserManagement: React.FC = () => {
     setSuccess(null);
 
     try {
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       const response = await api.post('/api/admin/api-keys', {
         tenant: newApiKey.tenant_id,
         name: `API Key for ${newApiKey.tenant_id}`,
@@ -334,7 +334,7 @@ export const AdminUserManagement: React.FC = () => {
 
   const revokeActivationCode = async (codeId: string) => {
     try {
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       await api.delete(`/webhook/admin/codes/${codeId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -346,7 +346,7 @@ export const AdminUserManagement: React.FC = () => {
       console.error('Error revoking code:', err);
       // Try alternative endpoint
       try {
-        const altToken = getToken() || sessionStorage.getItem('auth_token') || '';
+        const altToken = getToken() || '';
         await api.delete(`/api/webhook/admin/codes/${codeId}`, {
           headers: {
             'Authorization': `Bearer ${altToken}`

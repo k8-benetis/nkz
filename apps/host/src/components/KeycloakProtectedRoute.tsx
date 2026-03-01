@@ -26,9 +26,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     window.location.search.includes('error=')
   );
 
-  // CRÍTICO: Si hay token en sessionStorage pero isAuthenticated es false, puede ser que esté procesando
+  // CRÍTICO: Si hay sesión Keycloak pero isAuthenticated es false, puede ser que esté procesando
   // Esperar un momento antes de redirigir
-  const hasStoredToken = typeof window !== 'undefined' && sessionStorage.getItem('auth_token');
+  const hasStoredToken = typeof window !== 'undefined' && (window as any).keycloak?.token;
   const [hasCheckedAuth, setHasCheckedAuth] = React.useState(false);
 
   // Timeout para evitar cuelgues infinitos (30 segundos máximo)

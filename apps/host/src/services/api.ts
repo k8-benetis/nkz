@@ -46,17 +46,17 @@ export interface TenantUsersResponse {
   [key: string]: unknown;
 }
 
-// Function to get current token (from Keycloak or sessionStorage fallback)
+// Internal Keycloak instance reference for token refresh / cookie update.
+// Set via setKeycloakRef() from KeycloakAuthContext — never exposed to modules.
+let _keycloakRef: { token?: string; updateToken: (minValidity: number) => Promise<boolean> } | null = null;
+
+/** Called by KeycloakAuthContext to share the Keycloak instance with api.ts */
+export const setKeycloakRef = (kc: typeof _keycloakRef) => { _keycloakRef = kc; };
+
+// Internal helper — token is used only for refresh logic and X-Tenant-ID extraction,
+// never sent as Authorization header (httpOnly cookie handles auth).
 const getAuthToken = (): string | null => {
-  // Try to get token from Keycloak instance if available
-  if (typeof window !== 'undefined') {
-    const keycloakInstance = (window as Window & { keycloak?: { token?: string } }).keycloak;
-    if (keycloakInstance?.token) {
-      return keycloakInstance.token;
-    }
-  }
-  // Fallback to sessionStorage
-  return sessionStorage.getItem('auth_token');
+  return _keycloakRef?.token ?? null;
 };
 
 // =============================================================================
@@ -141,89 +141,43 @@ class ApiService {
     this.client = axios.create({
       baseURL: API_BASE_URL,
       timeout: config.api.timeout,
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    // Request interceptor to add auth token and refresh if needed
+    // Request interceptor — auth is handled by httpOnly cookie (withCredentials: true).
+    // We still proactively refresh the token so the cookie stays fresh, and extract
+    // X-Tenant-ID from the in-memory token for legacy services.
     this.client.interceptors.request.use(
       async (requestConfig) => {
-        // Log NDVI requests for debugging
-        if (requestConfig.url?.includes('/api/ndvi/')) {
-          logger.debug(`[API] NDVI request interceptor: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`);
-        }
-        // Get Keycloak instance to refresh token if needed
-        let token = getAuthToken();
-
-        if (typeof window !== 'undefined') {
-          const keycloakInstance = (window as any).keycloak;
-          if (keycloakInstance) {
-            // Check if token is expired or about to expire (within 60 seconds)
-            try {
-              if (keycloakInstance.token) {
-                const decoded = JSON.parse(atob(keycloakInstance.token.split('.')[1]));
-                const exp = decoded.exp * 1000; // Convert to milliseconds
-                const now = Date.now();
-                const timeUntilExpiry = exp - now;
-
-                // Refresh if token is expired (negative time) or expires in less than 60 seconds
-                // Use 60 seconds buffer to avoid race conditions
-                if (timeUntilExpiry < 60000) {
-                  if (timeUntilExpiry < 0) {
-                    logger.debug(`[API] Token expired ${Math.abs(timeUntilExpiry / 1000).toFixed(0)} seconds ago, refreshing...`);
-                  } else {
-                    logger.debug(`[API] Token expiring in ${(timeUntilExpiry / 1000).toFixed(0)} seconds, refreshing...`);
-                  }
-                  try {
-                    // updateToken will refresh the token if needed
-                    // Pass a longer min validity to ensure we get a fresh token
-                    await keycloakInstance.updateToken(60);
-                    // Always use the token from Keycloak instance after updateToken
-                    // (it refreshes internally even if it returns false)
-                    if (keycloakInstance.token) {
-                      token = keycloakInstance.token;
-                      logger.debug('[API] Token refreshed successfully');
-                    } else {
-                      logger.warn('[API] updateToken completed but no token available');
-                      // Token refresh may have failed - this will cause 401 which will be handled by response interceptor
-                    }
-                  } catch (refreshError: unknown) {
-                    logger.warn('[API] Token refresh failed:', refreshError);
-                    // If refresh fails, try to get current token anyway
-                    token = keycloakInstance.token || token;
-                    // If still no token, the request will fail with 401
-                    // and the response interceptor will try again
-                    if (!token) {
-                      logger.error('[API] No token available after refresh attempt - request may fail');
-                    }
-                  }
-                } else {
-                  // Token is still valid, use it
-                  token = keycloakInstance.token;
+        // Proactively refresh token if close to expiry (updates httpOnly cookie)
+        if (_keycloakRef?.token) {
+          try {
+            const decoded = JSON.parse(atob(_keycloakRef.token.split('.')[1]));
+            const timeUntilExpiry = decoded.exp * 1000 - Date.now();
+            if (timeUntilExpiry < 60000) {
+              logger.debug('[API] Token expiring soon, refreshing for cookie update...');
+              try {
+                await _keycloakRef.updateToken(60);
+                if (_keycloakRef.token) {
+                  // setSession is called by KeycloakAuthContext's onTokenExpired,
+                  // but also call here as a safety net for proactive refresh
+                  this.setSession(_keycloakRef.token).catch(() => {});
                 }
-              } else {
-                // No token in instance - try to get one
-                logger.warn('[API] Keycloak instance exists but no token available');
-                try {
-                  await keycloakInstance.updateToken(60);
-                  token = keycloakInstance.token || null;
-                } catch (e) {
-                  logger.warn('[API] Failed to get token from Keycloak instance:', e);
-                }
+              } catch (e) {
+                logger.warn('[API] Token refresh failed:', e);
               }
-            } catch (e) {
-              logger.warn('[API] Error checking token expiry:', e);
-              token = keycloakInstance.token || token;
             }
+          } catch (e) {
+            logger.warn('[API] Error checking token expiry:', e);
           }
         }
 
+        // Extract tenant from in-memory token for X-Tenant-ID header
+        const token = getAuthToken();
         if (token) {
-          requestConfig.headers.Authorization = `Bearer ${token}`;
-          // Extract tenant from token for services that need X-Tenant-ID header
-          // Note: Most services extract tenant from JWT token, but some legacy services
-          // may still use X-Tenant-ID header for internal propagation
           try {
             const decoded = JSON.parse(atob(token.split('.')[1]));
             const tenantId = decoded['tenant-id'] || decoded.tenant_id || decoded.tenantId || decoded.tenant || '';
@@ -231,31 +185,10 @@ class ApiService {
               requestConfig.headers['X-Tenant-ID'] = tenantId;
             }
           } catch (e) {
-            // If token decode fails, continue without X-Tenant-ID header
-            // Backend services should extract tenant from JWT token anyway
             logger.warn('[API] Could not extract tenant from token for X-Tenant-ID header');
-          }
-        } else {
-          // Log when token is missing for weather endpoints
-          if (requestConfig.url?.includes('/api/weather')) {
-            logger.warn('[API] No token available for weather request:', requestConfig.url);
           }
         }
 
-        // Log weather requests for debugging
-        if (requestConfig.url?.includes('/api/weather')) {
-          logger.debug(`[API] Weather request: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`, {
-            hasToken: !!token,
-            tokenLength: token ? token.length : 0,
-            hasTenant: !!requestConfig.headers['X-Tenant-ID'],
-          });
-        }
-        if (requestConfig.url?.includes('/api/ndvi/')) {
-          logger.debug(`[API] NDVI request ready: ${requestConfig.method?.toUpperCase()} ${requestConfig.url}`, {
-            hasToken: !!token,
-            hasTenant: !!requestConfig.headers['X-Tenant-ID'],
-          });
-        }
         return requestConfig;
       },
       (error) => Promise.reject(error)
@@ -304,79 +237,38 @@ class ApiService {
         }
 
         if (error.response?.status === 401) {
-          // Log 401 errors for weather endpoints
-          if (error.config?.url?.includes('/api/weather')) {
-            const authHeader = error.config.headers?.Authorization;
-            const authHeaderStr = typeof authHeader === 'string' ? authHeader : String(authHeader || '');
-            logger.error('[API] 401 error for weather request:', {
-              url: error.config.url,
-              hasToken: !!authHeader,
-              tokenLength: authHeaderStr.length || 0,
-            });
-          }
-
-          // CRÍTICO: Prevenir bucles infinitos de refresh
-          // Usar una propiedad en el config para rastrear intentos de refresh
+          // Prevent infinite refresh loops
           const retryCount = (error.config as any)?._retryCount || 0;
-          const MAX_RETRY_ATTEMPTS = 2; // Máximo 2 intentos de refresh
+          const MAX_RETRY_ATTEMPTS = 2;
 
           if (retryCount >= MAX_RETRY_ATTEMPTS) {
-            logger.error('[API] Max retry attempts reached for 401 error. Stopping retry loop.', {
-              url: error.config?.url,
-              retryCount,
-            });
-            // Dejar que el error se propague - el componente manejará el redirect a login
+            logger.error('[API] Max retry attempts reached for 401.', { url: error.config?.url });
             return Promise.reject(error);
           }
 
-          // Token expired or invalid - try to refresh
-          if (typeof window !== 'undefined') {
-            const keycloakInstance = (window as any).keycloak;
-            if (keycloakInstance) {
-              try {
-                logger.debug(`[API] 401 error, attempting to refresh token... (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
-                // Always try to update token - Keycloak handles refresh internally
-                await keycloakInstance.updateToken(30);
-                if (keycloakInstance.token) {
-                  logger.debug('[API] Token refreshed, retrying request...');
-                  // Retry the original request with new token
-                  const originalRequest = error.config;
-                  if (originalRequest && originalRequest.headers) {
-                    // Marcar este intento de retry
-                    (originalRequest as AxiosRequestConfig & { _retryCount?: number })._retryCount = retryCount + 1;
-                    originalRequest.headers.Authorization = `Bearer ${keycloakInstance.token}`;
-                    // Actualizar también sessionStorage para consistencia
-                    sessionStorage.setItem('auth_token', keycloakInstance.token);
-                    // Clear any cached response to force retry
-                    delete originalRequest.transformRequest;
-                    delete originalRequest.transformResponse;
-                    return this.client.request(originalRequest);
-                  } else {
-                    logger.warn('[API] Cannot retry: original request config is invalid');
-                  }
-                } else {
-                  logger.warn('[API] Token refresh completed but no token available - user may need to re-authenticate');
-                }
-              } catch (refreshError: unknown) {
-                logger.warn('[API] Token refresh failed:', refreshError);
-                const err = refreshError as { error?: string; error_description?: string };
-                if (err.error === 'login_required' || err.error_description?.includes('login')) {
-                  logger.debug('[API] User needs to re-login');
+          // Try to refresh token → updates httpOnly cookie, then retry
+          if (_keycloakRef) {
+            try {
+              logger.debug(`[API] 401 — refreshing token (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+              await _keycloakRef.updateToken(30);
+              if (_keycloakRef.token) {
+                // Update cookie with fresh token
+                this.setSession(_keycloakRef.token).catch(() => {});
+                logger.debug('[API] Token refreshed, retrying with updated cookie...');
+                const originalRequest = error.config;
+                if (originalRequest) {
+                  (originalRequest as AxiosRequestConfig & { _retryCount?: number })._retryCount = retryCount + 1;
+                  // No Bearer header — cookie is sent automatically via withCredentials
+                  delete originalRequest.transformRequest;
+                  delete originalRequest.transformResponse;
+                  return this.client.request(originalRequest);
                 }
               }
-            } else {
-              logger.warn('[API] 401 error but Keycloak instance not available');
+            } catch (refreshError: unknown) {
+              logger.warn('[API] Token refresh failed on 401:', refreshError);
             }
-          }
-
-          // Token expired or invalid
-          // CRÍTICO: NO redirigir automáticamente aquí porque puede causar bucles
-          // Dejar que el componente de autenticación maneje esto
-          const token = getAuthToken();
-          if (!token) {
-            logger.warn('[API] 401 error but no token found - may be loading');
           } else {
-            logger.warn('[API] 401 error with token - token may be expired');
+            logger.warn('[API] 401 error but no Keycloak ref available');
           }
         }
         return Promise.reject(error);
@@ -408,8 +300,15 @@ class ApiService {
     return this.client.delete(url, config);
   }
 
-  // Authentication is now handled by Keycloak
-  // These methods are kept for backward compatibility with backend APIs
+  // --- httpOnly cookie session management ---
+
+  async setSession(token: string): Promise<void> {
+    await this.client.post('/auth/session', { token });
+  }
+
+  async clearSession(): Promise<void> {
+    await this.client.delete('/auth/session');
+  }
 
   // I18N is now handled entirely in the frontend via I18nContext
   // Translations are loaded from /locales/*.json files

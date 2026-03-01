@@ -7,6 +7,7 @@ import Keycloak from 'keycloak-js';
 import { getConfig } from '@/config/environment';
 import { formatAuthError } from '@/utils/keycloakHelpers';
 import { logger } from '@/utils/logger';
+import { api, setKeycloakRef } from '@/services/api';
 
 export interface KeycloakUser {
   id: string;
@@ -289,7 +290,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
 
           // Guardar token en localStorage
           if (kc.token) {
-            sessionStorage.setItem('auth_token', kc.token);
+            api.setSession(kc.token).catch(() => {});
           }
 
           // Configurar refresh de token
@@ -297,7 +298,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             try {
               const refreshed = await kc.updateToken(30);
               if (refreshed && kc.token) {
-                sessionStorage.setItem('auth_token', kc.token);
+                api.setSession(kc.token).catch(() => {});
                 // CRÍTICO: Actualizar roles cuando el token se refresca
                 updateUserRolesFromToken(kc);
               }
@@ -455,14 +456,14 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
           setIsAuthenticated(true);
 
           if (kc.token) {
-            sessionStorage.setItem('auth_token', kc.token);
+            api.setSession(kc.token).catch(() => {});
           }
 
           kc.onTokenExpired = async () => {
             try {
               const refreshed = await kc.updateToken(30);
               if (refreshed && kc.token) {
-                sessionStorage.setItem('auth_token', kc.token);
+                api.setSession(kc.token).catch(() => {});
                 // CRÍTICO: Actualizar roles cuando el token se refresca
                 updateUserRolesFromToken(kc);
               }
@@ -586,12 +587,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       setKeycloak(null);
       setUser(null);
       setIsAuthenticated(false);
-      sessionStorage.removeItem('auth_token');
-      // Limpiar window.keycloak al hacer logout
-      if (typeof window !== 'undefined') {
-        delete (window as any).keycloak;
-        logger.debug('[Auth] 🧹 window.keycloak limpiado en logout');
-      }
+      api.clearSession().catch(() => {});
     }
   };
 
@@ -609,19 +605,13 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
 
   const tenantId = user?.tenant || 'master';
 
-  // CRÍTICO: Sincronizar window.keycloak con el estado de React
-  // Esto permite que api.ts y otros módulos accedan a la instancia de Keycloak
+  // Share Keycloak ref with api.ts for token refresh / cookie update.
+  // NOT exposed via window — modules cannot access it.
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (keycloak) {
-        // Establecer window.keycloak cuando la instancia está disponible
-        (window as any).keycloak = keycloak;
-        logger.debug('[Auth] ✅ window.keycloak establecido');
-      } else {
-        // Limpiar window.keycloak cuando no hay instancia
-        delete (window as any).keycloak;
-        logger.debug('[Auth] 🧹 window.keycloak limpiado');
-      }
+    if (keycloak) {
+      setKeycloakRef(keycloak as any);
+    } else {
+      setKeycloakRef(null);
     }
   }, [keycloak]);
 
@@ -738,83 +728,79 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       return;
     }
 
-    // Si no hay callback ni error, verificar si hay token en localStorage
+    // Si no hay callback ni error, intentar check-sso para restaurar sesión
     // PERO solo si NO estamos en una ruta pública Y no estamos ya procesando un login
     if (!keycloak && !isPublicRoute && !isProcessingLogin) {
-      const storedToken = sessionStorage.getItem('auth_token');
-      if (storedToken) {
-        logger.debug('[Auth] Token encontrado en localStorage, inicializando Keycloak para verificar...');
-        setIsLoading(true);
-        const config = getConfig();
-        const kc = new Keycloak({
-          url: config.keycloak.url,
-          realm: config.keycloak.realm,
-          clientId: config.keycloak.clientId,
-        });
-        setKeycloak(kc);
+      logger.debug('[Auth] Non-public route, inicializando Keycloak con check-sso...');
+      setIsLoading(true);
+      const config = getConfig();
+      const kc = new Keycloak({
+        url: config.keycloak.url,
+        realm: config.keycloak.realm,
+        clientId: config.keycloak.clientId,
+      });
+      setKeycloak(kc);
 
-        // Intentar inicializar con check-sso (silent check)
-        kc.init({
-          onLoad: 'check-sso',
-          pkceMethod: 'S256',
-          checkLoginIframe: false,
-          enableLogging: true,
-        }).then((authenticated) => {
-          logger.debug('[Auth] Keycloak inicializado, authenticated:', authenticated, 'token:', !!kc.token);
-          if (authenticated && kc.token) {
-            setIsAuthenticated(true);
-            // Configurar usuario y roles desde el token
-            try {
-              const decoded = JSON.parse(atob(kc.token.split('.')[1]));
-              const roles = decoded.realm_access?.roles || decoded.roles || decoded['roles'] || [];
-              const tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
-              logger.debug('[Auth] Init - Token decoded - roles:', roles, 'tenant:', tokenTenant);
-              logger.debug('[Auth] Init - Full decoded token:', decoded);
+      // Intentar inicializar con check-sso (silent check)
+      kc.init({
+        onLoad: 'check-sso',
+        pkceMethod: 'S256',
+        checkLoginIframe: false,
+        enableLogging: true,
+      }).then((authenticated) => {
+        logger.debug('[Auth] Keycloak inicializado, authenticated:', authenticated, 'token:', !!kc.token);
+        if (authenticated && kc.token) {
+          setIsAuthenticated(true);
+          // Set httpOnly cookie for the restored session
+          api.setSession(kc.token).catch(() => {});
+          // Configurar usuario y roles desde el token
+          try {
+            const decoded = JSON.parse(atob(kc.token.split('.')[1]));
+            const roles = decoded.realm_access?.roles || decoded.roles || decoded['roles'] || [];
+            const tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+            logger.debug('[Auth] Init - Token decoded - roles:', roles, 'tenant:', tokenTenant);
 
-              kc.loadUserProfile().then((userInfo) => {
-                setUser({
-                  id: kc.subject || '',
-                  username: userInfo?.username || kc.tokenParsed?.preferred_username || '',
-                  email: userInfo?.email || kc.tokenParsed?.email || '',
-                  firstName: userInfo?.firstName || kc.tokenParsed?.given_name || '',
-                  lastName: userInfo?.lastName || kc.tokenParsed?.family_name || '',
-                  name: `${userInfo?.firstName || kc.tokenParsed?.given_name || ''} ${userInfo?.lastName || kc.tokenParsed?.family_name || ''}`.trim(),
-                  tenant: tokenTenant,
-                  roles: roles,
-                });
-                setIsLoading(false);
-              }).catch(() => {
-                // Fallback si loadUserProfile falla
-                setUser({
-                  id: kc.subject || '',
-                  username: kc.tokenParsed?.preferred_username || '',
-                  email: kc.tokenParsed?.email || '',
-                  firstName: kc.tokenParsed?.given_name || '',
-                  lastName: kc.tokenParsed?.family_name || '',
-                  name: `${kc.tokenParsed?.given_name || ''} ${kc.tokenParsed?.family_name || ''}`.trim(),
-                  tenant: tokenTenant,
-                  roles: roles,
-                });
-                setIsLoading(false);
+            kc.loadUserProfile().then((userInfo) => {
+              setUser({
+                id: kc.subject || '',
+                username: userInfo?.username || kc.tokenParsed?.preferred_username || '',
+                email: userInfo?.email || kc.tokenParsed?.email || '',
+                firstName: userInfo?.firstName || kc.tokenParsed?.given_name || '',
+                lastName: userInfo?.lastName || kc.tokenParsed?.family_name || '',
+                name: `${userInfo?.firstName || kc.tokenParsed?.given_name || ''} ${userInfo?.lastName || kc.tokenParsed?.family_name || ''}`.trim(),
+                tenant: tokenTenant,
+                roles: roles,
               });
-            } catch (e) {
-              logger.error('[Auth] Error decodificando token:', e);
               setIsLoading(false);
-            }
-          } else {
-            // Token inválido o expirado
-            logger.debug('[Auth] Token inválido o expirado, limpiando...');
-            sessionStorage.removeItem('auth_token');
-            setIsAuthenticated(false);
+            }).catch(() => {
+              // Fallback si loadUserProfile falla
+              setUser({
+                id: kc.subject || '',
+                username: kc.tokenParsed?.preferred_username || '',
+                email: kc.tokenParsed?.email || '',
+                firstName: kc.tokenParsed?.given_name || '',
+                lastName: kc.tokenParsed?.family_name || '',
+                name: `${kc.tokenParsed?.given_name || ''} ${kc.tokenParsed?.family_name || ''}`.trim(),
+                tenant: tokenTenant,
+                roles: roles,
+              });
+              setIsLoading(false);
+            });
+          } catch (e) {
+            logger.error('[Auth] Error decodificando token:', e);
             setIsLoading(false);
           }
-        }).catch((err) => {
-          logger.error('[Auth] Error inicializando Keycloak:', err);
+        } else {
+          // No active session
+          logger.debug('[Auth] No active Keycloak session');
+          api.clearSession().catch(() => {});
+          setIsAuthenticated(false);
           setIsLoading(false);
-        });
-      } else {
+        }
+      }).catch((err) => {
+        logger.error('[Auth] Error inicializando Keycloak:', err);
         setIsLoading(false);
-      }
+      });
     } else if (isPublicRoute) {
       // En rutas públicas, NO inicializar Keycloak automáticamente
       // El usuario debe hacer clic explícitamente en Login
@@ -838,17 +824,28 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
   };
 
   // Expose auth context to external modules via window (for SDK access)
+  // SECURITY: token and getToken are intentionally omitted — modules must
+  // rely on the httpOnly cookie sent automatically with credentials: 'include'.
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).__nekazariAuthContext = value;
-      logger.debug('[AuthProvider] ✅ Auth context exposed to window.__nekazariAuthContext for external modules');
+      (window as any).__nekazariAuthContext = {
+        isAuthenticated,
+        user,
+        tenantId,
+        roles: user?.roles ?? [],
+        login,
+        logout,
+        hasRole,
+        hasAnyRole,
+      };
+      logger.debug('[AuthProvider] Auth context exposed to window.__nekazariAuthContext (no token)');
     }
     return () => {
       if (typeof window !== 'undefined') {
         delete (window as any).__nekazariAuthContext;
       }
     };
-  }, [value]);
+  }, [isAuthenticated, user, tenantId, login, logout, hasRole, hasAnyRole]);
 
   return (
     <KeycloakAuthContext.Provider value={value}>

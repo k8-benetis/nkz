@@ -90,13 +90,18 @@ def validate_jwt_token(token):
         logger.warning("Invalid JWT token")
         return None
 
+def get_request_token():
+    """Extract JWT token from Authorization header or httpOnly cookie (fallback)"""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    return request.cookies.get('nkz_token')
+
 def get_current_user():
     """Get current user from JWT token"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
+    token = get_request_token()
+    if not token:
         return None
-    
-    token = auth_header.split(' ')[1]
     payload = validate_jwt_token(token)
     return payload
 
@@ -120,12 +125,10 @@ def require_auth(_func=None, *, require_hmac: bool = None):
             if request.method == 'OPTIONS':
                 return jsonify({}), 200
             logger.debug(f"[require_auth] Processing request: {request.method} {request.path}")
-            auth_header = request.headers.get('Authorization')
-            if not auth_header or not auth_header.startswith('Bearer '):
-                logger.warning(f"[require_auth] Missing or invalid authorization header for {request.path}")
-                return jsonify({'error': 'Missing or invalid authorization header'}), 401
-
-            token = auth_header.split(' ')[1]
+            token = get_request_token()
+            if not token:
+                logger.warning(f"[require_auth] Missing or invalid authorization for {request.path}")
+                return jsonify({'error': 'Missing or invalid authorization'}), 401
 
             try:
                 payload = validate_jwt_token(token)

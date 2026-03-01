@@ -38,7 +38,7 @@ export function useDashboardData(): DashboardData {
 
   const loadExpirationInfo = useCallback(async (): Promise<ExpirationInfo | null> => {
     try {
-      const token = getToken() || sessionStorage.getItem('auth_token') || '';
+      const token = getToken() || '';
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 

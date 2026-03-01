@@ -214,7 +214,7 @@ export const Activation: React.FC = () => {
       });
       
       // Add auth token if available
-      const token = (window as any).keycloak?.token || sessionStorage.getItem('auth_token');
+      const token = (window as any).keycloak?.token;
       if (token) {
         activationClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       }

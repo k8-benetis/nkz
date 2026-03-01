@@ -12,8 +12,7 @@ const API_BASE_URL = envConfig.api.baseUrl;
 
 // Function to get auth headers
 const getApiHeaders = (): HeadersInit => {
-    const token = sessionStorage.getItem('auth_token') ||
-        (typeof window !== 'undefined' && (window as any).keycloak?.token);
+    const token = (typeof window !== 'undefined' && (window as any).keycloak?.token) || '';
     return {
         'Authorization': token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',

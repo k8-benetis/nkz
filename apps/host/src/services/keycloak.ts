@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { getConfig } from '@/config/environment';
+import { api } from './api';
 
 const config = getConfig();
 
@@ -35,8 +36,10 @@ class KeycloakAuthService {
 
         if (authenticated) {
           console.log('User authenticated with Keycloak');
-          // Store token in sessionStorage for API calls
-          sessionStorage.setItem('auth_token', this.keycloak.token || '');
+          // Set httpOnly cookie via API gateway
+          if (this.keycloak.token) {
+            api.setSession(this.keycloak.token).catch(() => {});
+          }
           localStorage.setItem('user', JSON.stringify({
             id: this.keycloak.subject,
             email: this.keycloak.tokenParsed?.email,
@@ -102,8 +105,8 @@ class KeycloakAuthService {
     
     try {
       const refreshed = await this.keycloak.updateToken(30);
-      if (refreshed) {
-        sessionStorage.setItem('auth_token', this.keycloak.token || '');
+      if (refreshed && this.keycloak.token) {
+        api.setSession(this.keycloak.token).catch(() => {});
       }
       return refreshed;
     } catch (error) {

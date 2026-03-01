@@ -111,8 +111,7 @@ export const useTenantMunicipality = () => {
                   // Query backend for nearest municipality
                   try {
                     // Use fetch instead of private api.client
-                    const token = sessionStorage.getItem('auth_token') || 
-                                  (window as any).__keycloak?.token || '';
+                    const token = (window as any).keycloak?.token || '';
                     const headers: HeadersInit = {
                       'Content-Type': 'application/json',
                     };

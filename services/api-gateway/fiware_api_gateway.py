@@ -70,6 +70,7 @@ CADASTRAL_API_URL = os.getenv('CADASTRAL_API_URL', 'http://cadastral-api-service
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 REQUESTS_PER_MINUTE = int(os.getenv('REQUESTS_PER_MINUTE', '60'))  # Default: 60 req/min per tenant
 ALLOW_JWT_FALLBACK = os.getenv('ALLOW_JWT_FALLBACK', 'false').lower() == 'true'
+COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', '.robotika.cloud')
 
 # CORS whitelist — configured via CORS_ORIGINS env var (comma-separated)
 _cors_env = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
@@ -109,7 +110,7 @@ def set_cors_headers(response, origin=None):
     if cors_origin:
         response.headers['Access-Control-Allow-Origin'] = cors_origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID, Cookie'
         response.headers['Vary'] = 'Origin'
     return response
 
@@ -193,6 +194,56 @@ def inject_fiware_headers(headers, tenant=None):
     
     return headers
 
+def get_request_token():
+    """Extract JWT token from Authorization header or httpOnly cookie (fallback)"""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    return request.cookies.get('nkz_token')
+
+@app.route('/auth/session', methods=['POST', 'OPTIONS'])
+def create_session():
+    """Set httpOnly cookie with JWT token (BFF session endpoint)"""
+    if request.method == 'OPTIONS':
+        resp = make_response('', 204)
+        return set_cors_headers(resp)
+
+    data = request.get_json(silent=True)
+    if not data or not data.get('token'):
+        return jsonify({'error': 'Missing token in request body'}), 400
+
+    token = data['token']
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({'error': 'Invalid or expired token'}), 401
+
+    # Calculate max_age from token expiration
+    exp = payload.get('exp')
+    if exp:
+        max_age = max(int(exp - time.time()), 0)
+    else:
+        max_age = 300  # 5 min fallback
+
+    resp = make_response(jsonify({'ok': True}))
+    resp.set_cookie(
+        'nkz_token',
+        token,
+        httponly=True,
+        secure=True,
+        samesite='Strict',
+        domain=COOKIE_DOMAIN,
+        path='/',
+        max_age=max_age,
+    )
+    return set_cors_headers(resp)
+
+@app.route('/auth/session', methods=['DELETE'])
+def delete_session():
+    """Clear httpOnly session cookie"""
+    resp = make_response(jsonify({'ok': True}))
+    resp.delete_cookie('nkz_token', domain=COOKIE_DOMAIN, path='/')
+    return set_cors_headers(resp)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -206,11 +257,9 @@ def health_check():
 def entity_by_id(entity_id):
     """Proxy to Orion-LD Context Broker for individual entity operations"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -257,11 +306,9 @@ def entity_by_id(entity_id):
 def entities():
     """Proxy to Orion-LD Context Broker entities endpoint"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -309,11 +356,9 @@ def entities():
 def subscriptions():
     """Proxy to Orion-LD Context Broker subscriptions endpoint"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -358,11 +403,9 @@ def subscriptions():
 def get_device_stats():
     """Get device statistics (AgriculturalRobot count)"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -404,11 +447,9 @@ def get_device_stats():
 def get_sensor_stats():
     """Get sensor statistics (AgriSensor count)"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -448,11 +489,9 @@ def get_sensor_stats():
 def get_sensors():
     """Proxy to Orion-LD for AgriSensor entities (Legacy API support)"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -489,11 +528,9 @@ def get_sensors():
 def get_device_latest_telemetry(device_id):
     """Get latest telemetry for a device (Proxy to Orion-LD)"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -534,11 +571,9 @@ def get_device_latest_telemetry(device_id):
 def timeseries_proxy(path):
     """Proxy to Timeseries Reader Service (GET for data/align, POST for export)."""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -575,11 +610,9 @@ def timeseries_proxy(path):
 def geoserver_proxy(path):
     """Proxy to GeoServer with JWT validation and tenant isolation"""
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -678,11 +711,9 @@ def has_role(role: str, payload: dict = None) -> bool:
 @app.route('/admin/external-api-credentials', methods=['GET'])
 def list_external_api_credentials():
     """List all external API credentials (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -733,11 +764,9 @@ def list_external_api_credentials():
 @app.route('/admin/external-api-credentials', methods=['POST'])
 def create_external_api_credential():
     """Create new external API credential (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -838,11 +867,9 @@ def create_external_api_credential():
 @app.route('/admin/external-api-credentials/<credential_id>', methods=['PUT'])
 def update_external_api_credential(credential_id):
     """Update external API credential (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -936,11 +963,9 @@ def update_external_api_credential(credential_id):
 @app.route('/admin/external-api-credentials/<credential_id>', methods=['DELETE'])
 def delete_external_api_credential(credential_id):
     """Delete external API credential (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -1034,11 +1059,9 @@ def create_or_update_k8s_secret(secret_name: str, namespace: str, data: dict) ->
 @app.route('/api/admin/platform-credentials/copernicus-cdse', methods=['GET'])
 def get_copernicus_credentials():
     """Get Copernicus CDSE credentials status (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -1087,11 +1110,9 @@ def get_copernicus_credentials():
 @app.route('/api/admin/platform-credentials/copernicus-cdse', methods=['POST'])
 def save_copernicus_credentials():
     """Save Copernicus CDSE credentials to Kubernetes secret (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -1171,11 +1192,9 @@ def save_copernicus_credentials():
 @app.route('/api/admin/platform-credentials/aemet', methods=['GET'])
 def get_aemet_credentials():
     """Get AEMET credentials status (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -1226,11 +1245,9 @@ def get_aemet_credentials():
 @app.route('/api/admin/platform-credentials/aemet', methods=['POST'])
 def save_aemet_credentials():
     """Save AEMET credentials to Kubernetes secret (PlatformAdmin only)"""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -1315,17 +1332,15 @@ def proxy_admin_requests(subpath):
             response.headers['Access-Control-Allow-Origin'] = cors_origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID, Cookie'
         response.headers['Access-Control-Max-Age'] = '3600'
         response.headers['Vary'] = 'Origin'
         return response
     
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        logger.warning(f"Missing or invalid authorization header for /api/admin/{subpath}")
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        logger.warning(f"Missing or invalid authorization for /api/admin/{subpath}")
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         logger.warning(f"Token validation failed for /api/admin/{subpath}")
@@ -1417,18 +1432,16 @@ def proxy_ndvi_requests(subpath):
             response.headers['Access-Control-Allow-Origin'] = cors_origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID, Cookie'
         response.headers['Access-Control-Max-Age'] = '3600'
         response.headers['Vary'] = 'Origin'
         return response, 200
     
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        logger.warning(f"Missing or invalid authorization header for /api/ndvi/{subpath}")
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        logger.warning(f"Missing or invalid authorization for /api/ndvi/{subpath}")
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         logger.warning(f"Token validation failed for /api/ndvi/{subpath}")
@@ -1561,19 +1574,17 @@ def proxy_weather_requests(subpath):
             response.headers['Access-Control-Allow-Origin'] = cors_origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID, Cookie'
         response.headers['Access-Control-Max-Age'] = '3600'
         response.headers['Vary'] = 'Origin'
         return response, 200
     
     # Validate JWT token (optional for some endpoints like municipalities/search)
-    auth_header = request.headers.get('Authorization')
-    token = None
+    token = get_request_token()
     payload = None
     tenant = None
-    
-    if auth_header and auth_header.startswith('Bearer '):
-        token = auth_header.split(' ')[1]
+
+    if token:
         payload = validate_jwt_token(token)
         if payload:
             tenant = extract_tenant_id(payload)
@@ -1687,23 +1698,22 @@ def proxy_modules_requests(subpath):
             response.headers['Access-Control-Allow-Origin'] = cors_origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID, Cookie'
         response.headers['Access-Control-Max-Age'] = '3600'
         response.headers['Vary'] = 'Origin'
         return response, 200
     
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        logger.warning(f"Missing or invalid authorization header for /api/modules/{subpath}")
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        logger.warning(f"Missing or invalid authorization for /api/modules/{subpath}")
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
+
     payload = validate_jwt_token(token)
     if not payload:
         logger.warning(f"Token validation failed for /api/modules/{subpath}")
         return jsonify({'error': 'Invalid or expired token'}), 401
-    
+
     # Extract tenant
     tenant = extract_tenant_id(payload)
     if not tenant:
@@ -1800,23 +1810,22 @@ def proxy_cadastral_api_requests(subpath):
             response.headers['Access-Control-Allow-Origin'] = cors_origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Tenant-ID, Cookie'
         response.headers['Access-Control-Max-Age'] = '3600'
         response.headers['Vary'] = 'Origin'
         return response, 200
     
     # Validate JWT token
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        logger.warning(f"Missing or invalid authorization header for /api/cadastral-api/{subpath}")
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        logger.warning(f"Missing or invalid authorization for /api/cadastral-api/{subpath}")
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
+
     payload = validate_jwt_token(token)
     if not payload:
         logger.warning(f"Token validation failed for /api/cadastral-api/{subpath}")
         return jsonify({'error': 'Invalid or expired token'}), 401
-    
+
     # Extract tenant
     tenant = extract_tenant_id(payload)
     if not tenant:
@@ -1899,11 +1908,9 @@ def proxy_cadastral_api_requests(subpath):
 @app.route('/api/v1/profiles', methods=['GET'])
 def list_profiles():
     """List all processing profiles."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -1992,11 +1999,9 @@ def list_profiles():
 @app.route('/api/v1/profiles', methods=['POST'])
 def create_profile():
     """Create a new processing profile."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -2051,11 +2056,9 @@ def create_profile():
 @app.route('/api/v1/profiles/<profile_id>', methods=['PUT'])
 def update_profile(profile_id):
     """Update a processing profile."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -2122,11 +2125,9 @@ def update_profile(profile_id):
 @app.route('/api/v1/profiles/<profile_id>', methods=['DELETE'])
 def delete_profile(profile_id):
     """Delete a processing profile."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -2164,11 +2165,9 @@ def delete_profile(profile_id):
 @app.route('/api/v1/profiles/stats', methods=['GET'])
 def get_telemetry_stats():
     """Get telemetry statistics including storage savings."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401
@@ -2240,11 +2239,9 @@ def get_telemetry_stats():
 @app.route('/api/v1/profiles/device-types', methods=['GET'])
 def list_device_types():
     """List unique device types that have profiles."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid authorization header'}), 401
-    
-    token = auth_header.split(' ')[1]
+    token = get_request_token()
+    if not token:
+        return jsonify({'error': 'Missing or invalid authorization'}), 401
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({'error': 'Invalid or expired token'}), 401

@@ -19,7 +19,7 @@ const getAuthToken = (): string | null => {
             return keycloakInstance.token;
         }
     }
-    return sessionStorage.getItem('auth_token');
+    return null;
 };
 
 class ParcelApiService {
@@ -29,6 +29,7 @@ class ParcelApiService {
         this.client = axios.create({
             baseURL: config.api.baseUrl,
             timeout: config.api.timeout,
+            withCredentials: true,
         });
 
         // Request interceptor to add auth token

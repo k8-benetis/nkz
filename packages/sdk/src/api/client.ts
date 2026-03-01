@@ -44,7 +44,8 @@ export class NKZClient {
 
     const response = await fetch(url, {
       ...init,
-      headers
+      headers,
+      credentials: 'include',
     });
 
     if (!response.ok) {
