@@ -35,7 +35,7 @@ services:
       start_period: 10s
 
   mongodb:
-    image: mongo:6
+    image: mongo:4.4
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}
@@ -44,7 +44,7 @@ services:
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "-u", "admin", "-p", "${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}", "--authenticationDatabase", "admin", "--quiet"]
+      test: ["CMD", "mongo", "--eval", "db.runCommand('ping').ok", "-u", "admin", "-p", "${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}", "--authenticationDatabase", "admin", "--quiet"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -162,6 +162,8 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY: edge
       KC_HTTP_ENABLED: "true"
+      KC_TRANSACTION_XA_ENABLED: "false"
+      KC_FEATURES: scripts
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     command: start-dev --import-realm

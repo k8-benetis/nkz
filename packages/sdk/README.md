@@ -35,7 +35,7 @@ const { t } = useTranslation('common');
 
 ## Documentation
 
-See the [External Developer Guide](https://github.com/k8-benetis/nekazari-public/blob/main/docs/EXTERNAL_DEVELOPER_GUIDE.md) for complete documentation.
+See the [External Developer Guide](https://github.com/k8-benetis/nkz/blob/main/docs/development/EXTERNAL_DEVELOPER_GUIDE.md) for complete documentation.
 
 ## License Note
 
