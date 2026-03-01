@@ -28,7 +28,7 @@ spec:
       containers:
       - name: email-service
         image: ghcr.io/k8-benetis/nkz/email-service:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false

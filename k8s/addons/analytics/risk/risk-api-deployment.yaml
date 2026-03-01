@@ -34,7 +34,7 @@ spec:
       containers:
       - name: risk-api
         image: ghcr.io/k8-benetis/nkz/risk-api:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false

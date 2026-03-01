@@ -73,7 +73,7 @@ spec:
       containers:
         - name: frontend
           image: ghcr.io/k8-benetis/nkz/host:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
               name: http

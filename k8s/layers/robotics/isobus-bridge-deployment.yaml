@@ -33,7 +33,7 @@ spec:
       containers:
       - name: isobus-bridge
         image: ghcr.io/k8-benetis/nkz/isobus-bridge:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - name: http
           containerPort: 5000

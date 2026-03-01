@@ -33,7 +33,7 @@ spec:
       containers:
         - name: sdm-integration
           image: ghcr.io/k8-benetis/nkz/sdm-integration:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
