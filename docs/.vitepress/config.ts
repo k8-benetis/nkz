@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'Nekazari',
   description: 'Open-source platform for precision agriculture, industry, and environmental sciences',
   base: '/nkz/',
+  ignoreDeadLinks: true,
 
   head: [
     ['link', { rel: 'icon', type: 'image/x-icon', href: '/nkz/favicon.ico' }],
