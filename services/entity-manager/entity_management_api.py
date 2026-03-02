@@ -5894,6 +5894,52 @@ def get_tenant_modules():
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 
+def _dispatch_module_lifecycle_webhook_if_configured(module_id, tenant_id, enabled, user_email=None):
+    """Fire-and-forget: POST lifecycle event to a module's webhook if configured.
+
+    The webhook URL and HMAC secret are read from marketplace_modules.metadata.
+    Follows the same HMAC-SHA256 pattern used by risk-orchestrator.
+    """
+    import hmac
+    import hashlib
+
+    try:
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT metadata->>'lifecycle_webhook_url' AS webhook_url,
+                       metadata->>'lifecycle_webhook_secret' AS webhook_secret
+                FROM marketplace_modules WHERE id = %s
+            """, (module_id,))
+            row = cur.fetchone()
+            cur.close()
+
+        if not row or not row.get('webhook_url'):
+            return
+
+        url = row['webhook_url']
+        secret = row.get('webhook_secret') or ''
+
+        payload = json.dumps({
+            'event': 'module.enabled' if enabled else 'module.disabled',
+            'tenant_id': tenant_id,
+            'module_id': module_id,
+            'user_email': user_email,
+            'timestamp': datetime.utcnow().isoformat(),
+        })
+
+        headers = {'Content-Type': 'application/json'}
+        if secret:
+            sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+            headers['X-Nekazari-Signature'] = f'sha256={sig}'
+
+        resp = requests.post(url, data=payload, headers=headers, timeout=10)
+        logger.info(f"[lifecycle_webhook] POST {url} for module={module_id} tenant={tenant_id} -> {resp.status_code}")
+
+    except Exception as exc:
+        logger.warning(f"[lifecycle_webhook] Failed for module={module_id} tenant={tenant_id}: {exc}")
+
+
 @app.route('/api/modules/<module_id>/toggle', methods=['POST'])
 @require_auth(require_hmac=False)  # Frontend endpoint, no HMAC required
 def toggle_module(module_id):
@@ -6035,6 +6081,20 @@ def toggle_module(module_id):
         
         action = 'enabled' if is_enabled else 'disabled'
         logger.info(f"Module {module_id} {action} for tenant {tenant_id} by {username}")
+        
+        # Dispatch lifecycle webhook if module has one configured
+        user_email = None
+        try:
+            payload = getattr(g, 'current_user', {}) or {}
+            user_email = payload.get('email') or payload.get('preferred_username')
+        except Exception:
+            pass
+        _dispatch_module_lifecycle_webhook_if_configured(
+            module_id=module_id,
+            tenant_id=tenant_id,
+            enabled=is_enabled,
+            user_email=user_email,
+        )
         
         return jsonify({
             'message': f'Module {action} successfully',
