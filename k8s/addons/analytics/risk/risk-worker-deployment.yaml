@@ -55,6 +55,8 @@ spec:
             # Orion-LD Configuration
             - name: ORION_URL
               value: "http://orion-ld-service:1026"
+            - name: CONTEXT_URL
+              value: "https://nekazari.robotika.cloud/ngsi-ld-context.json"
             # Redis Configuration (for event streaming)
             - name: REDIS_URL
               value: "redis://redis-service:6379"
@@ -149,6 +151,8 @@ spec:
         # Orion-LD Configuration
         - name: ORION_URL
           value: "http://orion-ld-service:1026"
+        - name: CONTEXT_URL
+          value: "https://nekazari.robotika.cloud/ngsi-ld-context.json"
         # Redis Configuration
         - name: REDIS_URL
           value: "redis://redis-service:6379"
