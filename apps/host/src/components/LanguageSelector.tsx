@@ -73,11 +73,11 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                 key={code}
                 onClick={() => handleLanguageChange(code)}
                 className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                    ? 'bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-400'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-400'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
               >
-                {name}
+                {(name as React.ReactNode)}
               </button>
             ))}
           </div>
@@ -104,11 +104,11 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                 key={code}
                 onClick={() => handleLanguageChange(code)}
                 className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                    ? 'bg-green-50 text-green-900'
-                    : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-green-50 text-green-900'
+                  : 'text-gray-700 hover:bg-gray-50'
                   }`}
               >
-                {name}
+                {(name as React.ReactNode)}
               </button>
             ))}
           </div>
@@ -134,8 +134,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
               key={code}
               onClick={() => handleLanguageChange(code)}
               className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                  ? 'bg-green-50 text-green-900'
-                  : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-green-50 text-green-900'
+                : 'text-gray-700 hover:bg-gray-50'
                 }`}
             >
               {(name as React.ReactNode)}

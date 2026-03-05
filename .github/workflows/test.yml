@@ -26,6 +26,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: .
 
+      - name: Build SDK
+        run: pnpm --filter @nekazari/sdk build
+        working-directory: .
+
       - name: Lint
         run: pnpm lint
 
