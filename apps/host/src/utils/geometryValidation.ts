@@ -59,7 +59,7 @@ export function validateGeometryWithinParent(
       }
       case 'LineString': {
         const lineString = childGeometry as LineString;
-        const allPointsIn = lineString.coordinates.every(coord => {
+        const allPointsIn = lineString.coordinates.every((coord: number[]) => {
           const point: Point = {
             type: 'Point',
             coordinates: coord
@@ -76,7 +76,7 @@ export function validateGeometryWithinParent(
       }
       case 'MultiPolygon': {
         const multiPolygon = childGeometry as MultiPolygon;
-        const allPolygonsContained = multiPolygon.coordinates.every(polygonCoords => {
+        const allPolygonsContained = multiPolygon.coordinates.every((polygonCoords: any) => {
           const polygon: Polygon = {
             type: 'Polygon',
             coordinates: polygonCoords
@@ -93,8 +93,8 @@ export function validateGeometryWithinParent(
       }
       case 'MultiLineString': {
         const multiLineString = childGeometry as MultiLineString;
-        const allLinesIn = multiLineString.coordinates.every(lineCoords => {
-          return lineCoords.every(coord => {
+        const allLinesIn = multiLineString.coordinates.every((lineCoords: number[][]) => {
+          return lineCoords.every((coord: number[]) => {
             const point: Point = {
               type: 'Point',
               coordinates: coord
@@ -133,27 +133,27 @@ export function validateGeometryWithinParent(
  */
 export function isValidGeometry(geometry: Geometry | null | undefined): boolean {
   if (!geometry) return false;
-  
+
   try {
     switch (geometry.type) {
       case 'Point':
         return Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2;
-      
+
       case 'LineString':
-        return Array.isArray(geometry.coordinates) && 
-               geometry.coordinates.length >= 2 &&
-               geometry.coordinates.every(coord => Array.isArray(coord) && coord.length >= 2);
-      
+        return Array.isArray(geometry.coordinates) &&
+          geometry.coordinates.length >= 2 &&
+          geometry.coordinates.every(coord => Array.isArray(coord) && coord.length >= 2);
+
       case 'Polygon':
-        return Array.isArray(geometry.coordinates) && 
-               geometry.coordinates.length > 0 &&
-               geometry.coordinates[0].length >= 4; // At least 4 points (closed polygon)
-      
+        return Array.isArray(geometry.coordinates) &&
+          geometry.coordinates.length > 0 &&
+          geometry.coordinates[0].length >= 4; // At least 4 points (closed polygon)
+
       case 'MultiPoint':
       case 'MultiLineString':
       case 'MultiPolygon':
         return Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0;
-      
+
       default:
         return false;
     }
@@ -178,27 +178,27 @@ export function getGeometryBounds(geometry: Geometry): {
       case 'Point':
         allCoords = [geometry.coordinates as number[]];
         break;
-      
+
       case 'LineString':
         allCoords = geometry.coordinates as number[][];
         break;
-      
+
       case 'Polygon':
         allCoords = geometry.coordinates.flat();
         break;
-      
+
       case 'MultiPoint':
         allCoords = geometry.coordinates as number[][];
         break;
-      
+
       case 'MultiLineString':
         allCoords = geometry.coordinates.flat();
         break;
-      
+
       case 'MultiPolygon':
         allCoords = geometry.coordinates.flat(2);
         break;
-      
+
       default:
         return null;
     }

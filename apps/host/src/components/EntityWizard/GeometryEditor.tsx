@@ -228,7 +228,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         );
 
         // Add point markers
-        polyPositions.forEach((pos, _index) => {
+        polyPositions.forEach((pos: any, _index: number) => {
           const pointEntity = viewer.entities.add({
             position: pos,
             point: {
@@ -267,7 +267,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         );
 
         // Add point markers
-        linePositions.forEach((pos) => {
+        linePositions.forEach((pos: any) => {
           const pointEntity = viewer.entities.add({
             position: pos,
             point: {
@@ -295,13 +295,13 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       }
       case 'MultiLineString': {
         const multiLine = geometry as MultiLineString;
-        multiLine.coordinates.forEach((lineCoords, lineIndex) => {
+        multiLine.coordinates.forEach((lineCoords: number[][], lineIndex: number) => {
           const linePositions = lineCoords.map((coord: number[]) =>
             Cesium.Cartesian3.fromDegrees(coord[0], coord[1])
           );
 
           // Add point markers
-          linePositions.forEach((pos) => {
+          linePositions.forEach((pos: any) => {
             const pointEntity = viewer.entities.add({
               position: pos,
               point: {
