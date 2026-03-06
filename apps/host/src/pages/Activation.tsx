@@ -9,7 +9,7 @@ import { useI18n } from '@/context/I18nContext';
 import { TermsAcceptance } from '@/components/TermsAcceptance';
 import axios from 'axios';
 import { getConfig } from '@/config/environment';
-import { validateTenantId, normalizeTenantId } from '@/utils/tenantValidation';
+import { validateTenantId } from '@/utils/tenantValidation';
 import {
   Key,
   CheckCircle,
