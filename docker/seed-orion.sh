@@ -8,8 +8,7 @@ ORION_URL="http://orion-ld:1026"
 CONTEXT_URL="https://raw.githubusercontent.com/smart-data-models/dataModel.Agrifood/master/context.jsonld"
 
 echo "Waiting for Orion-LD to be ready..."
-until curl -sf "${ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&limit=1" \
-  -H "NGSILD-Tenant: demo-farm" > /dev/null 2>&1; do
+until curl -sf "${ORION_URL}/version" > /dev/null 2>&1; do
   echo "  Orion-LD not ready, retrying in 5s..."
   sleep 5
 done
