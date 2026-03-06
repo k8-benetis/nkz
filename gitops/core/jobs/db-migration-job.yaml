@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration-post-onboarding
+  namespace: nekazari
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  template:
+    spec:
+      containers:
+      - name: migration-worker
+        image: ghcr.io/k8-benetis/nkz/tenant-webhook:latest
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            echo "🚜 Starting Database Migrations (GitOps Flow)..."
+            python3 /app/scripts/apply_migrations.py
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        - configMapRef:
+            name: tenant-webhook-config
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      restartPolicy: OnFailure
+  backoffLimit: 3
