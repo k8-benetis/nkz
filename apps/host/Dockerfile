@@ -68,6 +68,7 @@ RUN npm install -g pnpm@10
 
 # Copiar node_modules y configuración
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/host/node_modules ./apps/host/node_modules
 COPY --from=deps /app/package.json ./
 COPY --from=deps /app/pnpm-lock.yaml ./
 COPY --from=deps /app/pnpm-workspace.yaml ./
