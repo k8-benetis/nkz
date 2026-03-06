@@ -181,20 +181,27 @@ export const Landing: React.FC = () => {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-4">
                 <button
-                  onClick={handleLogin}
+                  onClick={() => navigate('/register')}
                   className="group relative inline-flex items-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
                   <span className="flex items-center">
-                    {t('landing.access') || t('auth.login') || 'Acceder'}
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    {t('landing.try_free') || 'Probar 30 días gratis'}
+                    <Sparkles className="ml-2 h-5 w-5 text-green-300 animate-pulse" />
                   </span>
                 </button>
                 <button
-                  onClick={() => navigate('/activate')}
+                  onClick={handleLogin}
                   className="inline-flex items-center px-8 py-4 bg-white text-green-600 text-lg font-semibold rounded-xl border-2 border-green-600 shadow-md hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
-                  <Key className="mr-2 h-5 w-5" />
-                  {t('landing.register_with_code') || 'Registro con Código'}
+                  <ArrowRight className="mr-2 h-5 w-5" />
+                  {t('landing.access') || t('auth.login') || 'Acceder'}
+                </button>
+                <button
+                  onClick={() => navigate('/activate')}
+                  className="inline-flex items-center px-6 py-4 bg-gray-50 text-gray-600 text-base font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 w-full sm:w-auto"
+                >
+                  <Key className="mr-2 h-4 w-4" />
+                  {t('landing.register_with_code') || 'Código'}
                 </button>
               </div>
 
