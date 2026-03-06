@@ -9,9 +9,20 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "validate:i18n": "./scripts/validate-i18n-json.sh",
-    "test:e2e": "pnpm --filter nekazari-frontend run test:e2e"
+    "test:e2e": "pnpm --filter nekazari-frontend run test:e2e",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
+    "lint-staged": "^15.2.10",
     "turbo": "^2.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix"
+    ],
+    "*.py": [
+      "ruff check --fix",
+      "ruff format"
+    ]
   }
 }
