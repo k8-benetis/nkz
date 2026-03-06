@@ -1,8 +1,12 @@
 {
   "name": "@nekazari/sdk",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": false,
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/k8-benetis/nkz.git"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
