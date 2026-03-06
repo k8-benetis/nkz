@@ -42,6 +42,7 @@ export interface EnvironmentConfig {
     ros2BridgeUrl?: string;
     geoserverUrl?: string;
     titilerUrl?: string;
+    billingUrl?: string;
   };
   
   // Feature Flags
@@ -269,6 +270,7 @@ function loadEnvironmentConfig(): Partial<EnvironmentConfig> {
       ros2BridgeUrl: getEnvVar('VITE_ROS2_BRIDGE_URL', ''),
       geoserverUrl: getEnvVar('VITE_GEOSERVER_URL', defaultGeoserverUrl),
       titilerUrl: getEnvVar('VITE_TITILER_URL', defaultTitilerUrl),
+      billingUrl: getEnvVar('VITE_BILLING_URL', ''),
     },
     features: {
       enableI18n: getEnvVar('VITE_ENABLE_I18N', 'true') === 'true',

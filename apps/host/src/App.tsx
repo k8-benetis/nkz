@@ -58,6 +58,7 @@ const DynamicRoutes = () => {
         <Route path="/mobile-viewer" element={<MobileViewer />} />
         <Route path="/login" element={<KeycloakLogin />} />
         <Route path="/activate" element={<Activation />} />
+        <Route path="/register" element={<Activation isRegister={true} />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ============================================
