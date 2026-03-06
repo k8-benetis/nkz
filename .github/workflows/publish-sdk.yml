@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (patch, minor, major, or specific version)'
+        description: "Version to publish (patch, minor, major, or specific version)"
         required: true
-        default: 'patch'
+        default: "patch"
   push:
     branches:
       - main
     paths:
-      - 'packages/sdk/**'
-      - '.github/workflows/publish-sdk.yml'
+      - "packages/sdk/**"
+      - ".github/workflows/publish-sdk.yml"
 
 jobs:
   publish:
@@ -27,21 +27,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
 
       - name: Install dependencies
         run: |
-          cd packages/sdk
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: |
-          cd packages/sdk
-          npm run build
+          pnpm --filter @nekazari/sdk build
 
       - name: Publish to npm
         run: |
           cd packages/sdk
           npm publish --access=public --provenance
-
