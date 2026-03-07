@@ -66,6 +66,10 @@ ENTITY_MANAGER_URL = os.getenv(
     "ENTITY_MANAGER_URL", "http://entity-manager-service:5000"
 )
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
+VEGETATION_API_URL = os.getenv(
+    "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
+)
+WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://entity-manager-service:5000")
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 REQUESTS_PER_MINUTE = int(
@@ -2649,6 +2653,56 @@ def list_device_types():
 
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+
+def generic_proxy(target_url, path):
+    """Generic proxy handler with auth and tenant isolation"""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    url = f"{target_url}/{path}"
+    headers = {"X-Tenant-ID": tenant, "Authorization": f"Bearer {token}"}
+    if request.headers.get("Content-Type"):
+        headers["Content-Type"] = request.headers.get("Content-Type")
+
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            params=request.args,
+            data=request.get_data(),
+            cookies=request.cookies,
+            allow_redirects=False,
+            timeout=30,
+        )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except Exception as e:
+        logger.error(f"Proxy error to {url}: {e}")
+        return jsonify({"error": "Gateway proxy error", "details": str(e)}), 502
+
+
+@app.route(
+    "/api/vegetation/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+)
+def vegetation_proxy(path):
+    return generic_proxy(VEGETATION_API_URL, f"api/vegetation/{path}")
+
+
+@app.route(
+    "/api/weather/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+)
+def weather_proxy(path):
+    return generic_proxy(WEATHER_API_URL, f"api/weather/{path}")
 
 
 if __name__ == "__main__":
