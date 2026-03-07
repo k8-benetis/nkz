@@ -2,11 +2,17 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, Zap, HelpCircle, CloudSun, ToggleLeft, ToggleRight,
-  Search, Settings2, BellRing, Loader2
+  Search, Settings2, BellRing, Loader2, Plus, Sparkles
 } from 'lucide-react';
 import api from '@/services/api';
-import { RISK_CATALOG, RiskCategory } from '@/config/riskCatalog';
+import { RISK_CATALOG, RiskCategory, RiskPreset } from '@/config/riskCatalog';
 import { RiskSubscription } from '@/types';
+import { CustomRiskModal } from './CustomRiskModal';
+
+interface ExtendedRiskPreset extends RiskPreset {
+  id: string;
+  isCustom?: boolean;
+}
 
 export const SmartRiskPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<RiskCategory | 'All'>('All');
@@ -15,40 +21,59 @@ export const SmartRiskPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [availableSensors, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [fullCatalog, setFullCatalog] = useState<ExtendedRiskPreset[]>(RISK_CATALOG as ExtendedRiskPreset[]);
+
+  const loadData = async () => {
+    try {
+      const [subsData, entitySummary, remoteCatalog] = await Promise.all([
+        api.getRiskSubscriptions(),
+        fetch('/api/modules/entities/summary').then(res => res.ok ? res.json() : { attributes: [] }),
+        api.getRiskCatalog()
+      ]);
+
+      // Map subscriptions
+      const subsMap = new Map<string, RiskSubscription>();
+      subsData.forEach((sub: RiskSubscription) => {
+        subsMap.set(sub.risk_code, sub);
+      });
+      setSubscriptions(subsMap);
+
+      // Map sensors
+      const sensors: Record<string, 'iot' | 'virtual'> = {};
+      const iotAttrs = entitySummary.attributes || [];
+      const allParams = Array.from(new Set(RISK_CATALOG.flatMap(r => r.params)));
+      allParams.forEach(p => {
+        sensors[p] = iotAttrs.includes(p) ? 'iot' : 'virtual';
+      });
+      setAvailableSensors(sensors);
+
+      // Merge local presets with remote custom risks
+      const customRisks: ExtendedRiskPreset[] = remoteCatalog
+        .filter((r: any) => r.risk_domain === 'custom')
+        .map((r: any) => ({
+          id: r.risk_code,
+          category: 'Pests' as RiskCategory, 
+          name: r.risk_name,
+          description: r.risk_description || '',
+          params: JSON.parse(r.model_config || '{}').params || [],
+          fallbackStrategy: 'Custom Logic',
+          icon: Sparkles,
+          thresholds: { high: 'Custom', medium: 'Custom' },
+          isCustom: true
+        }));
+      
+      setFullCatalog([...(RISK_CATALOG as ExtendedRiskPreset[]), ...customRisks]);
+
+    } catch (err) {
+      console.error('Error fetching risk panel data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const [subsData, entitySummary] = await Promise.all([
-          api.getRiskSubscriptions(),
-          fetch('/api/modules/entities/summary').then(res => res.ok ? res.json() : { attributes: [] })
-        ]);
-
-        // Map subscriptions
-        const subsMap = new Map<string, RiskSubscription>();
-        subsData.forEach((sub: RiskSubscription) => {
-          subsMap.set(sub.risk_code, sub);
-        });
-        setSubscriptions(subsMap);
-
-        // Map sensors
-        const sensors: Record<string, 'iot' | 'virtual'> = {};
-        const iotAttrs = entitySummary.attributes || [];
-        const allParams = Array.from(new Set(RISK_CATALOG.flatMap(r => r.params)));
-        allParams.forEach(p => {
-          sensors[p] = iotAttrs.includes(p) ? 'iot' : 'virtual';
-        });
-        setAvailableSensors(sensors);
-
-      } catch (err) {
-        console.error('Error fetching risk panel data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
+    loadData();
   }, []);
 
   const handleToggleRisk = async (riskId: string) => {
@@ -87,7 +112,7 @@ export const SmartRiskPanel: React.FC = () => {
     }
   };
 
-  const filteredRisks = RISK_CATALOG.filter(risk => {
+  const filteredRisks = fullCatalog.filter(risk => {
     const matchesCategory = selectedCategory === 'All' || risk.category === selectedCategory;
     const matchesSearch = risk.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          risk.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -113,6 +138,14 @@ export const SmartRiskPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Custom Risk Modal */}
+      <CustomRiskModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => { loadData().catch(console.error); }}
+        availableAttributes={Object.keys(availableSensors)}
+      />
+
       {/* Hybrid Source Indicator */}
       <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -165,12 +198,28 @@ export const SmartRiskPanel: React.FC = () => {
 
       {/* Grid of Risks */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Special Card: Create Custom Risk */}
+        <div 
+          onClick={() => setIsModalOpen(true)}
+          className="group relative bg-white rounded-2xl border-2 border-dashed border-green-200 hover:border-green-500 hover:bg-green-50/30 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center p-8 text-center space-y-4"
+        >
+          <div className="p-4 bg-green-100 rounded-2xl text-green-600 group-hover:scale-110 transition-transform shadow-sm">
+            <Plus className="h-8 w-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 group-hover:text-green-700">Crear Riesgo Personalizado</h3>
+            <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Define tu propia lógica multivariable con persistencia temporal.</p>
+          </div>
+        </div>
+
         {filteredRisks.map(risk => {
           const Icon = risk.icon;
           const sub = subscriptions.get(risk.id);
           const isActive = sub?.is_active ?? false;
           const isSaving = saving[risk.id] ?? false;
-          const dataQuality = risk.params.every(p => availableSensors[p] === 'iot') ? 'high' : 'medium';
+          const dataQuality = risk.params && risk.params.length > 0 
+            ? (risk.params.every((p: string) => availableSensors[p] === 'iot') ? 'high' : 'medium')
+            : 'medium';
 
           return (
             <div 
@@ -187,7 +236,7 @@ export const SmartRiskPanel: React.FC = () => {
                     <Icon className="h-6 w-6" />
                   </div>
                   <button
-                    onClick={() => handleToggleRisk(risk.id)}
+                    onClick={() => { handleToggleRisk(risk.id).catch(console.error); }}
                     disabled={isSaving}
                     className="transition-opacity disabled:opacity-50"
                   >
@@ -213,7 +262,7 @@ export const SmartRiskPanel: React.FC = () => {
                 {/* Requirements */}
                 <div className="pt-3 border-t border-gray-50 space-y-3">
                   <div className="flex flex-wrap gap-1.5">
-                    {risk.params.map(param => (
+                    {risk.params && risk.params.map((param: string) => (
                       <span 
                         key={param}
                         className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded flex items-center gap-1 ${

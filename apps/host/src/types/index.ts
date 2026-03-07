@@ -400,6 +400,29 @@ export interface NDVIResult {
 // Risk Management Types
 // =============================================================================
 
+export type LogicalOperator = 'AND' | 'OR';
+export type ComparisonOperator = '<' | '>' | '<=' | '>=' | '==' | '!=';
+
+export interface RiskCondition {
+  attribute: string;
+  operator: ComparisonOperator;
+  value: number | string | boolean;
+  duration_minutes: number;
+  unit?: string;
+}
+
+export interface RiskConditionGroup {
+  logical_operator: LogicalOperator;
+  conditions: Array<RiskCondition | RiskConditionGroup>;
+}
+
+export interface CustomRiskRule {
+  name: string;
+  description: string;
+  logic_tree: RiskConditionGroup;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
 export interface RiskCatalog {
   risk_code: string;
   risk_name: string;

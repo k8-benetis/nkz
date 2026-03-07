@@ -1688,6 +1688,11 @@ class ApiService {
     return response.data;
   }
 
+  async createCustomRisk(riskRule: any): Promise<{ message: string; risk_code: string }> {
+    const response = await this.client.post('/api/risks/catalog/custom', riskRule);
+    return response.data;
+  }
+
   // IoT Provisioning
   async provisionDevice(payload: any): Promise<any> {
     const response = await this.client.post('/iot/provision', payload);
