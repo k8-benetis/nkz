@@ -1,44 +1,3 @@
-# =============================================================================
-# Nekazari Frontend Host - Deployment K8s
-# =============================================================================
-# Despliega el frontend principal (Shell/Host) de la plataforma Nekazari.
-# Usa runtime config para inyectar variables de entorno sin rebuild.
-#
-# Uso:
-#   1. Build image: docker build -f apps/host/Dockerfile -t ghcr.io/k8-benetis/nkz/host:latest .
-#   2. Push: docker push ghcr.io/k8-benetis/nkz/host:latest
-#   3. Deploy: kubectl apply -f k8s/k3s-optimized/frontend-host-deployment.yaml
-#   4. Verificar: kubectl get pods -n nekazari -l app=frontend-host
-# =============================================================================
-
----
-# ConfigMap: Configuración del Frontend
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: frontend-host-config
-  namespace: nekazari
-  labels:
-    app: frontend-host
-    component: frontend
-    nekazari.io/profile: core
-data:
-  # URLs del backend (se inyectan en runtime via entrypoint.sh)
-  VITE_API_URL: "https://nkz.robotika.cloud"
-  VITE_KEYCLOAK_URL: "https://auth.robotika.cloud/auth"
-  VITE_KEYCLOAK_REALM: "nekazari"
-  VITE_KEYCLOAK_CLIENT_ID: "nekazari-frontend"
-  VITE_MODULES_CDN_URL: "/modules"
-  
-  # Feature Flags
-  VITE_ENABLE_ROS2: "false"
-  VITE_ENABLE_NDVI: "true"
-  VITE_ENABLE_WEATHER: "true"
-  VITE_ENABLE_RISK: "true"
-  VITE_DEBUG: "false"
-
----
-# Deployment: Frontend Host
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,146 +5,82 @@ metadata:
   namespace: nekazari
   labels:
     app: frontend-host
-    component: frontend
-    nekazari.io/profile: core
+    layer: frontend
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: frontend-host
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   template:
     metadata:
       labels:
         app: frontend-host
-        component: frontend
-      annotations:
-        # Forzar redeploy cuando cambie el ConfigMap
-        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
     spec:
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: frontend
-          image: ghcr.io/k8-benetis/nkz/host:latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 80
-              name: http
-          envFrom:
-            - configMapRef:
-                name: frontend-host-config
-          # Secrets opcionales (Cesium, OpenWeather, etc.)
-          env:
-            - name: VITE_CESIUM_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: cesium-secret
-                  key: token
-                  optional: true
-            - name: VITE_OPENWEATHER_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: openweather-secret
-                  key: api-key
-                  optional: true
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "128Mi"
-              cpu: "200m"
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 30
-            timeoutSeconds: 5
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: false
-            capabilities:
-              drop:
-                - ALL
-              add:
-                - CHOWN
-                - DAC_OVERRIDE
-                - SETGID
-                - SETUID
-                - NET_BIND_SERVICE
       imagePullSecrets:
         - name: ghcr-secret
-      # Spread across nodes for HA
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          labelSelector:
-            matchLabels:
-              app: frontend-host
-
+      containers:
+      - name: host
+        image: ghcr.io/k8-benetis/nkz/host:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
 ---
-# Service: Expone el frontend internamente
 apiVersion: v1
 kind: Service
 metadata:
   name: frontend-host-service
   namespace: nekazari
-  labels:
-    app: frontend-host
-    component: frontend
-    nekazari.io/profile: core
 spec:
-  type: ClusterIP
   selector:
     app: frontend-host
   ports:
-    - port: 80
-      targetPort: 80
-      name: http
-
+  - protocol: TCP
+    port: 80
+    targetPort: 80
 ---
-# HorizontalPodAutoscaler: Escalado automático (opcional)
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: frontend-host-hpa
+  name: frontend-host-ingress
   namespace: nekazari
-  labels:
-    app: frontend-host
-    component: frontend
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: frontend-host
-  minReplicas: 1
-  maxReplicas: 5
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
-    - type: Resource
-      resource:
-        name: memory
-        target:
-          type: Utilization
-          averageUtilization: 80
+  tls:
+  - hosts:
+    - nekazari.robotika.cloud
+    secretName: nekazari-frontend-tls
+  rules:
+  - host: nekazari.robotika.cloud
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-host-service
+            port:
+              number: 80
