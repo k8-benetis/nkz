@@ -37,8 +37,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: api-gateway
           image: ghcr.io/k8-benetis/nkz/api-gateway:latest
@@ -166,8 +164,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: entity-manager
           image: ghcr.io/k8-benetis/nkz/entity-manager:latest

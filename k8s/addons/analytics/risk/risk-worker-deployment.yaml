@@ -30,8 +30,6 @@ spec:
             component: batch-evaluation
         spec:
           serviceAccountName: risk-worker-sa
-          imagePullSecrets:
-          - name: ghcr-secret
           restartPolicy: OnFailure
           containers:
           - name: risk-worker
@@ -119,8 +117,6 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-      - name: ghcr-secret
       containers:
       - name: risk-worker
         image: ghcr.io/k8-benetis/nkz/risk-worker:latest

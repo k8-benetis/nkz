@@ -16,8 +16,6 @@ spec:
       labels:
         app: frontend-host
     spec:
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
       - name: host
         image: ghcr.io/k8-benetis/nkz/host:latest

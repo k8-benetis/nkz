@@ -40,8 +40,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: backend
           image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:main

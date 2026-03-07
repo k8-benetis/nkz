@@ -28,8 +28,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-      - name: ghcr-secret
       containers:
       - name: tenant-user-api
         image: ghcr.io/k8-benetis/nkz/tenant-user-api:latest

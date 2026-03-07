@@ -28,8 +28,6 @@ spec:
         prometheus.io/path: "/health"
     spec:
       serviceAccountName: default
-      imagePullSecrets:
-      - name: ghcr-secret
       containers:
       - name: isobus-bridge
         image: ghcr.io/k8-benetis/nkz/isobus-bridge:latest

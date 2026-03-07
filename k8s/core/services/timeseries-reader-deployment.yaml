@@ -26,8 +26,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: timeseries-reader
           image: ghcr.io/k8-benetis/nkz/timeseries-reader:latest
