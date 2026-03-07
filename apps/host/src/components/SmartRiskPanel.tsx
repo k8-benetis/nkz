@@ -1,295 +1,266 @@
+
 import React, { useState, useEffect } from 'react';
-import { Mail, Smartphone, AlertTriangle, Sliders, Loader2 } from 'lucide-react';
+import { 
+  ShieldCheck, Zap, Info, HelpCircle, Database, CloudSun, ToggleLeft, ToggleRight,
+  Search, Settings2, BellRing, Loader2, AlertTriangle
+} from 'lucide-react';
 import api from '@/services/api';
-import { RiskCatalog, RiskSubscription } from '@/types';
+import { RISK_CATALOG, RiskPreset, RiskCategory } from '@/config/riskCatalog';
+import { RiskSubscription } from '@/types';
 
 export const SmartRiskPanel: React.FC = () => {
-  const [catalog, setCatalog] = useState<RiskCatalog[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<RiskCategory | 'All'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [subscriptions, setSubscriptions] = useState<Map<string, RiskSubscription>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [availableSensors, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
 
-  // Load catalog and subscriptions on mount
   useEffect(() => {
-    const loadData = async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
       try {
-        setLoading(true);
-        const [catalogData, subscriptionsData] = await Promise.all([
-          api.getRiskCatalog(),
-          api.getRiskSubscriptions()
+        const [subsData, entitySummary] = await Promise.all([
+          api.getRiskSubscriptions(),
+          fetch('/api/modules/entities/summary').then(res => res.ok ? res.json() : { attributes: [] })
         ]);
-        
-        setCatalog(catalogData);
-        
-        // Convert subscriptions array to Map for easy lookup
-        const subscriptionsMap = new Map<string, RiskSubscription>();
-        subscriptionsData.forEach(sub => {
-          subscriptionsMap.set(sub.risk_code, sub);
+
+        // Map subscriptions
+        const subsMap = new Map<string, RiskSubscription>();
+        subsData.forEach((sub: RiskSubscription) => {
+          subsMap.set(sub.risk_code, sub);
         });
-        setSubscriptions(subscriptionsMap);
-      } catch (error) {
-        console.error('Error loading risk data:', error);
+        setSubscriptions(subsMap);
+
+        // Map sensors
+        const sensors: Record<string, 'iot' | 'virtual'> = {};
+        const iotAttrs = entitySummary.attributes || [];
+        const allParams = Array.from(new Set(RISK_CATALOG.flatMap(r => r.params)));
+        allParams.forEach(p => {
+          sensors[p] = iotAttrs.includes(p) ? 'iot' : 'virtual';
+        });
+        setAvailableSensors(sensors);
+
+      } catch (err) {
+        console.error('Error fetching risk panel data:', err);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
-    loadData();
+    fetchData();
   }, []);
 
-  const getSubscription = (riskCode: string): RiskSubscription | null => {
-    return subscriptions.get(riskCode) || null;
-  };
-
-  const isActive = (riskCode: string): boolean => {
-    const sub = getSubscription(riskCode);
-    return sub?.is_active ?? false;
-  };
-
-  const getThreshold = (riskCode: string): number => {
-    const sub = getSubscription(riskCode);
-    return sub?.user_threshold ?? 50;
-  };
-
-  const getChannels = (riskCode: string): { email: boolean; push: boolean } => {
-    const sub = getSubscription(riskCode);
-    return sub?.notification_channels ?? { email: true, push: false };
-  };
-
-  const toggleSubscription = async (riskCode: string) => {
-    const currentSub = getSubscription(riskCode);
-    const isCurrentlyActive = currentSub?.is_active ?? false;
-
+  const handleToggleRisk = async (riskId: string) => {
+    const currentSub = subscriptions.get(riskId);
+    const isActive = currentSub?.is_active ?? false;
+    
+    setSaving(prev => ({ ...prev, [riskId]: true }));
     try {
-      setSaving(prev => ({ ...prev, [riskCode]: true }));
-
-      if (isCurrentlyActive && currentSub) {
-        // Deactivate subscription
-        await api.updateRiskSubscription(currentSub.id, { is_active: false });
-        const updatedSub = { ...currentSub, is_active: false };
+      if (currentSub) {
+        // Toggle existing
+        const updated = await api.updateRiskSubscription(currentSub.id, { is_active: !isActive });
         setSubscriptions(prev => {
           const newMap = new Map(prev);
-          newMap.set(riskCode, updatedSub);
+          newMap.set(riskId, updated);
           return newMap;
         });
       } else {
-        // Create or activate subscription
-        if (currentSub) {
-          // Reactivate existing subscription
-          await api.updateRiskSubscription(currentSub.id, { is_active: true });
-          const updatedSub = { ...currentSub, is_active: true };
-          setSubscriptions(prev => {
-            const newMap = new Map(prev);
-            newMap.set(riskCode, updatedSub);
-            return newMap;
-          });
-        } else {
-          // Create new subscription
-          const newSub = await api.createRiskSubscription({
-            risk_code: riskCode,
-            is_active: true,
-            user_threshold: 50,
-            notification_channels: { email: true, push: false },
-            entity_filters: {}
-          });
-          setSubscriptions(prev => {
-            const newMap = new Map(prev);
-            newMap.set(riskCode, newSub);
-            return newMap;
-          });
-        }
+        // Create new
+        const newSub = await api.createRiskSubscription({
+          risk_code: riskId,
+          is_active: true,
+          user_threshold: 50,
+          notification_channels: { email: true, push: true },
+          entity_filters: {}
+        });
+        setSubscriptions(prev => {
+          const newMap = new Map(prev);
+          newMap.set(riskId, newSub);
+          return newMap;
+        });
       }
-    } catch (error) {
-      console.error(`Error toggling subscription for ${riskCode}:`, error);
+    } catch (err) {
+      console.error('Error toggling risk:', err);
     } finally {
-      setSaving(prev => ({ ...prev, [riskCode]: false }));
+      setSaving(prev => ({ ...prev, [riskId]: false }));
     }
   };
 
-  const updateThreshold = async (riskCode: string, value: number) => {
-    const currentSub = getSubscription(riskCode);
-    if (!currentSub) return;
+  const filteredRisks = RISK_CATALOG.filter(risk => {
+    const matchesCategory = selectedCategory === 'All' || risk.category === selectedCategory;
+    const matchesSearch = risk.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         risk.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
-    try {
-      setSaving(prev => ({ ...prev, [riskCode]: true }));
-      const updatedSub = await api.updateRiskSubscription(currentSub.id, {
-        user_threshold: Math.max(0, Math.min(100, value))
-      });
-      setSubscriptions(prev => {
-        const newMap = new Map(prev);
-        newMap.set(riskCode, updatedSub);
-        return newMap;
-      });
-    } catch (error) {
-      console.error(`Error updating threshold for ${riskCode}:`, error);
-    } finally {
-      setSaving(prev => ({ ...prev, [riskCode]: false }));
-    }
-  };
+  const categories: { id: RiskCategory | 'All'; label: string }[] = [
+    { id: 'All', label: 'Todos' },
+    { id: 'Climate', label: 'Clima' },
+    { id: 'WaterSoil', label: 'Suelo/Agua' },
+    { id: 'Fungi', label: 'Hongos' },
+    { id: 'Pests', label: 'Plagas' },
+  ];
 
-  const toggleChannel = async (riskCode: string, channel: 'email' | 'push') => {
-    const currentSub = getSubscription(riskCode);
-    if (!currentSub) return;
-
-    try {
-      setSaving(prev => ({ ...prev, [riskCode]: true }));
-      const currentChannels = getChannels(riskCode);
-      const updatedChannels = {
-        ...currentChannels,
-        [channel]: !currentChannels[channel]
-      };
-      
-      const updatedSub = await api.updateRiskSubscription(currentSub.id, {
-        notification_channels: updatedChannels
-      });
-      setSubscriptions(prev => {
-        const newMap = new Map(prev);
-        newMap.set(riskCode, updatedSub);
-        return newMap;
-      });
-    } catch (error) {
-      console.error(`Error updating channel for ${riskCode}:`, error);
-    } finally {
-      setSaving(prev => ({ ...prev, [riskCode]: false }));
-    }
-  };
-
-  const getRiskDomainIcon = (domain: string) => {
-    switch (domain) {
-      case 'agronomic':
-        return '🌾';
-      case 'robotic':
-        return '🤖';
-      case 'energy':
-        return '⚡';
-      case 'livestock':
-        return '🐄';
-      default:
-        return '⚠️';
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-        <span className="ml-3 text-gray-600">Cargando catálogo de riesgos...</span>
-      </div>
-    );
-  }
-
-  if (catalog.length === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-        <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <p className="text-gray-600">No hay riesgos disponibles en el catálogo.</p>
+      <div className="p-12 flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+        <span className="text-gray-500 font-medium">Cargando modelos de inteligencia...</span>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Sliders className="h-5 w-5 text-purple-600" />
-          Configuración de Riesgos Inteligentes
-        </h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Activa los riesgos que deseas monitorear y define tus umbrales de alerta.
-        </p>
+    <div className="space-y-6">
+      {/* Hybrid Source Indicator */}
+      <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <ShieldCheck className="h-6 w-6 text-green-700" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-green-900">Sistema de Inteligencia Híbrido</h3>
+            <p className="text-xs text-green-700">Priorizando sensores locales con respaldo en modelos climáticos regionales.</p>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-4 text-xs font-semibold">
+          <div className="flex items-center gap-1.5 text-blue-700">
+            <Zap className="h-3.5 w-3.5" /> Sensor IoT
+          </div>
+          <div className="flex items-center gap-1.5 text-orange-700">
+            <CloudSun className="h-3.5 w-3.5" /> Virtual / Meteo
+          </div>
+        </div>
       </div>
 
-      <div className="divide-y divide-gray-100">
-        {catalog.map((risk) => {
-          const isActiveSubscription = isActive(risk.risk_code);
-          const threshold = getThreshold(risk.risk_code);
-          const riskChannels = getChannels(risk.risk_code);
-          const isSaving = saving[risk.risk_code] ?? false;
+      {/* Filters & Search */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex p-1 bg-gray-50 rounded-xl w-full md:w-auto">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                selectedCategory === cat.id 
+                  ? 'bg-white text-green-700 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full md:w-64 px-2">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Filtrar modelos..."
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Grid of Risks */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredRisks.map(risk => {
+          const Icon = risk.icon;
+          const sub = subscriptions.get(risk.id);
+          const isActive = sub?.is_active ?? false;
+          const isSaving = saving[risk.id] ?? false;
+          const dataQuality = risk.params.every(p => availableSensors[p] === 'iot') ? 'high' : 'medium';
 
           return (
-            <div key={risk.risk_code} className={`p-6 transition-colors ${isActiveSubscription ? 'bg-purple-50/30' : 'bg-white'}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4 flex-1">
-                  <div className={`p-3 rounded-lg ${isActiveSubscription ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400'}`}>
-                    <span className="text-2xl">{getRiskDomainIcon(risk.risk_domain)}</span>
+            <div 
+              key={risk.id}
+              className={`group relative bg-white rounded-2xl border-2 transition-all duration-300 ${
+                isActive 
+                  ? 'border-green-500 shadow-md' 
+                  : 'border-gray-100 hover:border-green-200'
+              }`}
+            >
+              <div className="p-5 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                    <Icon className="h-6 w-6" />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{risk.risk_name}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                        {risk.risk_domain}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">{risk.risk_description}</p>
-                    <div className="mt-2 text-xs text-gray-400">
-                      Tipo: {risk.target_sdm_type}
-                      {risk.target_subtype && ` • ${risk.target_subtype}`}
-                    </div>
-
-                    {isActiveSubscription && (
-                      <div className="mt-4 flex items-center gap-6 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs font-medium text-gray-700">Umbral:</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={threshold}
-                            onChange={(e) => updateThreshold(risk.risk_code, Number(e.target.value))}
-                            disabled={isSaving}
-                            className="w-20 text-sm border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 disabled:opacity-50"
-                          />
-                          <span className="text-xs text-gray-500">%</span>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => toggleChannel(risk.risk_code, 'email')}
-                            disabled={isSaving}
-                            className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-                              riskChannels.email ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'
-                            }`}
-                            title="Notificar por Email"
-                          >
-                            <Mail className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => toggleChannel(risk.risk_code, 'push')}
-                            disabled={isSaving}
-                            className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${
-                              riskChannels.push ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
-                            }`}
-                            title="Notificar por Push"
-                          >
-                            <Smartphone className="h-4 w-4" />
-                          </button>
-                        </div>
-                        {isSaving && (
-                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                        )}
-                      </div>
+                  <button
+                    onClick={() => handleToggleRisk(risk.id)}
+                    disabled={isSaving}
+                    className="transition-opacity disabled:opacity-50"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
+                    ) : isActive ? (
+                      <ToggleRight className="h-9 w-9 text-green-600 cursor-pointer" />
+                    ) : (
+                      <ToggleLeft className="h-9 w-9 text-gray-300 cursor-pointer hover:text-gray-400" />
                     )}
+                  </button>
+                </div>
+
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 leading-tight">
+                    {risk.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                    {risk.description}
+                  </p>
+                </div>
+
+                {/* Requirements */}
+                <div className="pt-3 border-t border-gray-50 space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {risk.params.map(param => (
+                      <span 
+                        key={param}
+                        className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                          availableSensors[param] === 'iot' 
+                            ? 'bg-blue-50 text-blue-700' 
+                            : 'bg-orange-50 text-orange-700'
+                        }`}
+                        title={availableSensors[param] === 'iot' ? 'Sensor real detectado' : 'Usando estimación meteorológica'}
+                      >
+                        {availableSensors[param] === 'iot' ? <Zap className="h-2.5 w-2.5" /> : <CloudSun className="h-2.5 w-2.5" />}
+                        {param}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-[10px] font-bold">
+                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                      {dataQuality === 'high' ? 'ALTA PRECISIÓN' : 'ESTIMADO'}
+                    </span>
+                    <span className="text-gray-400 uppercase tracking-tighter">
+                      {risk.id}
+                    </span>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => toggleSubscription(risk.risk_code)}
-                  disabled={isSaving}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
-                    isActiveSubscription ? 'bg-purple-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      isActiveSubscription ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
+                {/* Active Settings */}
+                {isActive && (
+                  <div className="bg-green-50/50 rounded-xl p-3 flex items-center justify-between border border-green-100 animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-green-800 uppercase">
+                      <BellRing className="h-3.5 w-3.5" />
+                      Monitorización ON
+                    </div>
+                    <Settings2 className="h-3.5 w-3.5 text-green-600 cursor-pointer hover:rotate-90 transition-transform" />
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {filteredRisks.length === 0 && (
+        <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+          <HelpCircle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+          <h3 className="text-sm font-medium text-gray-900">No se encontraron modelos</h3>
+        </div>
+      )}
     </div>
   );
 };
