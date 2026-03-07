@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
   Plus, Trash2, Clock, ShieldAlert, Layers, X, 
-  ChevronRight, Save, AlertTriangle, CheckCircle2
+  Save, AlertTriangle
 } from 'lucide-react';
 import { 
   RiskCondition, RiskConditionGroup, CustomRiskRule, 
@@ -52,8 +52,9 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
       const result = await api.createCustomRisk(payload);
       onSuccess(result.risk_code);
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Error al guardar el modelo de riesgo');
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al guardar el modelo de riesgo';
+      setError(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -61,9 +62,12 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
 
   const updateGroup = (path: number[], updates: Partial<RiskConditionGroup>) => {
     const newTree = { ...logicTree };
-    let current: any = newTree;
+    let current: RiskConditionGroup = newTree;
     for (let i = 0; i < path.length; i++) {
-      current = current.conditions[path[i]];
+      const next = current.conditions[path[i]];
+      if ('logical_operator' in next) {
+        current = next;
+      }
     }
     Object.assign(current, updates);
     setLogicTree(newTree);
@@ -71,9 +75,12 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
 
   const addCondition = (path: number[]) => {
     const newTree = { ...logicTree };
-    let current: any = newTree;
+    let current: RiskConditionGroup = newTree;
     for (let i = 0; i < path.length; i++) {
-      current = current.conditions[path[i]];
+      const next = current.conditions[path[i]];
+      if ('logical_operator' in next) {
+        current = next;
+      }
     }
     current.conditions.push({ 
       attribute: availableAttributes[0] || 'airTemperature', 
@@ -86,9 +93,12 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
 
   const addSubgroup = (path: number[]) => {
     const newTree = { ...logicTree };
-    let current: any = newTree;
+    let current: RiskConditionGroup = newTree;
     for (let i = 0; i < path.length; i++) {
-      current = current.conditions[path[i]];
+      const next = current.conditions[path[i]];
+      if ('logical_operator' in next) {
+        current = next;
+      }
     }
     current.conditions.push({
       logical_operator: 'AND',
@@ -99,9 +109,12 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
 
   const removeItem = (path: number[], index: number) => {
     const newTree = { ...logicTree };
-    let current: any = newTree;
+    let current: RiskConditionGroup = newTree;
     for (let i = 0; i < path.length; i++) {
-      current = current.conditions[path[i]];
+      const next = current.conditions[path[i]];
+      if ('logical_operator' in next) {
+        current = next;
+      }
     }
     current.conditions.splice(index, 1);
     setLogicTree(newTree);
@@ -109,11 +122,17 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
 
   const updateCondition = (path: number[], index: number, updates: Partial<RiskCondition>) => {
     const newTree = { ...logicTree };
-    let current: any = newTree;
+    let current: RiskConditionGroup = newTree;
     for (let i = 0; i < path.length; i++) {
-      current = current.conditions[path[i]];
+      const next = current.conditions[path[i]];
+      if ('logical_operator' in next) {
+        current = next;
+      }
     }
-    current.conditions[index] = { ...current.conditions[index], ...updates };
+    const target = current.conditions[index];
+    if (!('logical_operator' in target)) {
+      current.conditions[index] = { ...target, ...updates };
+    }
     setLogicTree(newTree);
   };
 
@@ -228,11 +247,22 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
   );
 };
 
-// Componente recursivo para Grupos (AND/OR)
-const RuleGroupView = ({ 
+interface RuleGroupViewProps {
+  group: RiskConditionGroup;
+  level: number;
+  path: number[];
+  onUpdateGroup: (path: number[], updates: Partial<RiskConditionGroup>) => void;
+  onAddCondition: (path: number[]) => void;
+  onAddSubgroup: (path: number[]) => void;
+  onRemoveItem: (path: number[], index: number) => void;
+  onUpdateCondition: (path: number[], index: number, updates: Partial<RiskCondition>) => void;
+  availableAttributes: string[];
+}
+
+const RuleGroupView: React.FC<RuleGroupViewProps> = ({ 
   group, level, path, onUpdateGroup, onAddCondition, onAddSubgroup, 
   onRemoveItem, onUpdateCondition, availableAttributes 
-}: any) => {
+}) => {
   return (
     <div className={`space-y-4 ${level > 0 ? 'ml-6 md:ml-10 border-l-4 border-green-200 pl-4 md:pl-6 py-2' : ''}`}>
       <div className="flex items-center gap-4">
@@ -250,12 +280,12 @@ const RuleGroupView = ({
       </div>
 
       <div className="space-y-3">
-        {group.conditions.map((item: any, idx: number) => {
+        {group.conditions.map((item, idx) => {
           if ('logical_operator' in item) {
             return (
               <div key={idx} className="relative group">
                 <RuleGroupView 
-                  group={item} 
+                  group={item as RiskConditionGroup} 
                   level={level + 1} 
                   path={[...path, idx]}
                   onUpdateGroup={onUpdateGroup}
@@ -277,8 +307,8 @@ const RuleGroupView = ({
           return (
             <ConditionRow 
               key={idx} 
-              condition={item} 
-              onUpdate={(updates: any) => onUpdateCondition(path, idx, updates)}
+              condition={item as RiskCondition} 
+              onUpdate={(updates: Partial<RiskCondition>) => onUpdateCondition(path, idx, updates)}
               onRemove={() => onRemoveItem(path, idx)}
               availableAttributes={availableAttributes}
             />
@@ -304,7 +334,14 @@ const RuleGroupView = ({
   );
 };
 
-const ConditionRow = ({ condition, onUpdate, onRemove, availableAttributes }: any) => {
+interface ConditionRowProps {
+  condition: RiskCondition;
+  onUpdate: (updates: Partial<RiskCondition>) => void;
+  onRemove: () => void;
+  availableAttributes: string[];
+}
+
+const ConditionRow: React.FC<ConditionRowProps> = ({ condition, onUpdate, onRemove, availableAttributes }) => {
   return (
     <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm group hover:border-green-300 transition-all">
       <select 
@@ -319,7 +356,7 @@ const ConditionRow = ({ condition, onUpdate, onRemove, availableAttributes }: an
 
       <select 
         value={condition.operator}
-        onChange={e => onUpdate({ operator: e.target.value })}
+        onChange={e => onUpdate({ operator: e.target.value as ComparisonOperator })}
         className="bg-gray-50 border-none rounded-xl text-sm font-black px-3 py-2 w-20 text-center outline-none focus:ring-2 focus:ring-green-500"
       >
         <option value="<">&lt;</option>
@@ -332,7 +369,7 @@ const ConditionRow = ({ condition, onUpdate, onRemove, availableAttributes }: an
 
       <input 
         type="number" 
-        value={condition.value}
+        value={condition.value as number}
         onChange={e => onUpdate({ value: parseFloat(e.target.value) })}
         className="bg-gray-50 border-none rounded-xl text-sm font-bold w-full md:w-24 px-4 py-2 outline-none focus:ring-2 focus:ring-green-500" 
       />

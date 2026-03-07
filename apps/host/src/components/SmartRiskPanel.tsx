@@ -5,9 +5,14 @@ import {
   Search, Settings2, BellRing, Loader2, Plus, Sparkles
 } from 'lucide-react';
 import api from '@/services/api';
-import { RISK_CATALOG, RiskCategory } from '@/config/riskCatalog';
+import { RISK_CATALOG, RiskCategory, RiskPreset } from '@/config/riskCatalog';
 import { RiskSubscription } from '@/types';
 import { CustomRiskModal } from './CustomRiskModal';
+
+interface ExtendedRiskPreset extends RiskPreset {
+  id: string;
+  isCustom?: boolean;
+}
 
 export const SmartRiskPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<RiskCategory | 'All'>('All');
@@ -17,7 +22,7 @@ export const SmartRiskPanel: React.FC = () => {
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [availableSensors, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [fullCatalog, setFullCatalog] = useState<any[]>(RISK_CATALOG);
+  const [fullCatalog, setFullCatalog] = useState<ExtendedRiskPreset[]>(RISK_CATALOG as ExtendedRiskPreset[]);
 
   const loadData = async () => {
     try {
@@ -44,20 +49,21 @@ export const SmartRiskPanel: React.FC = () => {
       setAvailableSensors(sensors);
 
       // Merge local presets with remote custom risks
-      const customRisks = remoteCatalog
+      const customRisks: ExtendedRiskPreset[] = remoteCatalog
         .filter((r: any) => r.risk_domain === 'custom')
         .map((r: any) => ({
           id: r.risk_code,
-          category: 'Pests' as RiskCategory, // Default category
+          category: 'Pests' as RiskCategory, 
           name: r.risk_name,
-          description: r.risk_description,
-          params: [], // Custom logic tree doesn't have flat params list in same way
+          description: r.risk_description || '',
+          params: JSON.parse(r.model_config || '{}').params || [],
           fallbackStrategy: 'Custom Logic',
           icon: Sparkles,
+          thresholds: { high: 'Custom', medium: 'Custom' },
           isCustom: true
         }));
       
-      setFullCatalog([...RISK_CATALOG, ...customRisks]);
+      setFullCatalog([...(RISK_CATALOG as ExtendedRiskPreset[]), ...customRisks]);
 
     } catch (err) {
       console.error('Error fetching risk panel data:', err);
@@ -136,7 +142,7 @@ export const SmartRiskPanel: React.FC = () => {
       <CustomRiskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        onSuccess={() => loadData()}
+        onSuccess={() => { loadData().catch(console.error); }}
         availableAttributes={Object.keys(availableSensors)}
       />
 
@@ -230,7 +236,7 @@ export const SmartRiskPanel: React.FC = () => {
                     <Icon className="h-6 w-6" />
                   </div>
                   <button
-                    onClick={() => handleToggleRisk(risk.id)}
+                    onClick={() => { handleToggleRisk(risk.id).catch(console.error); }}
                     disabled={isSaving}
                     className="transition-opacity disabled:opacity-50"
                   >
