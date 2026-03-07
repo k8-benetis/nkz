@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: odoo
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/k8-benetis/nkz-module-odoo
+    targetRevision: HEAD
+    path: k8s
+    directory:
+      exclude: '{configmap.yaml,ingress.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

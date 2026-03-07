@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odoo-config
+  namespace: nekazari
+data:
+  ODOO_TEMPLATE_DB: "nkz_odoo_template"
+  ORION_URL: "http://orion-ld-service:1026"
+  N8N_URL: "http://n8n-service:5678"
+  INTELLIGENCE_API_URL: "http://intelligence-api-service:8000"
+  REDIS_URL: "redis://redis-service:6379/0"
+  KEYCLOAK_URL: "http://keycloak:8080/auth"
+  KEYCLOAK_REALM: "nekazari"
+  KEYCLOAK_CLIENT_ID: "nekazari-api"
+  KEYCLOAK_PUBLIC_URL: "https://auth.robotika.cloud/auth"
+  ODOO_OAUTH_CLIENT_ID: "nekazari-odoo"
+  ALLOWED_ORIGINS_STR: "https://nekazari.robotika.cloud,https://odoo.robotika.cloud"
+  ODOO_URL: "https://odoo.robotika.cloud"

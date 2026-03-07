@@ -28,8 +28,6 @@ spec:
         component: backend
         module: MODULE_NAME
     spec:
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: backend
           image: ghcr.io/YOUR_ORG/MODULE_NAME-backend:v1.0.0
