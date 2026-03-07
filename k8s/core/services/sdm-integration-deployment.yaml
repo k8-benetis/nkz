@@ -28,8 +28,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
         - name: sdm-integration
           image: ghcr.io/k8-benetis/nkz/sdm-integration:latest
