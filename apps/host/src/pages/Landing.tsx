@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, Database, BarChart3, Smartphone, Lock, ArrowRight, 
-  Leaf, Zap, Globe, Key, Mail, ExternalLink, CheckCircle, Sparkles
+  Zap, Globe, Mail, ExternalLink, Sparkles
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
