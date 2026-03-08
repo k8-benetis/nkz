@@ -269,10 +269,13 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
                 port:
                   number: 5000
-
-    # 3. FRONTEND (nekazari.robotika.cloud)
     - host: nekazari.robotika.cloud
       http:
         paths:
