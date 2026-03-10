@@ -57,6 +57,16 @@ spec:
             configMapKeyRef:
               name: nekazari-config
               key: KEYCLOAK_URL
+        - name: KEYCLOAK_PUBLIC_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_PUBLIC_URL
+        - name: KEYCLOAK_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_HOSTNAME
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
