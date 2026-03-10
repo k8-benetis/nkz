@@ -80,7 +80,7 @@ spec:
         - name: ALLOW_JWT_FALLBACK
           value: "false"
         - name: REQUIRE_HMAC_SIGNATURE
-          value: "true"
+          value: "false"
         resources:
           requests:
             memory: "128Mi"
