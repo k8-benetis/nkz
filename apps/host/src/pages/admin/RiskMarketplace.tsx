@@ -1,18 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  ShieldCheck, AlertTriangle, Zap, Info, CheckCircle2, 
-  HelpCircle, Database, CloudSun, ToggleLeft, ToggleRight,
-  Filter, Search, ArrowRight, Settings2, BellRing
+  ShieldCheck, Zap, Info, 
+  Search, Settings2, BellRing
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
-import { RISK_CATALOG, RiskPreset, RiskCategory } from '@/config/riskCatalog';
-
-interface SensorStatus {
-  param: string;
-  available: boolean;
-  source: 'iot' | 'virtual' | 'none';
-}
+import { RISK_CATALOG, RiskCategory } from '@/config/riskCatalog';
 
 export const RiskMarketplace: React.FC = () => {
   const { t } = useI18n();
@@ -20,7 +13,7 @@ export const RiskMarketplace: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSubscriptions, setActiveSubscriptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [availableSensors, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
+  const [, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
 
   useEffect(() => {
     const fetchData = async () => {

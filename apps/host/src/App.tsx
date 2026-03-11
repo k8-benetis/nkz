@@ -35,7 +35,6 @@ import KeycloakLogin from '@/pages/KeycloakLogin';
 import { Activation } from '@/pages/Activation';
 import { DashboardImproved } from '@/pages/DashboardImproved';
 import { Settings } from '@/pages/Settings';
-import { AdminPanel } from '@/pages/AdminPanel';
 import { Modules } from '@/pages/admin/Modules';
 import { AdminManagement } from '@/pages/admin/AdminManagement';
 // Entities page replaced by UnifiedViewer (Unified Command Center)

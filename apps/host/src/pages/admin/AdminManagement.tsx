@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Building2, Ticket, Search, Filter, Plus, 
   Trash2, ShieldCheck, AlertTriangle, RefreshCcw, 
-  Key, Mail, Calendar, Settings2, Shield
+  Mail, Settings2, Shield
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import client from '@/services/api';
@@ -48,7 +48,7 @@ export const AdminManagement: React.FC = () => {
   
   const [users, setUsers] = useState<User[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [activations, setActivations] = useState<ActivationCode[]>([]);
+  const [, setActivations] = useState<ActivationCode[]>([]);
 
   const loadData = async () => {
     setLoading(true);
@@ -62,7 +62,8 @@ export const AdminManagement: React.FC = () => {
         setTenants(response.data || []);
       } else if (activeTab === 'activations') {
         const response = await client.get('/api/admin/activations');
-        setActivations(response.data || []);
+        const data = response.data || [];
+        setActivations(data);
       }
     } catch (error) {
       console.error('Error loading admin data:', error);
@@ -76,7 +77,7 @@ export const AdminManagement: React.FC = () => {
   }, [activeTab]);
 
   const handleDeleteTenant = async (tenantId: string) => {
-    if (!window.confirm(`¿Estás SEGURO de borrar el tenant ${tenantId}? Esta acción es IRREVERSIBLE y borrará PostgreSQL, K8s y Orion-LD.`)) {
+    if (!window.confirm(`${t('admin.confirm_delete_tenant', { tenantId })}`)) {
       return;
     }
     try {
