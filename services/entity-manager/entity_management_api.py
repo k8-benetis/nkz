@@ -6138,7 +6138,7 @@ def get_marketplace_modules():
             if tenant_row:
                 plan_level = tenant_row['plan_level']
 
-        # PlatformAdmin sees all, others see only active and compatible with their plan
+        # PlatformAdmin sees all, others see only active modules
         if is_platform_admin:
             query = """
                 SELECT id, name, display_name, description, version, author, 
@@ -6155,10 +6155,10 @@ def get_marketplace_modules():
                        category, icon_url, is_active, required_roles, metadata,
                        module_type, required_plan_type, pricing_tier, required_plan_level
                 FROM marketplace_modules
-                WHERE is_active = true AND required_plan_level <= %s
+                WHERE is_active = true
                 ORDER BY display_name
             """
-            cur.execute(query, (plan_level,))
+            cur.execute(query)
         
         modules = cur.fetchall()
         cur.close()
