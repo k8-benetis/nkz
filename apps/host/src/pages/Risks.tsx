@@ -385,29 +385,6 @@ function MonitorTab() {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Entidad</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Riesgo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Severidad</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Probabilidad</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Evaluado</th>
-                <th className="px-4 py-3 w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map(state => (
-                <RiskRow key={`${state.entity_id}-${state.risk_code}-${state.timestamp}`} state={state} catalog={catalog} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export const Risks: React.FC = () => {
@@ -417,9 +394,12 @@ export const Risks: React.FC = () => {
     <div className="container mx-auto px-4 py-6 max-w-7xl">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Riesgos y Alertas</h1>
+        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <Shield className="text-green-600 h-8 w-8" />
+          Inteligencia de Riesgos
+        </h1>
         <p className="text-gray-500 mt-1">
-          Monitoreo en tiempo real de riesgos agronómicos, energéticos y robóticos.
+          Monitorización proactiva y modelización de amenazas agroclimáticas mediante SDM y NGSI-LD.
         </p>
       </div>
 
@@ -446,9 +426,11 @@ export const Risks: React.FC = () => {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'monitor'   && <MonitorTab />}
-      {activeTab === 'configure' && <SmartRiskPanel />}
-      {activeTab === 'webhooks'  && <RiskWebhooksPanel />}
+      <div className="mt-6">
+        {activeTab === 'monitor'   && <MonitorTab />}
+        {activeTab === 'configure' && <SmartRiskPanel />}
+        {activeTab === 'webhooks'  && <RiskWebhooksPanel />}
+      </div>
     </div>
   );
 };
