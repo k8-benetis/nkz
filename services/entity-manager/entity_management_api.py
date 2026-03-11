@@ -6356,6 +6356,137 @@ def can_install_module(module_id):
 
 
 # =============================================================================
+# Administrative Endpoints (Nekazari Control Center)
+# =============================================================================
+
+@app.route('/api/admin/tenants', methods=['GET'])
+@require_auth(require_hmac=False)
+def admin_list_tenants():
+    """List all tenants in the system with their plan details (PlatformAdmin only)"""
+    user_roles = getattr(g, 'roles', None) or []
+    if 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
+    
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT tenant_id, tenant_name, plan_type, plan_level, status, created_at, updated_at
+            FROM tenants
+            ORDER BY created_at DESC
+        """)
+        tenants = cur.fetchall()
+        cur.close()
+        return_db_connection(conn)
+        return jsonify(tenants), 200
+    except Exception as e:
+        logger.error(f"Error listing tenants for admin: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+@app.route('/api/admin/activations', methods=['GET'])
+@require_auth(require_hmac=False)
+def admin_list_activations():
+    """List all activation codes (PlatformAdmin only)"""
+    user_roles = getattr(g, 'roles', None) or []
+    if 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
+    
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, code, email, plan, plan_level, status, expires_at, created_at, tenant_id
+            FROM activation_codes
+            ORDER BY created_at DESC
+        """)
+        activations = cur.fetchall()
+        cur.close()
+        return_db_connection(conn)
+        return jsonify(activations), 200
+    except Exception as e:
+        logger.error(f"Error listing activations for admin: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+@app.route('/api/admin/tenants/<tenant_id>/purge', methods=['DELETE'])
+@require_auth(require_hmac=False)
+def admin_purge_tenant(tenant_id):
+    """
+    Nuclear purge of a tenant: PostgreSQL, Orion-LD entities, and Kubernetes Namespace.
+    (PlatformAdmin only)
+    """
+    user_roles = getattr(g, 'roles', None) or []
+    if 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
+    
+    if tenant_id == 'platform':
+        return jsonify({'error': 'The platform tenant cannot be purged.'}), 400
+
+    logger.info(f"☢️ NUCLEAR PURGE initiated for tenant: {tenant_id}")
+    errors = []
+    
+    # 1. PostgreSQL Purge
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor()
+        # Delete from all known tables with tenant_id
+        tables = ['cadastral_parcels', 'parcel_ndvi_history', 'parcel_sensors', 
+                  'tenant_installed_modules', 'weather_observations', 'tenants']
+        for table in tables:
+            try:
+                cur.execute(f"DELETE FROM {table} WHERE tenant_id = %s", (tenant_id,))
+            except Exception as te:
+                errors.append(f"DB Error ({table}): {str(te)}")
+        conn.commit()
+        cur.close()
+        return_db_connection(conn)
+        logger.info(f"PostgreSQL purge completed for {tenant_id}")
+    except Exception as e:
+        errors.append(f"PostgreSQL global error: {str(e)}")
+
+    # 2. Orion-LD Purge (Entities)
+    try:
+        orion_url = os.getenv('ORION_URL', 'http://orion-ld-service:1026')
+        # We can only delete entities if we have their IDs, but we can try to query all
+        types = ['AgriParcel', 'AgriSensor', 'Device']
+        for t in types:
+            try:
+                resp = requests.get(f"{orion_url}/ngsi-ld/v1/entities?type={t}", 
+                                   headers={'Fiware-Service': tenant_id})
+                if resp.status_code == 200:
+                    entities = resp.json()
+                    for entity in entities:
+                        requests.delete(f"{orion_url}/ngsi-ld/v1/entities/{entity['id']}",
+                                       headers={'Fiware-Service': tenant_id})
+            except Exception as oe:
+                errors.append(f"Orion Purge Error ({t}): {str(oe)}")
+        logger.info(f"Orion-LD purge attempted for {tenant_id}")
+    except Exception as e:
+        errors.append(f"Orion-LD global error: {str(e)}")
+
+    # 3. Kubernetes Namespace Purge
+    # Forward the request to the tenant-webhook which has K8s privileges
+    try:
+        webhook_url = os.getenv('TENANT_WEBHOOK_URL', 'http://tenant-webhook-service:5000')
+        # We use a special internal token or HMAC if required, for now try direct if permitted
+        resp = requests.delete(f"{webhook_url}/webhook/namespace/{tenant_id}", timeout=30)
+        if resp.status_code not in [200, 204, 404]:
+            errors.append(f"K8s Namespace error: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        errors.append(f"K8s Webhook communication error: {str(e)}")
+
+    if errors:
+        return jsonify({
+            'status': 'partial_success',
+            'message': f'Tenant {tenant_id} purged with errors',
+            'errors': errors
+        }), 207
+    
+    return jsonify({
+        'status': 'success',
+        'message': f'Tenant {tenant_id} successfully purged from all systems.'
+    }), 200
+
+# =============================================================================
 # Module Upload Endpoint
 # =============================================================================
 

@@ -405,6 +405,7 @@ class EnhancedTenantWebhookService:
         limits: dict[str, Any],
         tenant_name: str | None,
         source: str,
+        plan_level: int | None = None,
     ) -> str | None:
         """
         Ensure there's a tenants table record linked to the given email.
@@ -419,7 +420,16 @@ class EnhancedTenantWebhookService:
         desired_name = tenant_name or email_lower.split("@")[0]
         desired_slug = self._normalize_tenant_slug(desired_name)
 
-        metadata_update = json.dumps({"primary_email": email_lower, "activation_source": source})
+        # Map plan names to numeric levels if not explicitly provided
+        if plan_level is None:
+            plan_hierarchy = {"basic": 0, "pro": 1, "premium": 2, "enterprise": 3}
+            plan_level = plan_hierarchy.get(plan.lower(), 0)
+
+        metadata_update = json.dumps({
+            "primary_email": email_lower, 
+            "activation_source": source,
+            "assigned_plan_level": plan_level
+        })
 
         cursor = conn.cursor()
         try:
@@ -478,15 +488,17 @@ class EnhancedTenantWebhookService:
                     tenant_id,
                     tenant_name,
                     plan_type,
+                    plan_level,
                     status,
                     metadata
                 )
                 VALUES (
-                    %s, %s, %s, %s, %s::jsonb
+                    %s, %s, %s, %s, %s, %s::jsonb
                 )
                 ON CONFLICT (tenant_id) DO UPDATE
                 SET tenant_name = EXCLUDED.tenant_name,
                     plan_type = EXCLUDED.plan_type,
+                    plan_level = EXCLUDED.plan_level,
                     metadata = jsonb_strip_nulls(
                         COALESCE(tenants.metadata, '{}'::jsonb) || %s::jsonb
                     ),
@@ -500,6 +512,7 @@ class EnhancedTenantWebhookService:
                     tenant_id,
                     tenant_display_name,
                     plan,
+                    plan_level,
                     "active",
                     metadata_update,
                     metadata_update,
