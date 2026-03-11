@@ -130,12 +130,23 @@ interface ParcelGroupProps {
 function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   
-  // Get max severity for this parcel
-  const SEVERITY_ORDER: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, null: 0 };
+  // Get max severity for this parcel using strict type safe logic
+  const SEVERITY_ORDER: Record<string, number> = { 
+    'critical': 4, 
+    'high': 3, 
+    'medium': 2, 
+    'low': 1,
+    'null': 0 
+  };
+
   const maxSeverity = states.reduce((max, s) => {
-    const current = s.severity ?? 'null';
-    return (SEVERITY_ORDER[current] > SEVERITY_ORDER[max]) ? current : max;
-  }, 'null' as RiskState['severity']);
+    const currentSev = s.severity || 'null';
+    const maxSev = max || 'null';
+    
+    return (SEVERITY_ORDER[currentSev] > SEVERITY_ORDER[maxSev]) 
+      ? s.severity 
+      : max;
+  }, null as RiskState['severity']);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-4">
