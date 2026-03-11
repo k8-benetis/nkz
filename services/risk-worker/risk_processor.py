@@ -398,14 +398,24 @@ class RiskProcessor:
 
         # Get weather data if needed
         if "weather" in required_sources:
-            # Try to get municipality from entity location
+            # Try to get municipality from entity location or address
             municipality_code = None
-            if "location" in entity:
-                location = entity["location"]
-                if isinstance(location, dict) and "value" in location:
-                    # Extract municipality if available
-                    # For now, get general weather for tenant
-                    pass
+            if "address" in entity:
+                addr = entity["address"]
+                if isinstance(addr, dict) and "value" in addr:
+                    val = addr["value"]
+                    if isinstance(val, dict):
+                        # Try to get municipality code from addressLocality or postalCode
+                        # In Nekazari, we use addressLocality as the municipality name
+                        # and sometimes municipality_code is in metadata or a custom property
+                        pass
+
+            # If entity has municipality_code property directly (SOTA)
+            if "municipality_code" in entity:
+                mc = entity["municipality_code"]
+                if isinstance(mc, dict) and "value" in mc:
+                    municipality_code = mc["value"]
+
             weather_data = self._get_weather_data(tenant_id, municipality_code)
             if weather_data:
                 data_sources["weather"] = weather_data
