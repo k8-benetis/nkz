@@ -85,11 +85,7 @@ function RiskRow({ state, catalog }: RiskRowProps) {
 
   return (
     <>
-      <tr className="hover:bg-gray-50 transition-colors">
-        <td className="px-4 py-3 text-sm">
-          <div className="font-medium text-gray-900">{shortEntityId(state.entity_id)}</div>
-          <div className="text-xs text-gray-400 font-mono">{state.entity_type}</div>
-        </td>
+      <tr className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
         <td className="px-4 py-3 text-sm">
           <div className="flex items-center gap-1.5">
             <span>{risk ? DOMAIN_EMOJI[risk.risk_domain] : '⚠️'}</span>
@@ -100,22 +96,22 @@ function RiskRow({ state, catalog }: RiskRowProps) {
         <td className="px-4 py-3"><SeverityBadge severity={state.severity} /></td>
         <td className="px-4 py-3 w-36"><ProbabilityBar score={state.probability_score} severity={state.severity} /></td>
         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTimestamp(state.timestamp)}</td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 text-right">
           {hasDetails && (
-            <button onClick={() => setExpanded(v => !v)} className="text-gray-400 hover:text-gray-700 transition">
+            <button onClick={() => setExpanded(v => !v)} className="text-gray-400 hover:text-gray-700 transition p-1">
               {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
           )}
         </td>
       </tr>
       {expanded && hasDetails && (
-        <tr>
-          <td colSpan={6} className="px-4 pb-3 pt-0">
-            <div className="bg-gray-50 rounded-lg p-3 text-xs font-mono text-gray-600 grid grid-cols-2 md:grid-cols-3 gap-2">
+        <tr className="bg-gray-50/50">
+          <td colSpan={5} className="px-4 pb-3 pt-0">
+            <div className="rounded-lg p-3 text-xs font-mono text-gray-600 grid grid-cols-2 md:grid-cols-3 gap-2 border border-gray-100">
               {Object.entries(state.evaluation_data).map(([k, v]) => (
-                <div key={k}>
-                  <span className="text-gray-400">{k}: </span>
-                  <span className="text-gray-700">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
+                <div key={k} className="flex gap-1">
+                  <span className="text-gray-400">{k}:</span>
+                  <span className="text-gray-700 font-medium">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
                 </div>
               ))}
             </div>
@@ -123,6 +119,74 @@ function RiskRow({ state, catalog }: RiskRowProps) {
         </tr>
       )}
     </>
+  );
+}
+
+interface ParcelGroupProps { 
+  entityId: string; 
+  states: RiskState[]; 
+  catalog: Map<string, RiskCatalog> 
+}
+function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  
+  // Get max severity for this parcel
+  const SEVERITY_ORDER: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, null: 0 };
+  const maxSeverity = states.reduce((max, s) => {
+    const current = s.severity ?? 'null';
+    return (SEVERITY_ORDER[current] > SEVERITY_ORDER[max]) ? current : max;
+  }, 'null' as RiskState['severity']);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-4">
+      {/* Header / Accordion trigger */}
+      <button 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left border-b border-gray-100"
+      >
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-gray-900">{shortEntityId(entityId)}</h3>
+              <span className="text-xs text-gray-400 font-mono hidden md:inline">{entityId}</span>
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              {states.length} riesgos evaluados
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Estado Máximo</span>
+            <SeverityBadge severity={maxSeverity} />
+          </div>
+          {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+        </div>
+      </button>
+
+      {/* Risks table */}
+      {isExpanded && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50/50 border-b border-gray-100">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Riesgo</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Severidad</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Probabilidad</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-4 py-2 w-10"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {states.map(s => (
+                <RiskRow key={`${s.entity_id}-${s.risk_code}`} state={s} catalog={catalog} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -168,8 +232,9 @@ function MonitorTab() {
       await api.triggerRiskEvaluation();
       setTriggerMsg('Evaluación en curso. Los resultados estarán disponibles en ~30 segundos.');
       setTimeout(() => loadStates(), 35_000);
-    } catch {
-      setTriggerMsg('Error al disparar la evaluación.');
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || err.message || 'Error desconocido';
+      setTriggerMsg(`Error al disparar la evaluación: ${errMsg}`);
     } finally {
       setTriggering(false);
     }
@@ -185,19 +250,28 @@ function MonitorTab() {
   // Unique risk codes for filter
   const allCodes = [...new Set(states.map(s => s.risk_code))];
 
-  // Filtered + sorted (most recent first, then by severity weight)
-  const SEVERITY_WEIGHT: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  // Filtered + Grouped
   const filtered = states
     .filter(s => {
       if (filterSeverity !== 'all' && (s.severity ?? 'null') !== filterSeverity) return false;
       if (filterCode !== 'all' && s.risk_code !== filterCode) return false;
       return true;
-    })
-    .sort((a, b) => {
-      const sw = (SEVERITY_WEIGHT[b.severity ?? ''] ?? 0) - (SEVERITY_WEIGHT[a.severity ?? ''] ?? 0);
-      if (sw !== 0) return sw;
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
+
+  // Group by entity_id
+  const groups = filtered.reduce((acc, s) => {
+    if (!acc[s.entity_id]) acc[s.entity_id] = [];
+    acc[s.entity_id].push(s);
+    return acc;
+  }, {} as Record<string, RiskState[]>);
+
+  // Sorted entity IDs by max severity
+  const SEVERITY_WEIGHT: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, null: 0 };
+  const sortedEntityIds = Object.keys(groups).sort((a, b) => {
+    const maxA = Math.max(...groups[a].map(s => SEVERITY_WEIGHT[s.severity ?? 'null'] ?? 0));
+    const maxB = Math.max(...groups[b].map(s => SEVERITY_WEIGHT[s.severity ?? 'null'] ?? 0));
+    return maxB - maxA;
+  });
 
   return (
     <div className="space-y-6">
@@ -252,7 +326,7 @@ function MonitorTab() {
       </div>
 
       {triggerMsg && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <div className={`p-3 border rounded-lg text-sm ${triggerMsg.includes('Error') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
           {triggerMsg}
         </div>
       )}
@@ -263,7 +337,7 @@ function MonitorTab() {
         <select
           value={filterCode}
           onChange={e => setFilterCode(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500"
+          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500 outline-none"
         >
           <option value="all">Todos los riesgos</option>
           {allCodes.map(code => (
@@ -278,15 +352,15 @@ function MonitorTab() {
             Quitar filtro de severidad
           </button>
         )}
-        <span className="text-xs text-gray-400 ml-auto">{filtered.length} evaluaciones</span>
+        <span className="text-xs text-gray-400 ml-auto">{filtered.length} riesgos detectados</span>
       </div>
 
-      {/* Table */}
+      {/* Grouped View */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-gray-400">
           <RefreshCw className="w-6 h-6 animate-spin mr-2" /> Cargando...
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sortedEntityIds.length === 0 ? (
         <div className="text-center py-16 bg-gray-50 rounded-xl border border-dashed border-gray-300">
           <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">
@@ -296,8 +370,22 @@ function MonitorTab() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="space-y-4">
+          {sortedEntityIds.map(entityId => (
+            <ParcelGroup 
+              key={entityId} 
+              entityId={entityId} 
+              states={groups[entityId]} 
+              catalog={catalog} 
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Entidad</th>
