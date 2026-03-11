@@ -93,6 +93,14 @@ export const ADMIN_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     priority: 101,
   },
   {
+    path: '/admin/management',
+    label: 'navigation.control_center',
+    icon: Shield,
+    roles: ['PlatformAdmin'],
+    category: 'admin',
+    priority: 102,
+  },
+  {
     path: '/system-admin',
     label: 'navigation.admin',
     icon: Shield,

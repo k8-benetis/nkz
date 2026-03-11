@@ -37,6 +37,7 @@ import { DashboardImproved } from '@/pages/DashboardImproved';
 import { Settings } from '@/pages/Settings';
 import { AdminPanel } from '@/pages/AdminPanel';
 import { Modules } from '@/pages/admin/Modules';
+import { AdminManagement } from '@/pages/admin/AdminManagement';
 // Entities page replaced by UnifiedViewer (Unified Command Center)
 import { AlertCenter } from '@/pages/AlertCenter';
 import { Risks } from '@/pages/Risks';
@@ -144,6 +145,17 @@ const DynamicRoutes = () => {
                 <Modules />
               </Layout>
             </ModulesRoute>
+          }
+        />
+
+        <Route
+          path="/admin/management"
+          element={
+            <AdminRoute>
+              <Layout>
+                <AdminManagement />
+              </Layout>
+            </AdminRoute>
           }
         />
 
