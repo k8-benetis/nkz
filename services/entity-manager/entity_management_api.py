@@ -87,6 +87,14 @@ except ImportError:
             return func
         return decorator
 
+# Import parcel sync service
+try:
+    from parcel_sync import parcel_sync
+    PARCEL_SYNC_AVAILABLE = True
+except ImportError:
+    PARCEL_SYNC_AVAILABLE = False
+    logger.warning("Parcel sync service not available (parcel_sync.py missing)")
+
 # Import module metrics
 try:
     from module_metrics import record_module_usage, record_module_latency, record_module_error, metrics_decorator
@@ -6358,6 +6366,27 @@ def can_install_module(module_id):
 # =============================================================================
 # Administrative Endpoints (Nekazari Control Center)
 # =============================================================================
+
+@app.route('/api/admin/parcels/sync', methods=['POST'])
+@require_auth(require_hmac=False)
+def admin_sync_parcels():
+    """Trigger parcel synchronization for a tenant (PlatformAdmin only)"""
+    user_roles = getattr(g, 'roles', None) or []
+    if 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
+    
+    tenant_id = request.args.get('tenant_id')
+    if not tenant_id:
+        return jsonify({'error': 'tenant_id query parameter is required'}), 400
+        
+    if not PARCEL_SYNC_AVAILABLE:
+        return jsonify({'error': 'Parcel sync service is not available'}), 503
+        
+    success = parcel_sync.sync_all_tenant_parcels(tenant_id)
+    if success:
+        return jsonify({'message': f'Sync triggered for tenant {tenant_id}'}), 200
+    else:
+        return jsonify({'error': f'Sync failed for tenant {tenant_id}'}), 500
 
 @app.route('/api/admin/tenants', methods=['GET'])
 @require_auth(require_hmac=False)
