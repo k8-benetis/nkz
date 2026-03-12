@@ -2,7 +2,7 @@ import json
 import logging
 import requests
 import os
-from common.db_helper import get_db_connection_simple, return_db_connection
+from db_helper import get_db_connection_simple, return_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class ParcelSync:
             
         try:
             cur = conn.cursor()
-            cur.execute(\"\"\"
+            cur.execute("""
                 SELECT 
                     cadastral_reference, 
                     municipality, 
@@ -31,7 +31,7 @@ class ParcelSync:
                     name
                 FROM cadastral_parcels 
                 WHERE tenant_id = %s AND is_active = true
-            \"\"\", (tenant_id,))
+            """, (tenant_id,))
             
             parcels = cur.fetchall()
             success_count = 0
@@ -49,7 +49,7 @@ class ParcelSync:
             return_db_connection(conn)
 
     def upsert_parcel(self, tenant_id: str, p_data: dict):
-        \"\"\"Push a single parcel to Orion-LD\"\"\"
+        """Push a single parcel to Orion-LD"""
         entity_id = f"urn:ngsi-ld:AgriParcel:{tenant_id}:{p_data['cadastral_reference']}"
         
         entity = {
