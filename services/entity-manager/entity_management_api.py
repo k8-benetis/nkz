@@ -35,6 +35,10 @@ common_paths = [
     os.path.join(os.path.dirname(__file__), 'common')
 ]
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import audit logger
 try:
     from audit_logger import audit_log, log_module_toggle, log_module_job_create, log_error
@@ -144,10 +148,6 @@ except ImportError:
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection, set_platform_admin_context
 from task_queue import enqueue_task, TaskType
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
