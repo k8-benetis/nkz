@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Force rebuild to include parcel_sync.py
+# Build date: 2026-03-11 22:15
+
 WORKDIR /app
 
 # Instalar dependencias del sistema
