@@ -33,7 +33,7 @@ data:
   # Production domain (configured via PRODUCTION_DOMAIN env var or .env)
   # These values are placeholders - should be set from environment variables
   PRODUCTION_DOMAIN: "nekazari.robotika.cloud"
-  KEYCLOAK_PUBLIC_URL: "https://nekazari.robotika.cloud/auth"
+  KEYCLOAK_PUBLIC_URL: "https://auth.robotika.cloud/auth"
   KEYCLOAK_HOSTNAME: "auth.robotika.cloud"  # Keycloak hostname (without protocol)
   CONTEXT_URL: "http://api-gateway-service:5000/ngsi-ld-context.json"
   

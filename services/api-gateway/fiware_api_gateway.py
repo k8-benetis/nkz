@@ -260,18 +260,15 @@ def create_session():
 
     token = data["token"]
     
-    # Validation happens on every proxied request. 
-    # Just extract expiration for cookie max_age if possible.
-    try:
-        # Note: validate_jwt_token is too strict for initial session creation
-        # if the token comes from a different issuer than the one Gateway expects.
-        # We decode without verification just for max_age.
-        payload = jwt.decode(token, options={"verify_signature": False})
-        exp = payload.get("exp")
-        max_age = max(int(exp - time.time()), 0) if exp else 3600
-    except Exception as e:
-        logger.warning(f"Could not parse token for max_age: {e}")
-        max_age = 3600
+    # STRICT VALIDATION: Restore JWKS signature and issuer check
+    payload = validate_jwt_token(token)
+    if not payload:
+        logger.warning("Session creation failed: Invalid or expired token")
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    # Extract expiration for cookie max_age
+    exp = payload.get("exp")
+    max_age = max(int(exp - time.time()), 0) if exp else 3600
 
     resp = make_response(jsonify({"ok": True}))
     resp.set_cookie(
@@ -279,9 +276,7 @@ def create_session():
         token,
         httponly=True,
         secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
-        samesite="Lax"
-        if os.getenv("COOKIE_SECURE", "true").lower() == "false"
-        else "Strict",
+        samesite="Strict", # Standard SOTA for BFF session cookies
         domain=COOKIE_DOMAIN or None,
         path="/",
         max_age=max_age,
@@ -1554,163 +1549,81 @@ def proxy_tenant_requests(subpath):
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 )
 def proxy_admin_requests(subpath):
-    """Proxy admin requests to entity-manager (for audit-logs) or tenant-webhook (for other admin endpoints)"""
-    # Handle OPTIONS preflight requests
+    """Proxy administrative requests using a deterministic routing map."""
     if request.method == "OPTIONS":
-        response = make_response()
-        cors_origin = get_cors_origin()
-        if cors_origin:
-            response.headers["Access-Control-Allow-Origin"] = cors_origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = (
-            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        )
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
-        )
-        response.headers["Access-Control-Max-Age"] = "3600"
-        response.headers["Vary"] = "Origin"
-        return response
+        return "", 204
 
+    # 1. Enforcement: Only admins can access these routes
     token = get_request_token()
     if not token:
-        logger.warning(f"Missing or invalid authorization for /api/admin/{subpath}")
         return jsonify({"error": "Missing or invalid authorization"}), 401
     payload = validate_jwt_token(token)
     if not payload:
-        logger.warning(f"Token validation failed for /api/admin/{subpath}")
         return jsonify({"error": "Invalid or expired token"}), 401
-
-    # Check for PlatformAdmin role for admin endpoints
-    user_roles = payload.get("realm_access", {}).get("roles", []) or []
-    resource_roles = []
-    for resource in payload.get("resource_access", {}).values():
-        if isinstance(resource, dict) and "roles" in resource:
-            resource_roles.extend(resource["roles"])
-    all_roles = list(set(user_roles + resource_roles + payload.get("roles", [])))
 
     if not has_role("PlatformAdmin", payload):
         logger.warning(
-            f"User {payload.get('preferred_username')} ({payload.get('email')}) attempted to access /api/admin/{subpath} without PlatformAdmin role. Available roles: {all_roles}"
+            f"Unauthorized admin access attempt by {payload.get('preferred_username')} on /api/admin/{subpath}"
         )
-        return jsonify(
-            {
-                "error": "Only PlatformAdmin can access admin endpoints",
-                "available_roles": all_roles,
-                "user": payload.get("preferred_username"),
-            }
-        ), 403
+        return jsonify({"error": "PlatformAdmin access required"}), 403
 
-    logger.debug(
-        f"Admin request to /api/admin/{subpath} authorized for user {payload.get('preferred_username')}"
-    )
+    # 2. Deterministic Routing Map
+    # Hostnames match internal Kubernetes service names
+    ADMIN_ROUTE_MAP = {
+        # ENTITY-MANAGER: Core entity metadata, logs, and assets
+        "audit-logs": ENTITY_MANAGER_URL,
+        "terms": ENTITY_MANAGER_URL,
+        "tenant-usage": ENTITY_MANAGER_URL,
+        "assets": ENTITY_MANAGER_URL,
+        "parcels": ENTITY_MANAGER_URL,
+        
+        # TENANT-WEBHOOK: Marketplace, Tenants, Users, and Codes
+        "tenants": TENANT_WEBHOOK_URL,
+        "activations": TENANT_WEBHOOK_URL,
+        "api-keys": TENANT_WEBHOOK_URL,
+        "users": TENANT_WEBHOOK_URL,
+        "platform-credentials": TENANT_WEBHOOK_URL,
+    }
+
+    path_parts = subpath.split('/')
+    route_key = path_parts[0]
+    
+    # Special case: nuclear purge (tenants/ID/purge)
+    if route_key == "tenants" and len(path_parts) > 2 and path_parts[2] == "purge":
+        target_base_url = ENTITY_MANAGER_URL
+    else:
+        target_base_url = ADMIN_ROUTE_MAP.get(route_key)
+
+    if not target_base_url:
+        logger.error(f"Unmapped admin route: /api/admin/{subpath}")
+        return jsonify({"error": f"Admin route /{route_key} is not configured"}), 404
+
+    target_url = f"{target_base_url}/api/admin/{subpath}"
 
     try:
-        # Route logic:
-        # A. TO ENTITY-MANAGER:
-        # 1. audit-logs
-        # 2. terms
-        # 3. tenant-limits
-        # 4. assets
-        # 5. purge requests
-        
-        is_em_route = (
-            subpath.startswith("audit-logs") or 
-            subpath.startswith("terms") or 
-            subpath.startswith("tenant-limits") or 
-            subpath.startswith("assets") or
-            subpath.endswith("/purge")
-        )
-        
-        if is_em_route:
-            target_url = f"{ENTITY_MANAGER_URL}/api/admin/{subpath}"
-        else:
-            # B. TO TENANT-WEBHOOK (Default for activations, api-keys, tenants list, credentials)
-            target_url = f"{TENANT_WEBHOOK_URL}/api/admin/{subpath}"
-
-        # Forward request
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": request.content_type or "application/json",
         }
-
-        # Forward query parameters
+        
+        method = request.method
         params = dict(request.args)
+        json_data = request.get_json(silent=True) if method in ["POST", "PUT", "PATCH"] else None
 
-        # Forward request body for POST/PUT/PATCH
-        data = None
-        json_data = None
-        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
-            json_data = request.get_json(silent=True)
-        elif request.data:
-            data = request.data
-
-        # Make request to tenant-webhook
-        if request.method == "GET":
-            response = requests.get(
-                target_url, headers=headers, params=params, timeout=30
-            )
-        elif request.method == "POST":
-            response = requests.post(
-                target_url,
-                headers=headers,
-                params=params,
-                json=json_data,
-                data=data,
-                timeout=30,
-            )
-        elif request.method == "PUT":
-            response = requests.put(
-                target_url,
-                headers=headers,
-                params=params,
-                json=json_data,
-                data=data,
-                timeout=30,
-            )
-        elif request.method == "PATCH":
-            response = requests.patch(
-                target_url,
-                headers=headers,
-                params=params,
-                json=json_data,
-                data=data,
-                timeout=30,
-            )
-        elif request.method == "DELETE":
-            response = requests.delete(
-                target_url, headers=headers, params=params, timeout=30
-            )
-        else:
-            return jsonify({"error": "Method not allowed"}), 405
-
-        # Return response from tenant-webhook
-        return make_response(
-            (response.text, response.status_code, dict(response.headers))
+        response = requests.request(
+            method=method,
+            url=target_url,
+            headers=headers,
+            params=params,
+            json=json_data,
+            timeout=30
         )
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error proxying request to tenant-webhook: {e}")
-        error_msg = str(e)
-        # Check if it's a 404 from tenant-webhook
-        if "404" in error_msg or "Not Found" in error_msg:
-            logger.warning(
-                f"Endpoint not found in tenant-webhook: /api/admin/{subpath}"
-            )
-            return jsonify(
-                {
-                    "error": f"Endpoint not found: /api/admin/{subpath}. The service may not be available or the endpoint does not exist."
-                }
-            ), 404
-        return jsonify(
-            {"error": f"Failed to connect to tenant-webhook service: {error_msg}"}
-        ), 502
-    except Exception as e:
-        logger.error(f"Error in proxy_admin_requests: {e}")
-        import traceback
+        return (response.content, response.status_code, response.headers.items())
 
-        logger.error(traceback.format_exc())
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+    except Exception as e:
+        logger.error(f"Error proxying admin request to {target_url}: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
 
 
 @app.route(

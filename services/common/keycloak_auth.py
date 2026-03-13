@@ -123,59 +123,46 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
                 logger.error(f"Direct JWKS fetch also failed: {direct_error}")
             raise TokenValidationError(f"Failed to get signing key: {jwks_error}")
 
-        # Expected issuer includes /auth prefix if KEYCLOAK_URL doesn't already have it
-        _keycloak_url_for_issuer = KEYCLOAK_URL.rstrip('/')
-        if not _keycloak_url_for_issuer.endswith('/auth'):
-            _keycloak_url_for_issuer = f"{_keycloak_url_for_issuer}/auth"
-        expected_issuer = f"{_keycloak_url_for_issuer}/realms/{KEYCLOAK_REALM}"
-        allowed_issuers = {expected_issuer}
+        # Expected issuers whitelist
+        # We accept both internal (K8s service) and external (public) issuers
+        allowed_issuers = set()
         
-        # Add public URL to allowed issuers if configured
+        # 1. Internal issuer (from KEYCLOAK_URL)
+        _internal_url = KEYCLOAK_URL.rstrip('/')
+        if not _internal_url.endswith('/auth'):
+            _internal_url = f"{_internal_url}/auth"
+        allowed_issuers.add(f"{_internal_url}/realms/{KEYCLOAK_REALM}")
+        
+        # 2. External/Public issuer (from KEYCLOAK_PUBLIC_URL)
         if KEYCLOAK_PUBLIC_URL:
             _public_url = KEYCLOAK_PUBLIC_URL.rstrip('/')
             if not _public_url.endswith('/auth'):
                 _public_url = f"{_public_url}/auth"
             allowed_issuers.add(f"{_public_url}/realms/{KEYCLOAK_REALM}")
             
-        # Add http/https variants for internal URL just in case
-        if expected_issuer.startswith('http://'):
-            allowed_issuers.add(expected_issuer.replace('http://', 'https://', 1))
-        elif expected_issuer.startswith('https://'):
-            allowed_issuers.add(expected_issuer.replace('https://', 'http://', 1))
-        
-        # Add KEYCLOAK_HOSTNAME if configured (dynamic, no hardcoded domains)
+        # 3. Hostname-based issuer (from KEYCLOAK_HOSTNAME)
         if KEYCLOAK_HOSTNAME:
-            # Support both with and without /auth path
             allowed_issuers.add(f"https://{KEYCLOAK_HOSTNAME}/auth/realms/{KEYCLOAK_REALM}")
             allowed_issuers.add(f"http://{KEYCLOAK_HOSTNAME}/auth/realms/{KEYCLOAK_REALM}")
+            # Also support modern Keycloak without /auth
             allowed_issuers.add(f"https://{KEYCLOAK_HOSTNAME}/realms/{KEYCLOAK_REALM}")
             allowed_issuers.add(f"http://{KEYCLOAK_HOSTNAME}/realms/{KEYCLOAK_REALM}")
-        
+
+        # Decode and validate
         payload = jwt.decode(
             token,
             signing_key.key,
             algorithms=['RS256', 'RS512'],
-            audience=KEYCLOAK_CLIENT_ID,
+            # Validate audience (either our frontend or Keycloak account service)
+            audience=[KEYCLOAK_CLIENT_ID, 'account'],
             options={
                 "verify_signature": True,
                 "verify_exp": True,
-                "verify_aud": False,  # Relax audience validation for migration
-                "verify_iss": False,  # Manual issuer validation below (whitelist)
-            }
+                "verify_aud": True,
+                "verify_iss": True,
+            },
+            issuer=list(allowed_issuers)
         )
-
-        issuer = payload.get('iss')
-        logger.debug("Token issuer: %s", issuer)
-
-        # Allow any issuer that ends with the correct realm path
-        # This handles differences between internal (service) and external (public) URLs
-        realm_suffix = f"/realms/{KEYCLOAK_REALM}"
-        issuer_valid = issuer in allowed_issuers or (issuer and issuer.endswith(realm_suffix))
-
-        if not issuer_valid:
-            logger.warning("Token issuer %s not in allowed issuers %s and doesn't match pattern */realms/%s", 
-                         issuer, allowed_issuers, KEYCLOAK_REALM)
-            raise TokenValidationError("Invalid token issuer")
 
         logger.debug(f"Successfully validated token for user: {payload.get('preferred_username')}")
         return payload
