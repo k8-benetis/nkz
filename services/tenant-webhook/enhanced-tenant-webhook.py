@@ -1754,6 +1754,7 @@ def woocommerce_webhook():  # noqa: C901
 
 
 @app.route("/admin/generate-code", methods=["POST", "OPTIONS"])
+@app.route("/api/admin/activations", methods=["POST", "OPTIONS"])
 @app.route("/webhook/admin/generate-code", methods=["POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 @require_platform_admin
@@ -1912,6 +1913,7 @@ def generate_activation_code():  # noqa: C901
 
 
 @app.route("/admin/codes", methods=["GET"])
+@app.route("/api/admin/activations", methods=["GET"])
 @app.route("/webhook/admin/codes", methods=["GET"])
 @require_platform_admin
 def list_activation_codes():
@@ -2036,6 +2038,7 @@ def list_activation_codes():
 
 
 @app.route("/admin/tenant-limits", methods=["GET"])
+@app.route("/api/admin/tenant-limits", methods=["GET"])
 @app.route("/webhook/admin/tenant-limits", methods=["GET"])
 @require_platform_admin
 def get_tenant_limits():
@@ -2118,6 +2121,7 @@ def get_tenant_limits():
 
 
 @app.route("/admin/tenant-limits", methods=["PATCH"])
+@app.route("/api/admin/tenant-limits", methods=["PATCH"])
 @app.route("/webhook/admin/tenant-limits", methods=["PATCH"])
 @require_platform_admin
 def update_tenant_limits():
@@ -2383,6 +2387,53 @@ def create_api_key():
 
 
 @app.route("/admin/tenants", methods=["GET"])
+@app.route("/api/admin/tenants/<tenant_id>", methods=["PATCH"])
+@require_platform_admin
+def update_tenant_info(tenant_id):
+    """Update tenant basic info (name, metadata)"""
+    try:
+        data = request.get_json()
+        tenant_name = data.get("tenant_name")
+        metadata = data.get("metadata")
+
+        if not tenant_name and metadata is None:
+            return jsonify({"error": "No data to update"}), 400
+
+        conn = webhook_service.get_db_connection()
+        if not conn:
+            return jsonify({"error": "Database connection error"}), 500
+
+        cursor = conn.cursor()
+        
+        updates = []
+        params = []
+        
+        if tenant_name:
+            updates.append("tenant_name = %s")
+            params.append(tenant_name)
+            
+        if metadata is not None:
+            # Merge with existing metadata if possible, or just overwrite
+            updates.append("metadata = metadata || %s::jsonb")
+            params.append(json.dumps(metadata))
+            
+        params.append(tenant_id)
+        
+        query = f"UPDATE tenants SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = %s"
+        
+        cursor.execute(query, params)
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"success": True, "message": "Tenant updated successfully"}), 200
+
+    except Exception as e:
+        logger.error(f"Error updating tenant info: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/admin/tenants", methods=["GET"])
 @app.route("/tenants", methods=["GET"])  # For ingress prefix removal
 @require_platform_admin

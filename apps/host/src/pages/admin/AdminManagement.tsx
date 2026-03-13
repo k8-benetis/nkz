@@ -108,6 +108,47 @@ export const AdminManagement: React.FC = () => {
     }
   };
 
+  const handleGenerateCode = async () => {
+    const email = window.prompt('Email del destinatario:');
+    if (!email) return;
+    
+    const tenant_name = window.prompt('Nombre de la Explotación / Granja:');
+    if (!tenant_name) return;
+
+    try {
+      setLoading(true);
+      await client.createActivationCode({ email, tenant_name });
+      alert('Código generado con éxito');
+      if (activeTab === 'activations') loadData();
+    } catch (error) {
+      alert('Error al generar código');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfigTenant = async (tenant: Tenant) => {
+    const newName = window.prompt('Nuevo nombre de la Explotación:', tenant.tenant_name);
+    if (!newName) return;
+
+    const contactEmail = window.prompt('Email de contacto (metadata):', '');
+    if (contactEmail === null) return;
+
+    try {
+      setLoading(true);
+      await client.updateTenant(tenant.tenant_id, { 
+        tenant_name: newName,
+        metadata: { contact_email: contactEmail }
+      });
+      alert('Tenant actualizado con éxito');
+      loadData();
+    } catch (error) {
+      alert('Error al actualizar tenant');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8 flex justify-between items-end">
@@ -189,7 +230,10 @@ export const AdminManagement: React.FC = () => {
           
           <div className="flex gap-2">
             {activeTab === 'activations' && (
-              <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors">
+              <button 
+                onClick={handleGenerateCode}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+              >
                 <Plus className="h-5 w-5" />
                 Generar Código
               </button>
@@ -215,8 +259,8 @@ export const AdminManagement: React.FC = () => {
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Usuario</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Tenant ID</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Usuario (Keycloak)</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Explotación / Tenant</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Roles</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Estado</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Fecha Registro</th>
@@ -229,13 +273,14 @@ export const AdminManagement: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold">
-                            {user.email[0].toUpperCase()}
+                            {(user.firstName?.[0] || user.email[0]).toUpperCase()}
                           </div>
                           <div>
                             <p className="font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
                             <p className="text-xs text-gray-500 flex items-center gap-1">
                               <Mail className="h-3 w-3" /> {user.email}
                             </p>
+                            {user.username && <p className="text-[10px] text-gray-400">UID: {user.username}</p>}
                           </div>
                         </div>
                       </td>
@@ -245,7 +290,7 @@ export const AdminManagement: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 flex flex-wrap gap-1">
-                        {user.roles.map(role => (
+                        {(user.roles || []).map(role => (
                           <span key={role} className="text-[10px] px-1.5 py-0.5 border border-gray-200 rounded bg-gray-50 text-gray-600">
                             {role}
                           </span>
@@ -254,11 +299,11 @@ export const AdminManagement: React.FC = () => {
                       <td className="px-6 py-4 text-sm">
                         <div className="flex items-center gap-1.5 text-green-600 font-medium">
                           <div className="h-2 w-2 rounded-full bg-green-600"></div>
-                          Activo
+                          {user.enabled ? 'Activo' : 'Deshabilitado'}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
-                        {format(user.createdAt, 'dd/MM/yyyy')}
+                        {user.createdAt ? format(user.createdAt, 'dd/MM/yyyy') : 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button className="p-2 text-gray-400 hover:text-red-600 transition-colors" title="Borrar usuario">
@@ -275,7 +320,7 @@ export const AdminManagement: React.FC = () => {
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Organización</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Explotación / Granja</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">ID Interno</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Plan / Nivel</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Infra K8s</th>
@@ -305,7 +350,11 @@ export const AdminManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors" title="Configurar Plan">
+                          <button 
+                            onClick={() => handleConfigTenant(tenant)}
+                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors" 
+                            title="Configurar Explotación"
+                          >
                             <Settings2 className="h-5 w-5" />
                           </button>
                           <button 

@@ -4974,7 +4974,7 @@ def save_terms(language):
     """Save or update terms and conditions for a specific language (admin only)"""
     try:
         # Verify user is PlatformAdmin
-        user_roles = g.get('user_roles', [])
+        user_roles = g.get('roles', [])
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Unauthorized. Only PlatformAdmin can manage terms.'}), 403
         

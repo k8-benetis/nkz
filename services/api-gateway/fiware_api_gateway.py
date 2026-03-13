@@ -65,6 +65,9 @@ NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager-service:
 ENTITY_MANAGER_URL = os.getenv(
     "ENTITY_MANAGER_URL", "http://entity-manager-service:5000"
 )
+TENANT_USER_API_URL = os.getenv(
+    "TENANT_USER_API_URL", "http://tenant-user-api-service:5000"
+)
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
 VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
@@ -1473,6 +1476,62 @@ def save_aemet_credentials():
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/api/tenant/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_tenant_requests(subpath):
+    """Proxy tenant requests to tenant-user-api or tenant-webhook"""
+    if request.method == "OPTIONS":
+        return "", 204
+
+    # Validate JWT token from header or cookie
+    token = get_request_token()
+    if not token:
+        logger.warning(f"Missing or invalid authorization for /api/tenant/{subpath}")
+        return jsonify({"error": "Missing or invalid authorization header"}), 401
+
+    payload = validate_jwt_token(token)
+    if not payload:
+        logger.warning(f"Token validation failed for /api/tenant/{subpath}")
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    # Route logic:
+    # 1. tenant/users -> tenant-user-api-service
+    # 2. Everything else -> tenant-webhook-service
+    if subpath.startswith("users"):
+        target_url = f"{TENANT_USER_API_URL}/api/tenant/{subpath}"
+    else:
+        target_url = f"{TENANT_WEBHOOK_URL}/api/tenant/{subpath}"
+
+    # Forward request
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": request.content_type or "application/json",
+    }
+    
+    # Forward query parameters
+    params = dict(request.args)
+
+    try:
+        if request.method == "GET":
+            response = requests.get(target_url, headers=headers, params=params, timeout=10)
+        elif request.method == "POST":
+            response = requests.post(target_url, headers=headers, params=params, json=request.get_json(silent=True), timeout=10)
+        elif request.method == "PUT":
+            response = requests.put(target_url, headers=headers, params=params, json=request.get_json(silent=True), timeout=10)
+        elif request.method == "PATCH":
+            response = requests.patch(target_url, headers=headers, params=params, json=request.get_json(silent=True), timeout=10)
+        elif request.method == "DELETE":
+            response = requests.delete(target_url, headers=headers, params=params, timeout=10)
+        else:
+            return jsonify({"error": f"Method {request.method} not supported"}), 405
+
+        return (response.content, response.status_code, response.headers.items())
+
+    except Exception as e:
+        logger.error(f"Error proxying tenant request to {target_url}: {e}")
+        return jsonify({"error": "Failed to connect to internal service"}), 502
+
+
 @app.route(
     "/api/admin/<path:subpath>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -1530,13 +1589,22 @@ def proxy_admin_requests(subpath):
     )
 
     try:
-        # Route audit-logs to entity-manager, everything else to tenant-webhook
-        if subpath == "audit-logs" or subpath.startswith("audit-logs"):
+        # Route logic:
+        # 1. audit-logs -> entity-manager
+        # 2. tenants/.../purge -> entity-manager (nuclear purge)
+        # 3. Everything else -> tenant-webhook
+        
+        is_purge = subpath.endswith("/purge")
+        is_audit = subpath == "audit-logs" or subpath.startswith("audit-logs")
+        
+        if is_audit or is_purge:
             target_url = f"{ENTITY_MANAGER_URL}/api/admin/{subpath}"
         else:
+            # For tenant-webhook, some routes have /api/admin and some have /admin
+            # We'll try to be consistent and use /api/admin if it exists there
             target_url = f"{TENANT_WEBHOOK_URL}/api/admin/{subpath}"
 
-        # Forward request to tenant-webhook
+        # Forward request
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": request.content_type or "application/json",

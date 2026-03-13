@@ -363,6 +363,26 @@ class ApiService {
     return response.data;
   }
 
+  // Tenant Admin (PlatformAdmin only)
+  async updateTenant(tenantId: string, data: {
+    tenant_name?: string;
+    metadata?: Record<string, any>;
+  }): Promise<unknown> {
+    const response = await this.client.patch(`/api/admin/tenants/${tenantId}`, data);
+    return response.data;
+  }
+
+  async createActivationCode(data: {
+    email: string;
+    plan?: string;
+    duration_days?: number;
+    notes?: string;
+    tenant_name?: string;
+  }): Promise<unknown> {
+    const response = await this.client.post('/api/admin/activations', data);
+    return response.data;
+  }
+
   // Entities - Robots
   async getRobots(): Promise<Robot[]> {
     try {

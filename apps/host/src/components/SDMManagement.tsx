@@ -36,9 +36,18 @@ export const SDMManagement: React.FC = () => {
     setIsLoading(true);
     try {
       const data = await api.getSDMEntities();
-      setEntities(data.entities || []);
+      // data.entities is a dictionary { "EntityType": { description: "..." }, ... }
+      // we need to transform it into an array of SDMEntity
+      const entitiesDict = data.entities || {};
+      const entitiesArray: SDMEntity[] = Object.entries(entitiesDict).map(([type, schema]: [string, any]) => ({
+        entityType: type,
+        schema: schema,
+        count: (schema as any).count // Optional count if provided
+      }));
+      setEntities(entitiesArray);
     } catch (error) {
       console.error('Error loading SDM entities:', error);
+      setEntities([]); // Ensure it's an array on error
     } finally {
       setIsLoading(false);
     }

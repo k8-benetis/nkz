@@ -28,7 +28,7 @@ export const LimitsManagement: React.FC = () => {
       setLoading(true);
       const tenantId = user?.tenant || 'admin';
       
-      const res = await api.get('/admin/tenant-limits', {
+      const res = await api.get('/api/admin/tenant-limits', {
         params: { tenant_id: tenantId }
       });
       setLimits({
@@ -57,7 +57,7 @@ export const LimitsManagement: React.FC = () => {
       if (limits.maxRobots !== undefined) payload.maxRobots = Number(limits.maxRobots);
       if (limits.maxSensors !== undefined) payload.maxSensors = Number(limits.maxSensors);
       if (limits.maxAreaHectares !== undefined) payload.maxAreaHectares = Number(limits.maxAreaHectares);
-      await api.patch('/admin/tenant-limits', payload);
+      await api.patch('/api/admin/tenant-limits', payload);
       setMessage('✅ Límites guardados correctamente');
       setTimeout(() => setMessage(null), 3000);
       await load();
