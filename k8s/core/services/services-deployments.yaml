@@ -28,6 +28,9 @@ spec:
         app: api-gateway
         layer: core
         component: api
+      annotations:
+        nekazari.robotika.cloud/last-deployed: "2026-03-13T19:55:00Z"
+        nekazari.robotika.cloud/change-reason: "Fix admin routing and auth cookie extraction"
     spec:
       serviceAccountName: api-gateway-sa
       securityContext:
@@ -155,6 +158,9 @@ spec:
         app: entity-manager
         layer: core
         component: api
+      annotations:
+        nekazari.robotika.cloud/last-deployed: "2026-03-13T19:55:00Z"
+        nekazari.robotika.cloud/change-reason: "Fix admin routing and auth cookie extraction"
     spec:
       serviceAccountName: entity-manager-sa
       securityContext:
