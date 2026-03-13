@@ -69,13 +69,14 @@ if not CONTEXT_URL:
 
 GEOSERVER_URL = os.getenv("GEOSERVER_URL", "http://geoserver-service:8080")
 TENANT_WEBHOOK_URL = os.getenv(
-    "TENANT_WEBHOOK_URL", "http://tenant-webhook-service:8080"
+    "TENANT_WEBHOOK_URL", "http://tenant-webhook:8080"
 )
 ENTITY_MANAGER_URL = os.getenv(
-    "ENTITY_MANAGER_URL", "http://entity-manager-service:5000"
+    "ENTITY_MANAGER_URL", "http://entity-manager:5000"
 )
+NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager:5000")
 TENANT_USER_API_URL = os.getenv(
-    "TENANT_USER_API_URL", "http://tenant-user-api-service:5000"
+    "TENANT_USER_API_URL", "http://tenant-user-api:5000"
 )
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
 VEGETATION_API_URL = os.getenv(
