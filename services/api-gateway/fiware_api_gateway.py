@@ -1614,6 +1614,7 @@ def proxy_admin_requests(subpath):
         "tenant-usage": ENTITY_MANAGER_URL,
         "assets": ENTITY_MANAGER_URL,
         "parcels": ENTITY_MANAGER_URL,
+        "assets": ENTITY_MANAGER_URL, # Ensure /api/admin/assets goes to EM
         
         # TENANT-WEBHOOK: Marketplace, Tenants, Users, and Codes
         "tenants": TENANT_WEBHOOK_URL,
