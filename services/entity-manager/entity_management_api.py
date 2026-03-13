@@ -23,8 +23,13 @@ import requests
 import paho.mqtt.client as mqtt
 import threading
 import boto3
+import psycopg2
 from botocore.exceptions import ClientError
 from io import BytesIO
+
+# Configuration - All environment variables are REQUIRED for security
+POSTGRES_URL = os.getenv('POSTGRES_URL')
+ORION_URL = os.getenv('ORION_URL')
 
 # Add common directory to path for imports
 # Try multiple paths for compatibility (local dev vs container)
@@ -284,7 +289,6 @@ def metrics():
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
 # Configuration
-ORION_URL = os.getenv('ORION_URL', 'http://orion:1026')
 # Límites y tipos sujetos a control (valores por defecto seguros, configurables por env)
 MAX_ROBOTS = int(os.getenv('MAX_ROBOTS', '999999'))
 MAX_SENSORS = int(os.getenv('MAX_SENSORS', '999999'))
@@ -294,7 +298,6 @@ SENSOR_ENTITY_TYPES = set([t.strip() for t in os.getenv('SENSOR_ENTITY_TYPES', '
 PARCEL_ENTITY_TYPES = set([t.strip() for t in os.getenv('PARCEL_ENTITY_TYPES', 'AgriParcel,Parcel,Vineyard,OliveGrove,vineyard,olive_grove').split(',') if t.strip()])
 ENTITY_BASE_PATH = os.getenv('ENTITY_BASE_PATH', '/app/config/entities')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-POSTGRES_URL = os.getenv('POSTGRES_URL')
 NDVI_QUEUE_NAME = os.getenv('NDVI_QUEUE_NAME', 'ndvi')
 DEFAULT_SATELLITE = os.getenv('NDVI_DEFAULT_SATELLITE', 'sentinel-2-l2a')
 DEFAULT_RESOLUTION = int(os.getenv('NDVI_DEFAULT_RESOLUTION', '10'))
