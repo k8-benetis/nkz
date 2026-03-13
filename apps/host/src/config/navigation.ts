@@ -9,7 +9,6 @@ import {
   Layers,
   Settings,
   Shield,
-  Bell,
   Package,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -58,15 +57,7 @@ export const CORE_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     category: 'core',
     priority: 2,
   },
-  {
-    path: '/alerts',
-    label: 'navigation.alerts',
-    icon: Bell,
-    roles: ['Farmer', 'TenantAdmin', 'PlatformAdmin'],
-    category: 'core',
-    priority: 4,
-  },
-  // Note: NDVI/Vegetation, Robots, Sensors, Weather, Simulation, Predictions, Risks
+  // Note: NDVI/Vegetation, Robots, Sensors, Weather, Simulation, Predictions, Risks, Alerts
   // are now handled as dynamic modules (addons) and should NOT be in core navigation
 ];
 
@@ -96,16 +87,7 @@ export const ADMIN_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     path: '/admin/management',
     label: 'navigation.control_center',
     icon: Shield,
-    roles: ['PlatformAdmin'],
-    category: 'admin',
-    priority: 102,
-  },
-  {
-    path: '/system-admin',
-    label: 'navigation.admin',
-    icon: Shield,
-    roles: ['PlatformAdmin'],
-    adminOnly: true,
+    roles: ['PlatformAdmin', 'TenantAdmin'],
     category: 'admin',
     priority: 102,
   },
