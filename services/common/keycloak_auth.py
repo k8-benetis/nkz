@@ -150,19 +150,36 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
             allowed_issuers.add(f"http://{KEYCLOAK_HOSTNAME}/realms/{KEYCLOAK_REALM}")
 
         # Decode and validate
+        # Note: Keycloak public clients may omit the "aud" claim entirely,
+        # providing only "azp" (authorized party). We disable PyJWT's aud
+        # verification and check azp/aud manually below.
         payload = jwt.decode(
             token,
             signing_key.key,
             algorithms=['RS256', 'RS512'],
-            # Validate audience (either our frontend or Keycloak account service)
-            audience=list(ALLOWED_AUDIENCES),
             options={
                 "verify_signature": True,
                 "verify_exp": True,
-                "verify_aud": True,
+                "verify_aud": False,
                 "verify_iss": False, # Manual verification below for flexibility with /auth
             }
         )
+
+        # Manual audience / authorized party validation
+        token_aud = payload.get('aud')
+        token_azp = payload.get('azp')
+        # aud can be a string or a list
+        aud_set = set()
+        if isinstance(token_aud, list):
+            aud_set.update(token_aud)
+        elif isinstance(token_aud, str):
+            aud_set.add(token_aud)
+        if token_azp:
+            aud_set.add(token_azp)
+
+        if not aud_set.intersection(ALLOWED_AUDIENCES):
+            logger.warning("Token aud/azp %s not in allowed audiences %s", aud_set, ALLOWED_AUDIENCES)
+            raise TokenValidationError("Invalid token audience")
 
         issuer = payload.get('iss')
         logger.debug("Token issuer: %s", issuer)
