@@ -160,10 +160,37 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
                 "verify_signature": True,
                 "verify_exp": True,
                 "verify_aud": True,
-                "verify_iss": True,
-            },
-            issuer=list(allowed_issuers)
+                "verify_iss": False, # Manual verification below for flexibility with /auth
+            }
         )
+
+        issuer = payload.get('iss')
+        logger.debug("Token issuer: %s", issuer)
+
+        # Robust issuer validation:
+        # We accept any issuer that:
+        # 1. Is in our explicit whitelist (internal/public URLs)
+        # 2. OR matches the expected realm and comes from a trusted hostname
+        
+        realm_suffix = f"/realms/{KEYCLOAK_REALM}"
+        
+        # Check against whitelist entries (exact match)
+        is_valid = issuer in allowed_issuers
+        
+        # Check against flexible variants (with/without /auth)
+        if not is_valid and issuer:
+            for base_issuer in list(allowed_issuers):
+                # If they match excluding the /auth part, it's valid
+                clean_base = base_issuer.replace('/auth/realms/', '/realms/')
+                clean_iss = issuer.replace('/auth/realms/', '/realms/')
+                if clean_base == clean_iss:
+                    is_valid = True
+                    break
+
+        if not is_valid:
+            logger.warning("Token issuer %s not in allowed issuers %s", 
+                         issuer, allowed_issuers)
+            raise TokenValidationError("Invalid token issuer")
 
         logger.debug(f"Successfully validated token for user: {payload.get('preferred_username')}")
         return payload
