@@ -751,5 +751,22 @@
     "all_languages": "Todos los idiomas",
     "current_content": "Contenido actual",
     "preview": "Vista previa"
+  },
+  "wizard": {
+    "sdm_guide": {
+      "title": "Guía de Entidades y Datos SDM",
+      "intro": "Nekazari utiliza el estándar internacional Smart Data Models (SDM) para asegurar que todos los datos sean compatibles entre diferentes sensores y aplicaciones.",
+      "concepts_title": "Conceptos Clave",
+      "concept_sdm": "Smart Data Models: Estándar que define cómo deben llamarse los atributos (ej. 'temperature' en lugar de 'temp').",
+      "concept_ngsi": "NGSI-LD: El lenguaje técnico para el intercambio de datos.",
+      "flow_title": "Ciclo de Vida del Dato",
+      "step_1": "1. Definición: Registras la entidad (sensor, tractor, parcela) en este asistente.",
+      "step_2": "2. Traducción: El sistema usa un 'Sensor Profile' para traducir los datos del sensor físico al estándar.",
+      "step_3": "3. Persistencia: Los datos se guardan en tiempo real y también en el histórico para análisis.",
+      "benefits_title": "Ventajas",
+      "benefit_interop": "Interoperabilidad: Cualquier sensor funciona con cualquier panel de la plataforma.",
+      "benefit_scale": "Escalabilidad: Añadir nuevos tipos de sensores no requiere cambiar el código.",
+      "help_button": "¿Cómo funcionan los datos?"
+    }
   }
 }
