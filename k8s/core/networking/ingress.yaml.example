@@ -182,13 +182,14 @@ spec:
           # 1. Modules register their API routes in marketplace_modules.metadata.api_routes
           # 2. A dynamic ingress controller reads this and creates routes automatically
           # 3. Or use a service mesh (Istio/Linkerd) for dynamic routing
+          # Vegetation goes through gateway for auth + X-Tenant-ID injection
           - path: /api/vegetation
             pathType: Prefix
             backend:
               service:
-                name: vegetation-prime-api-service
+                name: api-gateway-service
                 port:
-                  number: 8000
+                  number: 5000
           # Intelligence Module API (external module)
           - path: /api/intelligence
             pathType: Prefix
@@ -299,13 +300,14 @@ spec:
                 port:
                   number: 5000
           # Vegetation Module API (same-origin for frontend; per EXTERNAL_MODULE_INSTALLATION)
+          # Vegetation goes through gateway for auth + X-Tenant-ID injection
           - path: /api/vegetation
             pathType: Prefix
             backend:
               service:
-                name: vegetation-prime-api-service
+                name: api-gateway-service
                 port:
-                  number: 8000
+                  number: 5000
           # =================================================================
           # IIFE module bundles — ONLY frontend-static (MinIO). No per-module ingress.
           # =================================================================
