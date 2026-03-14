@@ -5561,6 +5561,44 @@ def delete_asset(asset_id):
 
 
 
+@app.route('/api/assets/public', methods=['GET'])
+@app.route('/entity-manager/api/assets/public', methods=['GET'])
+@require_auth(require_hmac=False)
+def list_public_assets():
+    """
+    List GLOBAL/PUBLIC assets from MinIO assets-3d bucket.
+    """
+    try:
+        if not s3_client:
+            return jsonify({'error': 'Asset storage not configured'}), 503
+
+        # List objects in assets-3d bucket
+        try:
+            response = s3_client.list_objects_v2(Bucket=ASSETS_BUCKET)
+            assets = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    filename = obj['Key']
+                    # Only include relevant 3D models and images
+                    if any(filename.lower().endswith(ext) for ext in ['.glb', '.gltf', '.png', '.jpg', '.jpeg']):
+                        assets.append({
+                            'id': filename,
+                            'name': filename,
+                            'url': f"/assets/assets-3d/{filename}",
+                            'size': obj['Size'],
+                            'last_modified': obj['LastModified'].isoformat()
+                        })
+            
+            return jsonify({'assets': assets}), 200
+        except ClientError as e:
+            logger.error(f"Failed to list public assets: {e}")
+            return jsonify({'error': 'Failed to list assets'}), 500
+
+    except Exception as e:
+        logger.error(f"Error listing public assets: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/api/assets/public', methods=['POST'])
 @app.route('/entity-manager/api/assets/public', methods=['POST'])
 @require_auth(require_hmac=False)

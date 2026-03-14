@@ -3,6 +3,7 @@ import { Search, X, Activity, MapPin, ArrowRight } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { ENTITY_TYPE_METADATA, MACRO_CATEGORIES, ENTITY_CATEGORIES } from '../entityTypes';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { SDMGuideInfo } from '../SDMGuideInfo';
 
 const COLOR_MAP: Record<string, { border: string; bg: string }> = {
   green:  { border: '#22c55e', bg: '#f0fdf4' },
@@ -83,6 +84,8 @@ export function StepTypeSelection() {
           <ArrowRight className="w-5 h-5 flex-shrink-0" />
         </button>
       </div>
+
+      <SDMGuideInfo />
 
       <div className="border-t border-gray-100 pt-4">
         <h3 className="text-lg font-semibold mb-1">Otros tipos de entidad</h3>
