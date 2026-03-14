@@ -29,7 +29,8 @@ KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080')
 KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL')
 KEYCLOAK_HOSTNAME = os.getenv('KEYCLOAK_HOSTNAME')  # e.g., auth.robotika.cloud (without protocol)
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
-KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', 'account')  # JWT audience to validate
+KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', 'nekazari-api-gateway')
+ALLOWED_AUDIENCES = {KEYCLOAK_CLIENT_ID, 'nekazari-frontend', 'account'}
 HMAC_SECRET = os.getenv('HMAC_SECRET', os.getenv('JWT_SECRET', ''))  # Fallback temporal
 
 # JWKs URL - Always use internal URL for performance/connectivity
@@ -129,14 +130,14 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
         
         # 1. Internal issuer (from KEYCLOAK_URL)
         _internal_url = KEYCLOAK_URL.rstrip('/')
-        if not _internal_url.endswith('/auth'):
+        if '/auth' not in _internal_url and not _internal_url.endswith('/realms'):
             _internal_url = f"{_internal_url}/auth"
         allowed_issuers.add(f"{_internal_url}/realms/{KEYCLOAK_REALM}")
         
         # 2. External/Public issuer (from KEYCLOAK_PUBLIC_URL)
         if KEYCLOAK_PUBLIC_URL:
             _public_url = KEYCLOAK_PUBLIC_URL.rstrip('/')
-            if not _public_url.endswith('/auth'):
+            if '/auth' not in _public_url and not _public_url.endswith('/realms'):
                 _public_url = f"{_public_url}/auth"
             allowed_issuers.add(f"{_public_url}/realms/{KEYCLOAK_REALM}")
             
@@ -154,7 +155,7 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
             signing_key.key,
             algorithms=['RS256', 'RS512'],
             # Validate audience (either our frontend or Keycloak account service)
-            audience=[KEYCLOAK_CLIENT_ID, 'account'],
+            audience=list(ALLOWED_AUDIENCES),
             options={
                 "verify_signature": True,
                 "verify_exp": True,

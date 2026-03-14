@@ -138,6 +138,7 @@ def create_test_jwt(
         "tenant-id": tenant_id,
         "realm_access": {"roles": roles},
         "iss": issuer,
+        "aud": "nekazari-frontend",
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
     }
