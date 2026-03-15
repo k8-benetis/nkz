@@ -685,8 +685,9 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
         setIsLoading(false);
         return;
       }
+    }
 
-      // CRÍTICO: En rutas públicas, NO inicializar Keycloak automáticamente
+    // CRÍTICO: En rutas públicas, NO inicializar Keycloak automáticamente
     // Esto evita navegación automática con prompt=none
     const isPublicRoute = typeof window !== 'undefined' &&
       ['/', '/login', '/activate', '/forgot-password'].includes(window.location.pathname);
