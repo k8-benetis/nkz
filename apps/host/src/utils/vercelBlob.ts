@@ -47,13 +47,14 @@ export async function uploadToVercelBlob(
 
     // 3. Return public URL
     return blob.url;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error uploading to Vercel Blob:', error);
-    throw new Error(
-      error.response?.data?.error || 
-      error.message || 
-      'Failed to upload file to Vercel Blob'
-    );
+    const message =
+      (error && typeof error === 'object' && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined) ||
+      (error instanceof Error ? error.message : String(error));
+    throw new Error(message || 'Failed to upload file to Vercel Blob');
   }
 }
 
