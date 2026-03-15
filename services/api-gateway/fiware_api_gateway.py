@@ -86,7 +86,7 @@ WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://entity-manager-service:50
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 REQUESTS_PER_MINUTE = int(
-    os.getenv("REQUESTS_PER_MINUTE", "60")
+    os.getenv("REQUESTS_PER_MINUTE", "120")
 )  # Default: 60 req/min per tenant
 ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
 COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".robotika.cloud")
@@ -1616,9 +1616,10 @@ def proxy_admin_requests(subpath):
         "parcels": ENTITY_MANAGER_URL,
         "assets": ENTITY_MANAGER_URL, # Ensure /api/admin/assets goes to EM
         
-        # TENANT-WEBHOOK: Marketplace, Tenants, Users, and Codes
+        # TENANT-WEBHOOK: Marketplace, Tenants, Activations, Limits, and Codes
         "tenants": TENANT_WEBHOOK_URL,
         "activations": TENANT_WEBHOOK_URL,
+        "tenant-limits": TENANT_WEBHOOK_URL,
         "api-keys": TENANT_WEBHOOK_URL,
         "users": TENANT_WEBHOOK_URL,
         "platform-credentials": TENANT_WEBHOOK_URL,
