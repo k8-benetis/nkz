@@ -175,9 +175,11 @@ class ApiService {
           }
         }
 
-        // Extract tenant from in-memory token for X-Tenant-ID header
+        // Send Bearer token when available so auth works even if cookie is missing (e.g. cross-origin, timing).
+        // Gateway accepts Authorization first, then nkz_token cookie.
         const token = getAuthToken();
         if (token) {
+          requestConfig.headers['Authorization'] = `Bearer ${token}`;
           try {
             const decoded = JSON.parse(atob(token.split('.')[1]));
             const tenantId = decoded['tenant-id'] || decoded.tenant_id || decoded.tenantId || decoded.tenant || '';
