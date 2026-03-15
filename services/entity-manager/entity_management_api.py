@@ -5562,6 +5562,66 @@ def delete_asset(asset_id):
 
 
 
+@app.route('/api/assets/tenant', methods=['GET'])
+@app.route('/entity-manager/api/assets/tenant', methods=['GET'])
+@require_auth(require_hmac=False)
+def list_tenant_assets():
+    """
+    List tenant-scoped assets from MinIO assets-3d bucket (prefix {tenant_id}/).
+    Same response shape as list_public_assets; includes asset_id, asset_type, extension for delete.
+    """
+    try:
+        tenant_id = g.tenant
+        if not tenant_id:
+            return jsonify({'error': 'Tenant not found'}), 401
+
+        s3_client = get_assets_s3_client()
+        if not s3_client:
+            return jsonify({'error': 'Asset storage not configured'}), 503
+
+        try:
+            prefix = f"{tenant_id}/"
+            response = s3_client.list_objects_v2(
+                Bucket=ASSETS_BUCKET,
+                Prefix=prefix,
+            )
+            assets = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    key = obj['Key']
+                    if not any(key.lower().endswith(ext) for ext in ['.glb', '.gltf', '.png', '.jpg', '.jpeg']):
+                        continue
+                    # key is like "tenant_id/model/uuid.glb" -> asset_type, asset_id, extension for DELETE
+                    parts = key.split('/')
+                    asset_type = parts[1] if len(parts) > 2 else 'model'
+                    filename = parts[-1] if parts else key
+                    ext = ''
+                    for e in ['.glb', '.gltf', '.png', '.jpg', '.jpeg']:
+                        if filename.lower().endswith(e):
+                            ext = e
+                            break
+                    asset_id = filename[:-len(ext)] if ext else filename
+                    assets.append({
+                        'id': key,
+                        'name': filename,
+                        'key': key,
+                        'url': f"/assets/assets-3d/{key}",
+                        'size': obj['Size'],
+                        'last_modified': obj['LastModified'].isoformat(),
+                        'asset_id': asset_id,
+                        'asset_type': asset_type,
+                        'extension': ext or '.glb',
+                    })
+            return jsonify({'assets': assets}), 200
+        except ClientError as e:
+            logger.error(f"Failed to list tenant assets: {e}")
+            return jsonify({'error': 'Failed to list assets'}), 500
+
+    except Exception as e:
+        logger.error(f"Error listing tenant assets: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/api/assets/public', methods=['GET'])
 @app.route('/entity-manager/api/assets/public', methods=['GET'])
 @require_auth(require_hmac=False)

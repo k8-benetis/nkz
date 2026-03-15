@@ -29,28 +29,39 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
 
     const [_selectedCategory, _setSelectedCategory] = useState<string>('all');
     const [publicAssets, setPublicAssets] = useState<any[]>([]);
-    const [_loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const isModel = (a: { name?: string; filename?: string; asset_type?: string; id?: string }) => {
+        const t = a.asset_type;
+        if (t === 'model' || t === 'icon') return t === 'model';
+        const n = (a.filename || a.name || a.id || '').toLowerCase();
+        return n.endsWith('.glb') || n.endsWith('.gltf');
+    };
 
     React.useEffect(() => {
         const fetchAssets = async () => {
             try {
                 setLoading(true);
-                const response = await api.get('/api/assets/public');
-                const apiAssets = response.data.assets || [];
+                const [publicRes, tenantRes] = await Promise.allSettled([
+                    api.get('/api/assets/public'),
+                    api.get('/api/assets/tenant').catch(() => ({ data: { assets: [] } })),
+                ]);
+                const publicList = publicRes.status === 'fulfilled' ? (publicRes.value.data.assets || []) : [];
+                const tenantList = tenantRes.status === 'fulfilled' ? (tenantRes.value.data?.assets || []) : [];
 
-                // Transform to expect format
-                const models = apiAssets
-                    .filter((a: any) => a.type === 'model')
-                    .map((a: any) => ({
-                        key: a.key,
-                        url: a.url,
-                        thumbnail: '/assets/icons/default-model.png', // Fallback or fetch icon
-                        name: a.filename,
-                        category: 'Public Library' // Simplification for now
-                    }));
-                setPublicAssets(models);
+                const toCard = (a: any, category: string, index: number) => ({
+                    key: `${category}-${a.key || a.id || index}`,
+                    url: a.url,
+                    thumbnail: '/assets/icons/default-model.png',
+                    name: a.filename || a.name || (a.id || '').split('/').pop() || '',
+                    category,
+                });
+
+                const publicModels = publicList.filter(isModel).map((a: any, i: number) => toCard(a, 'Public', i));
+                const tenantModels = tenantList.filter(isModel).map((a: any, i: number) => toCard(a, 'My tenant', i));
+                setPublicAssets([...tenantModels, ...publicModels]);
             } catch (err) {
-                console.error("Failed to load public assets:", err);
+                console.error('Failed to load assets:', err);
             } finally {
                 setLoading(false);
             }
@@ -111,7 +122,12 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
 
                         {/* Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto p-1">
-                            {filteredAssets.map((asset) => (
+                            {loading ? (
+                                <div className="col-span-full py-8 text-center text-gray-500">
+                                    <Package className="w-8 h-8 mx-auto mb-2 text-gray-400 animate-pulse" />
+                                    <p>Cargando modelos...</p>
+                                </div>
+                            ) : filteredAssets.map((asset) => (
                                 <button
                                     key={asset.key}
                                     onClick={() => onSelect(asset.url)}
@@ -162,7 +178,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 </button>
                             ))}
 
-                            {filteredAssets.length === 0 && (
+                            {!loading && filteredAssets.length === 0 && (
                                 <div className="col-span-full py-8 text-center text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                                     <p>No se encontraron activos</p>
