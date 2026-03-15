@@ -239,18 +239,22 @@ class RiskProcessor:
         if data:
             return data
 
-        # 2. Fallback to platform-level shared weather (48h window)
+        # 2. Fallback to platform-level shared weather (7-day window for ingestion gaps)
         if tenant_id != "platform":
-            logger.debug(
+            logger.info(
                 f"No weather data for tenant '{tenant_id}' in last 24h, "
-                f"falling back to 'platform' weather"
+                "falling back to 'platform' weather (7-day window)"
             )
-            data = _query("platform", "48 hours")
+            data = _query("platform", "7 days")
             if data:
+                logger.info(
+                    f"Using platform weather fallback for tenant '{tenant_id}' "
+                    f"(observed_at: {data.get('observed_at')})"
+                )
                 return data
 
         logger.warning(
-            f"No weather data found for tenant '{tenant_id}' (checked own + platform)"
+            f"No weather data found for tenant '{tenant_id}' (checked own 24h + platform 7d)"
         )
         return None
 

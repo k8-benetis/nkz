@@ -4427,7 +4427,15 @@ def get_weather_observations():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         limit = int(request.args.get('limit', 100))
-        
+        # For FORECAST, ensure we return enough range for 5-day widget when data exists
+        if data_type == 'FORECAST' and not start_date and not end_date:
+            now = datetime.utcnow()
+            start_date = (now - timedelta(hours=1)).isoformat()  # include near-future
+            end_date = (now + timedelta(days=8)).isoformat()      # 8 days ahead
+            limit = min(limit, 250) if limit <= 100 else limit     # default 250 for forecast
+        if data_type == 'FORECAST' and limit == 100:
+            limit = 250
+
         def _fetch_for_tenant(tid: str):
             with get_db_connection_with_tenant(tid) as conn:
                 cur = conn.cursor(cursor_factory=RealDictCursor)

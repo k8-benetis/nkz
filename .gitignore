@@ -320,9 +320,10 @@ coverage/
 documentation/
 .npmrc
 
-# Agent Ecosystem Context
+# Agent / IDE context (keep repo clean)
 .antigravity/
 .ai/
+.cursor/
 
 # Build caches
 .turbo/

@@ -454,19 +454,23 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
           .slice(0, 5); // Get first 5 days
         
-        if (forecastTransformed.length > 0) {
+        if (forecastTransformed.length >= 5) {
           setForecast(forecastTransformed);
           forecastProcessed = true;
           logger.debug('[WeatherWidget] Forecast successfully processed from DB:', forecastTransformed.length, 'days');
+        } else if (forecastTransformed.length > 0) {
+          logger.debug('[WeatherWidget] Forecast from DB has fewer than 5 days (', forecastTransformed.length, '), will try Open-Meteo fallback');
+          setForecast(forecastTransformed);
+          // Do not set forecastProcessed so Open-Meteo fallback runs and can fill to 5 days
         } else {
           logger.warn(`[WeatherWidget] Forecast from DB is empty. Total observations: ${forecastData.observations.length}`);
           logger.debug('[WeatherWidget] Daily data keys:', Array.from(dailyData.keys()));
         }
       }
 
-      // If forecast not processed from DB, try Open-Meteo fallback
+      // If forecast not processed from DB (or has < 5 days), try Open-Meteo fallback
       if (!forecastProcessed) {
-        logger.debug('[WeatherWidget] No forecast in DB or empty, trying Open-Meteo fallback for forecast');
+        logger.debug('[WeatherWidget] No forecast in DB or fewer than 5 days, trying Open-Meteo fallback for forecast');
         
         // Get municipality coordinates
         let municipality = null;
