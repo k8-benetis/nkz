@@ -135,8 +135,8 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
     onClose();
   }, [reset, onClose]);
 
-  // Hide during active Cesium drawing/placement modes
-  if (mapMode === 'PREVIEW_MODEL' || mapMode === 'STAMP_INSTANCES' || mapMode === 'DRAW_GEOMETRY') {
+  // Hide during active Cesium drawing/placement/picking modes
+  if (mapMode === 'PREVIEW_MODEL' || mapMode === 'STAMP_INSTANCES' || mapMode === 'DRAW_GEOMETRY' || mapMode === 'PICK_LOCATION') {
     return null;
   }
 
