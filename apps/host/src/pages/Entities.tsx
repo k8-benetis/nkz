@@ -9,6 +9,7 @@ import { EntityList, EntityListItem } from '@/components/EntityList';
 import { EntityWizard } from '@/components/EntityWizard';
 import { useI18n } from '@/context/I18nContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
+import { useViewerOptional } from '@/context/ViewerContext';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import {
@@ -29,6 +30,7 @@ import { BulkImportModal } from '@/components/BulkImport/BulkImportModal';
 export const Entities: React.FC = () => {
   const { t: _t } = useI18n();
   const { hasAnyRole } = useAuth();
+  const viewerCtx = useViewerOptional();
   // Tabs: 'crops', 'fleet', 'installations'
   const [activeTab, setActiveTab] = useState<'crops' | 'fleet' | 'installations'>('crops');
 
@@ -56,6 +58,13 @@ export const Entities: React.FC = () => {
     loadAllEntities();
     return () => console.log('[Entities] Page Unmounted');
   }, []);
+
+  // Reload when external modules signal a refresh (e.g. cadastral module creating a parcel)
+  useEffect(() => {
+    if (viewerCtx?.entityRefreshTrigger && viewerCtx.entityRefreshTrigger > 0) {
+      loadAllEntities();
+    }
+  }, [viewerCtx?.entityRefreshTrigger]);
 
   const loadAllEntities = async () => {
     setIsLoading(true);
