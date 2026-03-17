@@ -198,7 +198,9 @@ class RiskProcessor:
         if not self.postgres:
             return None
 
-        def _query(tid: str, interval: str) -> Optional[Dict[str, Any]]:
+        def _query(
+            tid: str, interval: str, filter_municipality: bool = True
+        ) -> Optional[Dict[str, Any]]:
             try:
                 cursor = self.postgres.cursor()
                 set_tenant_context(self.postgres, tid)
@@ -221,8 +223,8 @@ class RiskProcessor:
                     + """'
                 """
                 )
-                params = [tid]
-                if municipality_code:
+                params: list = [tid]
+                if filter_municipality and municipality_code:
                     query += " AND municipality_code = %s"
                     params.append(municipality_code)
                 query += " ORDER BY observed_at DESC LIMIT 1"
@@ -245,13 +247,23 @@ class RiskProcessor:
                 f"No weather data for tenant '{tenant_id}' in last 24h, "
                 "falling back to 'platform' weather (7-day window)"
             )
-            data = _query("platform", "7 days")
+            data = _query("platform", "7 days", filter_municipality=True)
+            if not data and municipality_code:
+                logger.info(
+                    f"No platform weather for municipality {municipality_code}, "
+                    "trying platform without municipality filter"
+                )
+                data = _query("platform", "7 days", filter_municipality=False)
             if data:
                 logger.info(
                     f"Using platform weather fallback for tenant '{tenant_id}' "
                     f"(observed_at: {data.get('observed_at')})"
                 )
                 return data
+            logger.warning(
+                "Platform weather query returned no rows (RLS/connection check: "
+                "ensure set_current_tenant('platform') is visible on this connection)"
+            )
 
         logger.warning(
             f"No weather data found for tenant '{tenant_id}' (checked own 24h + platform 7d)"
