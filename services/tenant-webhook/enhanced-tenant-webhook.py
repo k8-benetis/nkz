@@ -2386,7 +2386,6 @@ def create_api_key():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/admin/tenants", methods=["GET"])
 @app.route("/api/admin/tenants/<tenant_id>", methods=["PATCH"])
 @require_platform_admin
 def update_tenant_info(tenant_id):
@@ -4216,27 +4215,9 @@ def register_tenant():
                     {"error": f"Identity creation failed: {kc_result.get('error')}"}
                 ), 500  # noqa: E501
 
-            # 5. Create Welcome Parcel (1 Ha in Alava)
+            # 5. Set initial plan level in tenants table (SOTA Migration 058)
             cursor = conn.cursor()
             webhook_service._apply_admin_context(conn)
-
-            welcome_parcel_name = f"Parcela Bienvenida - {organization_name}"
-            # Centered at 42.85, -2.67 (Alava) - Approx 100m x 100m = 1 Ha
-            cursor.execute(
-                """
-                INSERT INTO cadastral_parcels (
-                    tenant_id, cadastral_reference, municipality, province, 
-                    geometry, name, ndvi_enabled
-                ) VALUES (
-                    %s, %s, 'Vitoria-Gasteiz', 'Araba',
-                    ST_Multi(ST_GeomFromText('POLYGON((-2.6705 42.8505, -2.6695 42.8505, -2.6695 42.8495, -2.6705 42.8495, -2.6705 42.8505))', 4326)),
-                    %s, true
-                ) ON CONFLICT DO NOTHING
-            """,
-                (tenant_id, f"WELCOME-{secrets.token_hex(4).upper()}", welcome_parcel_name),
-            )  # noqa: E501
-
-            # 6. Set initial plan level in tenants table (SOTA Migration 058)
             cursor.execute(
                 """
                 UPDATE tenants SET plan_level = %s WHERE tenant_id = %s

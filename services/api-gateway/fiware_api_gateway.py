@@ -1620,6 +1620,20 @@ def proxy_tenant_requests(subpath):
         return jsonify({"error": "Failed to connect to internal service"}), 502
 
 
+@app.route("/api/terms/<language>", methods=["GET", "OPTIONS"])
+def public_terms_proxy(language):
+    """Public endpoint for terms & conditions (used during registration)."""
+    if request.method == "OPTIONS":
+        return "", 204
+    target_url = f"{ENTITY_MANAGER_URL}/api/admin/terms/{language}"
+    try:
+        resp = requests.get(target_url, timeout=10)
+        return (resp.content, resp.status_code, dict(resp.headers))
+    except Exception as e:
+        logger.error(f"Error proxying public terms: {e}")
+        return jsonify({"content": "", "last_updated": None, "language": language}), 200
+
+
 @app.route(
     "/api/admin/<path:subpath>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

@@ -1442,7 +1442,7 @@ class ApiService {
 
   // Terms and Conditions
   async getTerms(language: string): Promise<{ content: string; last_updated: string; language: string }> {
-    const response = await this.client.get(`/api/admin/terms/${language}`);
+    const response = await this.client.get(`/api/terms/${language}`);
     return response.data;
   }
 
