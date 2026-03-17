@@ -308,7 +308,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
           </div>
           <div className="text-xs text-yellow-700 bg-yellow-100 rounded p-2">
             {t('wizard.array.solarHint', {
-              total: settings.rows * settings.columns,
+              total: String(settings.rows * settings.columns),
               power: ((settings.rows * settings.columns * settings.nominalPower) / 1000).toFixed(1),
             })}
           </div>
