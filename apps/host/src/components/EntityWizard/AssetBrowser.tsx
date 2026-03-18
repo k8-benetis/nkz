@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Package, Upload, Check, Search } from 'lucide-react';
 import { Model3DUploader } from './Model3DUploader';
 import api from '@/services/api';
