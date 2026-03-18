@@ -6,78 +6,78 @@ export interface IoTSubmitResult {
   mqttCredentials: MqttCredentials | null;
 }
 
+/**
+ * Submit an IoT sensor entity via SDM Integration Service.
+ *
+ * SDM Integration handles the full workflow in one call:
+ *   1. Creates the NGSI-LD entity in Orion-LD
+ *   2. Provisions the device in the IoT Agent (MQTT transport)
+ *   3. Returns MQTT credentials (api_key, topics, host/port)
+ *
+ * The returned credentials are shown once and cannot be recovered later.
+ */
 export async function submitIoTSensor(
   entityType: string,
   formData: IoTSensorFormData,
 ): Promise<IoTSubmitResult> {
-  const entityId = `urn:ngsi-ld:${entityType}:current:${Date.now()}`;
-
-  const entity: Record<string, unknown> = {
-    id: entityId,
-    type: entityType,
-    name: { type: 'Property', value: formData.name },
+  // Build the body for SDM Integration.
+  // SDM Integration auto-generates the entity ID and wraps properties in NGSI-LD format.
+  const body: Record<string, unknown> = {
+    name: formData.name,
   };
 
   if (formData.description) {
-    entity.description = { type: 'Property', value: formData.description };
+    body.description = formData.description;
   }
 
   if (formData.geometry) {
-    entity.location = { type: 'GeoProperty', value: formData.geometry };
+    body.location = {
+      type: 'GeoProperty',
+      value: formData.geometry,
+    };
   }
 
   if (formData.deviceProfileId) {
     const profileUrn = formData.deviceProfileId.startsWith('urn:')
       ? formData.deviceProfileId
       : `urn:ngsi-ld:DeviceProfile:${formData.deviceProfileId}`;
-    entity.refDeviceProfile = { type: 'Relationship', object: profileUrn };
+    body.refDeviceProfile = profileUrn;
   }
 
   if (formData.iconUrl) {
-    entity.icon2d = { type: 'Property', value: formData.iconUrl };
+    body.icon2d = formData.iconUrl;
   } else if (formData.defaultIconKey) {
-    entity.icon2d = { type: 'Property', value: `icon:${formData.defaultIconKey}` };
+    body.icon2d = `icon:${formData.defaultIconKey}`;
   }
 
-  // Dynamic SDM attributes
+  // Dynamic SDM attributes (flat values — SDM Integration wraps them)
   for (const [k, v] of Object.entries(formData.additionalAttributes)) {
     if (v !== '' && v !== null && v !== undefined) {
-      entity[k] = { type: 'Property', value: v };
+      body[k] = v;
     }
   }
 
-  // Step 1: Create entity in Orion-LD
-  await api.createSDMEntity(entityType, entity);
+  // Single call: entity creation + IoT Agent provisioning + MQTT credentials
+  const result = await api.createSDMIoTEntity(entityType, body);
 
-  // Step 2: Provision MQTT credentials for the new IoT device.
-  // This is a separate call because Orion doesn't handle IoT provisioning.
-  // The device_id is derived from the entity URN (last segment).
+  // Extract MQTT credentials from SDM Integration response
   let mqttCredentials: MqttCredentials | null = null;
-  try {
-    const deviceId = entityId.split(':').pop() ?? entityId;
-    const result = await api.provisionMqttCredentials(deviceId);
-    if (result?.username && result?.password) {
-      const host = result.mqtt_host ?? result.host ?? 'mosquitto-service';
-      const port = result.mqtt_port ?? result.port ?? 1883;
-      const dataTopic = result.topics?.data ?? `platform/${deviceId}/data`;
-      const cmdTopic = result.topics?.commands ?? `platform/${deviceId}/cmd`;
-      mqttCredentials = {
-        host,
-        port,
-        protocol: 'mqtt',
-        api_key: result.password,
-        device_id: deviceId,
-        topics: {
-          publish_data: dataTopic,
-          publish_data_json: dataTopic,
-          commands: cmdTopic,
-        },
-        warning: result.warning,
-      };
-    }
-  } catch (e: any) {
-    // MQTT provisioning failure should not block entity creation
-    console.warn('[submitIoTSensor] MQTT provisioning failed (entity was created):', e?.message);
+  const mqtt = result.mqtt_credentials;
+  if (mqtt) {
+    mqttCredentials = {
+      host: mqtt.host ?? 'mosquitto-service',
+      port: mqtt.port ?? 8883,
+      protocol: mqtt.protocol ?? 'mqtts',
+      api_key: mqtt.api_key ?? result.api_key,
+      device_id: mqtt.device_id ?? '',
+      topics: {
+        publish_data: mqtt.topics?.publish_data ?? '',
+        publish_data_json: mqtt.topics?.publish_data_json ?? '',
+        commands: mqtt.topics?.commands ?? '',
+      },
+      example_payload: mqtt.example_payload,
+      warning: mqtt.warning,
+    };
   }
 
   return { mqttCredentials };
