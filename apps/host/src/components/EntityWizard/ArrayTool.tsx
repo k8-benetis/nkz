@@ -70,7 +70,10 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
     setStampInstances(gridPoints);
   }, [gridPoints, setStampInstances]);
 
-  // Sync to parent form
+  // Sync to parent form (use ref to avoid infinite loop from inline callback)
+  const onInstancesChangeRef = React.useRef(onInstancesChange);
+  onInstancesChangeRef.current = onInstancesChange;
+
   useEffect(() => {
     const formatted = stampInstances.map(inst => ({
       lat: inst.lat,
@@ -79,8 +82,8 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
       scale: inst.scale,
       rotation: inst.rotation,
     }));
-    onInstancesChange(formatted);
-  }, [stampInstances, onInstancesChange]);
+    onInstancesChangeRef.current(formatted);
+  }, [stampInstances]);
 
   const handlePickAnchor = useCallback(() => {
     pickLocation((lat: number, lon: number) => {
