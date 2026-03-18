@@ -31,27 +31,21 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
 }) => {
   const { t } = useI18n();
   const {
-    startStampMode,
-    cancelStampMode,
     stampInstances,
     pickLocation,
     setStampInstances,
+    setStampModelOnly,
   } = useViewer();
 
   const settings = placementState.arraySettings;
   const [anchorSet, setAnchorSet] = useState(!!settings.anchor);
 
-  // Initialize stamp mode so CesiumStampRenderer renders the models
+  // Set model URL for rendering only — no brush handler (array uses grid, not paint)
   useEffect(() => {
     if (disabled || !modelUrl) return;
-    startStampMode(modelUrl, {
-      brushSize: 1,
-      density: 0,
-      randomScale: [1, 1],
-      randomRotation: false,
-    });
-    return () => { cancelStampMode(); };
-  }, [disabled, modelUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+    setStampModelOnly(modelUrl);
+    return () => { setStampModelOnly(null); };
+  }, [disabled, modelUrl, setStampModelOnly]);
 
   // Generate grid whenever settings change
   const gridPoints = useMemo(() => {

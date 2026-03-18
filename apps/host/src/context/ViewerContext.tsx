@@ -153,6 +153,9 @@ interface ViewerContextType extends ViewerState {
     setStampInstances: (instances: StampInstance[]) => void;
     confirmStampMode: () => StampInstance[];
     cancelStampMode: () => void;
+
+    // Array mode: set model URL for rendering WITHOUT activating brush handler
+    setStampModelOnly: (modelUrl: string | null) => void;
 }
 
 const ViewerContext = createContext<ViewerContextType | undefined>(undefined);
@@ -466,6 +469,11 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setMapModeState('VIEW');
     }, []);
 
+    // Set stamp model for rendering only (no brush handler activation)
+    const setStampModelOnly = useCallback((modelUrl: string | null) => {
+        setStampModelUrl(modelUrl);
+    }, []);
+
     const value = useMemo<ViewerContextType>(() => ({
         // State
         selectedEntityId,
@@ -524,6 +532,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setStampInstances: setStampInstancesBatch,
         confirmStampMode,
         cancelStampMode,
+        setStampModelOnly,
     }), [
         selectedEntityId,
         selectedEntityType,
@@ -572,6 +581,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setStampInstancesBatch,
         confirmStampMode,
         cancelStampMode,
+        setStampModelOnly,
     ]);
 
     return (

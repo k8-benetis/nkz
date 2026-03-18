@@ -121,7 +121,9 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   const [mqttCredentials, setMqttCredentials] = useState<MqttCredentials | null>(null);
 
   const isMapInteractMode = (mapMode as string) === 'STAMP_INSTANCES'
-    || (mapMode as string) === 'PREVIEW_MODEL';
+    || (mapMode as string) === 'PREVIEW_MODEL'
+    || (mapMode as string) === 'DRAW_GEOMETRY'
+    || (mapMode as string) === 'PICK_LOCATION';
 
   // Reset placement state when wizard resets
   useEffect(() => {
@@ -134,11 +136,6 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
     dispatchPlacement({ type: 'RESET' });
     onClose();
   }, [reset, onClose]);
-
-  // Hide during active Cesium drawing/placement/picking modes
-  if (mapMode === 'PREVIEW_MODEL' || mapMode === 'STAMP_INSTANCES' || mapMode === 'DRAW_GEOMETRY' || mapMode === 'PICK_LOCATION') {
-    return null;
-  }
 
   const handleNext = () => {
     const err = validateStep(currentStep.id, entityType, formData as any, placementState);

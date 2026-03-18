@@ -1,8 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Package, Upload, Check, Search } from 'lucide-react';
 import { Model3DUploader } from './Model3DUploader';
 import api from '@/services/api';
-// defaultAssets removed in favor of API
+
+// Lazy-load model-viewer only when AssetBrowser mounts
+let modelViewerLoaded = false;
+function ensureModelViewer() {
+    if (modelViewerLoaded) return;
+    if (document.querySelector('script[data-model-viewer]')) { modelViewerLoaded = true; return; }
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = 'https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js';
+    s.dataset.modelViewer = '1';
+    document.head.appendChild(s);
+    modelViewerLoaded = true;
+}
+
+/** Extract a human-readable short name from asset metadata */
+function shortName(asset: { name?: string; filename?: string; key?: string; url?: string }): string {
+    const raw = asset.filename || asset.name || asset.key || asset.url || '';
+    // Take last path segment, strip extension and common prefixes
+    const base = raw.split('/').pop() || raw;
+    return base.replace(/\.(glb|gltf)$/i, '').replace(/[_-]/g, ' ');
+}
 
 
 interface AssetBrowserProps {
@@ -30,6 +50,9 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
     const [_selectedCategory, _setSelectedCategory] = useState<string>('all');
     const [publicAssets, setPublicAssets] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Lazy-load model-viewer script on first render
+    useEffect(() => { ensureModelViewer(); }, []);
 
     const isModel = (a: { name?: string; filename?: string; asset_type?: string; id?: string }) => {
         const t = a.asset_type;
@@ -167,8 +190,8 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
 
                                     {/* Asset Info */}
                                     <div className="p-3 bg-white w-full border-t border-gray-100">
-                                        <div className="font-medium text-sm text-gray-900 capitalize truncate" title={asset.key}>
-                                            {asset.key.replace(/_/g, ' ').replace(/-/g, ' ').replace('.glb', '')}
+                                        <div className="font-medium text-sm text-gray-900 capitalize truncate" title={asset.name}>
+                                            {shortName(asset)}
                                         </div>
                                         <div className="text-xs text-gray-500 capitalize flex justify-between items-center mt-1">
                                             <span>{asset.category}</span>
