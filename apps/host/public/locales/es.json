@@ -752,6 +752,72 @@
     "current_content": "Contenido actual",
     "preview": "Vista previa"
   },
+  "agrienergy": {
+    "parks": {
+      "title": "Parques solares",
+      "selectPark": "Seleccionar parque",
+      "noParks": "No hay parques solares. Crea uno vinculado a una parcela.",
+      "createPark": "Crear parque solar",
+      "cancel": "Cancelar",
+      "parkName": "Nombre del parque",
+      "parkNamePlaceholder": "Ej. Parque Norte",
+      "selectParcel": "Parcela",
+      "noParcels": "No hay parcelas. Crea una parcela en el mapa primero.",
+      "create": "Crear parque",
+      "createError": "Error al crear el parque.",
+      "trackers": "trackers",
+      "trackersInPark": "Trackers en este parque",
+      "noTrackersInPark": "Ningún tracker en esta parcela. Añade trackers con refAgriParcel a esta parcela."
+    },
+    "panel": {
+      "title": "Valores instantáneos",
+      "selectTracker": "Selecciona un tracker para ver valores en vivo",
+      "orientation": "Orientación",
+      "tilt": "Inclinación",
+      "azimuth": "Acimut",
+      "power": "Potencia",
+      "measuredPower": "Medida",
+      "expectedPower": "Esperada",
+      "sensors": "Sensores",
+      "lastUpdate": "Última actualización",
+      "noData": "Sin datos",
+      "W": "W",
+      "deg": "°"
+    },
+    "algorithms": {
+      "title": "Algoritmo de orientación",
+      "description": "Elige el preset que define cómo se calcula tilt y azimuth.",
+      "select": "Seleccionar algoritmo",
+      "saved": "Algoritmo guardado",
+      "error": "Error al guardar el algoritmo"
+    },
+    "signals": {
+      "title": "Configurar señales",
+      "description": "Asigna una entidad y atributo de la plataforma a cada variable del algoritmo.",
+      "save": "Guardar mapeo",
+      "saved": "Mapeo guardado",
+      "error": "Error al guardar",
+      "noSources": "No hay fuentes disponibles. Registra sensores en la plataforma.",
+      "selectEntity": "Seleccionar entidad",
+      "selectAttribute": "Seleccionar atributo",
+      "configureHint": "Configura señales para ver valores de sensores."
+    },
+    "sandbox": {
+      "title": "AgriEnergy Sandbox (Modo sombra)",
+      "targetTiltLabel": "Ángulo objetivo de inclinación (°)",
+      "simulating": "Simulando...",
+      "runSimulation": "Ejecutar simulación",
+      "resultsTitle": "Resultados de la simulación",
+      "expectedPowerLabel": "Potencia esperada",
+      "shadowAreaLabel": "Área de sombra (2.5D)"
+    },
+    "sensorLabels": {
+      "weather.ghi": "GHI",
+      "weather.dni": "DNI",
+      "weather.dhi": "DHI",
+      "weather.temperature": "Temperatura"
+    }
+  },
   "wizard": {
     "array": {
       "clickAnchor": "Haz clic en el mapa para colocar el punto de ancla",

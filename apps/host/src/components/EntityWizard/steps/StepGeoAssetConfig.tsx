@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react';
+import { Sprout } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { ParentEntitySelector } from '../ParentEntitySelector';
+import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 
 // Types that support the subdivision (parent-child) workflow
@@ -7,11 +10,34 @@ const SUBDIVISION_CAPABLE = new Set([
   'AgriParcel', 'Vineyard', 'OliveGrove', 'AgriBuilding',
 ]);
 
+// Types that should pick an associated parcel (for module integration)
+const PARCEL_ASSOCIATION_TYPES = new Set([
+  'AgriEnergyTracker', 'PhotovoltaicInstallation',
+]);
+
 // AgriParcel gets first-class cadastral fields instead of generic additionalAttributes
 const IS_AGRI_PARCEL = (type: string) => type === 'AgriParcel';
 
 export function StepGeoAssetConfig() {
   const { entityType, formData, updateFormData } = useWizard();
+
+  const needsParcel = PARCEL_ASSOCIATION_TYPES.has(entityType ?? '');
+  const [parcels, setParcels] = useState<{ id: string; name: string }[]>([]);
+  const [parcelsLoading, setParcelsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!needsParcel) return;
+    setParcelsLoading(true);
+    api.getSDMEntityInstances('AgriParcel')
+      .then((entities: any[]) => {
+        setParcels(entities.map(e => ({
+          id: e.id,
+          name: typeof e.name === 'string' ? e.name : e.name?.value || e.id,
+        })));
+      })
+      .catch(() => setParcels([]))
+      .finally(() => setParcelsLoading(false));
+  }, [needsParcel]);
 
   if (!formData || formData.macroCategory !== 'assets') return null;
   const data = formData as GeoAssetFormData;
@@ -96,6 +122,42 @@ export function StepGeoAssetConfig() {
               placeholder="Ej: Viñedo, Cereal, Olivar"
             />
           </div>
+        </div>
+      )}
+
+      {/* Parcel association (AgriEnergyTracker, PhotovoltaicInstallation) */}
+      {needsParcel && (
+        <div className="pt-4 border-t">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            <span className="flex items-center gap-1.5">
+              <Sprout className="w-4 h-4 text-green-600" />
+              Parcela asociada
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 mb-2">
+            Vincula este activo a una parcela existente para que el módulo AgriEnergy lo gestione.
+          </p>
+          {parcelsLoading ? (
+            <p className="text-sm text-gray-400">Cargando parcelas...</p>
+          ) : parcels.length === 0 ? (
+            <p className="text-sm text-amber-600">No hay parcelas creadas. Puedes vincularla después.</p>
+          ) : (
+            <select
+              value={data.parentEntity?.id ?? ''}
+              onChange={e => {
+                const parcel = parcels.find(p => p.id === e.target.value);
+                updateFormData({
+                  parentEntity: parcel ? { id: parcel.id, type: 'AgriParcel', name: parcel.name, geometry: null } : null,
+                });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">Sin parcela (opcional)</option>
+              {parcels.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 

@@ -728,6 +728,72 @@
     "unknown_location": "Desconocido",
     "unnamed_parcel": "Parcela sin nombre"
   },
+  "agrienergy": {
+    "parks": {
+      "title": "Solar parks",
+      "selectPark": "Select park",
+      "noParks": "No solar parks. Create one linked to a parcel.",
+      "createPark": "Create solar park",
+      "cancel": "Cancel",
+      "parkName": "Park name",
+      "parkNamePlaceholder": "e.g. North Park",
+      "selectParcel": "Parcel",
+      "noParcels": "No parcels. Create a parcel on the map first.",
+      "create": "Create park",
+      "createError": "Error creating park.",
+      "trackers": "trackers",
+      "trackersInPark": "Trackers in this park",
+      "noTrackersInPark": "No trackers on this parcel. Add trackers with refAgriParcel to this parcel."
+    },
+    "panel": {
+      "title": "Instant values",
+      "selectTracker": "Select a tracker to see live values",
+      "orientation": "Orientation",
+      "tilt": "Tilt",
+      "azimuth": "Azimuth",
+      "power": "Power",
+      "measuredPower": "Measured",
+      "expectedPower": "Expected",
+      "sensors": "Sensors",
+      "lastUpdate": "Last update",
+      "noData": "No data",
+      "W": "W",
+      "deg": "°"
+    },
+    "algorithms": {
+      "title": "Orientation algorithm",
+      "description": "Choose the preset that defines how tilt and azimuth are computed.",
+      "select": "Select algorithm",
+      "saved": "Algorithm saved",
+      "error": "Error saving algorithm"
+    },
+    "signals": {
+      "title": "Configure signals",
+      "description": "Assign a platform entity and attribute to each algorithm variable.",
+      "save": "Save mapping",
+      "saved": "Mapping saved",
+      "error": "Error saving",
+      "noSources": "No sources available. Register sensors in the platform.",
+      "selectEntity": "Select entity",
+      "selectAttribute": "Select attribute",
+      "configureHint": "Configure signals to see sensor values."
+    },
+    "sandbox": {
+      "title": "AgriEnergy Sandbox (Shadow Mode)",
+      "targetTiltLabel": "Target tilt angle (°)",
+      "simulating": "Simulating...",
+      "runSimulation": "Run simulation",
+      "resultsTitle": "Simulation results",
+      "expectedPowerLabel": "Expected power",
+      "shadowAreaLabel": "Shadow area (2.5D)"
+    },
+    "sensorLabels": {
+      "weather.ghi": "GHI",
+      "weather.dni": "DNI",
+      "weather.dhi": "DHI",
+      "weather.temperature": "Temperature"
+    }
+  },
   "wizard": {
     "array": {
       "clickAnchor": "Click on the map to place the anchor point",

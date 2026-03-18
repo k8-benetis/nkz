@@ -56,6 +56,11 @@ export async function submitGeoAsset(
     entity.refParent = { type: 'Relationship', object: formData.parentEntity.id };
   }
 
+  // Parcel association for energy-related types (AgriEnergy module integration)
+  if (!formData.isSubdivision && formData.parentEntity?.type === 'AgriParcel') {
+    entity.refAgriParcel = { type: 'Relationship', object: formData.parentEntity.id };
+  }
+
   // Visualization
   if (formData.iconUrl) {
     entity.icon2d = { type: 'Property', value: formData.iconUrl };

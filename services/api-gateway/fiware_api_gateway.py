@@ -2837,6 +2837,45 @@ def agrienergy_proxy(path):
     return generic_proxy(AGRIENERGY_API_URL, f"api/agrienergy/{path}")
 
 
+# =============================================================================
+# IoT MQTT Provisioning
+# =============================================================================
+MQTT_CREDENTIALS_URL = os.getenv(
+    "MQTT_CREDENTIALS_URL", "http://mqtt-credentials-manager-service:5000"
+)
+
+
+@app.route("/api/iot/provision-mqtt", methods=["POST"])
+def provision_mqtt_credentials():
+    """Provision MQTT credentials for a newly created IoT device."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    if not device_id:
+        return jsonify({"error": "device_id is required"}), 400
+
+    try:
+        resp = requests.post(
+            f"{MQTT_CREDENTIALS_URL}/api/mqtt/credentials/create",
+            json={"tenant_id": tenant, "device_id": device_id},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except Exception as e:
+        logger.error(f"MQTT provisioning error: {e}")
+        return jsonify({"error": "MQTT provisioning failed"}), 502
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     debug = LOG_LEVEL == "DEBUG"

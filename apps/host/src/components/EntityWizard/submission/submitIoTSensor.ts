@@ -46,6 +46,39 @@ export async function submitIoTSensor(
     }
   }
 
-  const response = await api.createSDMEntity(entityType, entity);
-  return { mqttCredentials: response?.mqtt_credentials ?? null };
+  // Step 1: Create entity in Orion-LD
+  await api.createSDMEntity(entityType, entity);
+
+  // Step 2: Provision MQTT credentials for the new IoT device.
+  // This is a separate call because Orion doesn't handle IoT provisioning.
+  // The device_id is derived from the entity URN (last segment).
+  let mqttCredentials: MqttCredentials | null = null;
+  try {
+    const deviceId = entityId.split(':').pop() ?? entityId;
+    const result = await api.provisionMqttCredentials(deviceId);
+    if (result?.username && result?.password) {
+      const host = result.mqtt_host ?? result.host ?? 'mosquitto-service';
+      const port = result.mqtt_port ?? result.port ?? 1883;
+      const dataTopic = result.topics?.data ?? `platform/${deviceId}/data`;
+      const cmdTopic = result.topics?.commands ?? `platform/${deviceId}/cmd`;
+      mqttCredentials = {
+        host,
+        port,
+        protocol: 'mqtt',
+        api_key: result.password,
+        device_id: deviceId,
+        topics: {
+          publish_data: dataTopic,
+          publish_data_json: dataTopic,
+          commands: cmdTopic,
+        },
+        warning: result.warning,
+      };
+    }
+  } catch (e: any) {
+    // MQTT provisioning failure should not block entity creation
+    console.warn('[submitIoTSensor] MQTT provisioning failed (entity was created):', e?.message);
+  }
+
+  return { mqttCredentials };
 }

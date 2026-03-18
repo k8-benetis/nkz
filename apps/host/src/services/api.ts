@@ -1727,6 +1727,16 @@ class ApiService {
     return response.data;
   }
 
+  /**
+   * Provision MQTT credentials for a newly created IoT device.
+   * Calls the mqtt-credentials-manager via the gateway.
+   * Returns credentials (username, password, topics) — only available at creation time.
+   */
+  async provisionMqttCredentials(deviceId: string): Promise<any> {
+    const response = await this.client.post('/api/iot/provision-mqtt', { device_id: deviceId });
+    return response.data;
+  }
+
   // =============================================================================
   // SDM Integration - Entity Types and Management
   // =============================================================================
@@ -1753,7 +1763,6 @@ class ApiService {
 
   async createSDMEntity(_entityType: string, entity: any): Promise<any> {
     // No @context in body — gateway injects Link header with platform context.
-    // Content-Type: application/json tells Orion to use the Link header for context.
     const response = await this.client.post('/ngsi-ld/v1/entities', entity);
     return response.data;
   }
