@@ -104,6 +104,7 @@ export type PlacementAction =
     // Stamp Mode Actions
     | { type: 'UPDATE_STAMP_SETTINGS'; payload: Partial<PlacementState['stampSettings']> }
     | { type: 'ADD_STAMPED_INSTANCES'; payload: PlacementState['stampedInstances'] }
+    | { type: 'SET_STAMPED_INSTANCES'; payload: PlacementState['stampedInstances'] }
     | { type: 'CLEAR_STAMPED_INSTANCES' }
     | { type: 'UNDO_LAST_STAMP' } // Optional complexity
 
@@ -176,6 +177,12 @@ export function placementReducer(state: PlacementState, action: PlacementAction)
                     ...state.stampedInstances,
                     ...action.payload
                 ]
+            };
+
+        case 'SET_STAMPED_INSTANCES':
+            return {
+                ...state,
+                stampedInstances: action.payload
             };
 
         case 'CLEAR_STAMPED_INSTANCES':

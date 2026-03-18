@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import type { PlacementState, PlacementAction } from '@/machines/placementMachine';
 import { useWizard } from '../WizardContext';
 import { GeometryEditor } from '../GeometryEditor';
@@ -18,6 +19,12 @@ export interface StepGeometryProps {
 
 export function StepGeometry({ placementState, dispatchPlacement }: StepGeometryProps) {
   const { entityType, formData, updateFormData, setValidationError } = useWizard();
+
+  // Stable callback for array mode — uses SET_STAMPED_INSTANCES (atomic replace, no CLEAR+ADD race)
+  const handleArrayInstancesChange = useCallback((instances: PlacementState['stampedInstances']) => {
+    dispatchPlacement({ type: 'SET_STAMPED_INSTANCES', payload: instances });
+    setValidationError(instances.length === 0 ? 'Coloca al menos un punto de ancla' : null);
+  }, [dispatchPlacement, setValidationError]);
 
   if (!formData) return null;
 
@@ -109,13 +116,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           </div>
           <ArrayTool
             modelUrl={formData.model3DUrl}
-            onInstancesChange={instances => {
-              dispatchPlacement({ type: 'CLEAR_STAMPED_INSTANCES' });
-              if (instances.length > 0) {
-                dispatchPlacement({ type: 'ADD_STAMPED_INSTANCES', payload: instances });
-              }
-              setValidationError(instances.length === 0 ? 'Coloca al menos un punto de ancla' : null);
-            }}
+            onInstancesChange={handleArrayInstancesChange}
             placementState={placementState}
             dispatchPlacement={dispatchPlacement}
             entityType={entityType ?? undefined}
