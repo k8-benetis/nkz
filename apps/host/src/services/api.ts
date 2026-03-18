@@ -1761,7 +1761,7 @@ class ApiService {
     }
   }
 
-  async createSDMEntity(entityType: string, entity: any): Promise<any> {
+  async createSDMEntity(_entityType: string, entity: any): Promise<any> {
     // No @context in body — gateway injects Link header with platform context.
     const response = await this.client.post('/ngsi-ld/v1/entities', entity);
     return response.data;
