@@ -47,6 +47,7 @@ interface CesiumMapProps {
   crops?: AgriCrop[];
   buildings?: AgriBuilding[];
   trees?: any[]; // OliveTree, AgriTree, FruitTree, Vine - generic SDM entities with 3D models
+  energyTrackers?: any[]; // AgriEnergyTracker - solar trackers with MultiPoint geometry
   devices?: Device[];
   enable3DTerrain?: boolean; // Enable 3D terrain
   terrainProvider?: 'idena' | 'ign' | 'auto' | string; // Terrain provider: 'idena' (Navarra), 'ign' (España), 'auto' (detect by location), or custom URL
@@ -205,6 +206,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   crops = [],
   buildings = [],
   trees = [],
+  energyTrackers = [],
   devices = [],
   enable3DTerrain = true, // Enable by default
   terrainProvider = 'auto', // Auto-detect based on location
@@ -1276,6 +1278,99 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         }
       });
 
+      // Add energy trackers (AgriEnergyTracker) — MultiPoint entities expand into individual models
+      energyTrackers.forEach((tracker) => {
+        try {
+          const trackerName = typeof tracker.name === 'string' ? tracker.name : tracker.name?.value || 'Solar Tracker';
+          const modelUrl = getEntityModel(tracker);
+          const modelScale = tracker.modelScale?.value ?? tracker.modelScale ?? 1;
+          const tilt = tracker.tilt?.value ?? 0;
+          const azimuth = tracker.azimuth?.value ?? 0;
+          const modelRotation = tracker.modelRotation?.value || [azimuth, -tilt, 0];
+
+          // Extract all coordinates — supports both Point and MultiPoint
+          const location = tracker.location?.value || tracker.location;
+          let coordsList: [number, number][] = [];
+
+          if (location?.type === 'MultiPoint' && Array.isArray(location.coordinates)) {
+            coordsList = location.coordinates;
+          } else if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
+            coordsList = [location.coordinates];
+          } else {
+            // Fallback: try standard extraction
+            const coords = getEntityCoordinates(tracker);
+            if (coords) coordsList = [[coords[0], coords[1]]];
+          }
+
+          if (coordsList.length === 0) return;
+
+          coordsList.forEach((coord, idx) => {
+            const [lon, lat] = coord;
+            const entityId = `tracker-${tracker.id}-${idx}`;
+
+            if (modelUrl) {
+              const heading = Cesium.Math.toRadians(modelRotation[0] || 0);
+              const pitch = Cesium.Math.toRadians(modelRotation[1] || 0);
+              const roll = Cesium.Math.toRadians(modelRotation[2] || 0);
+
+              const position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+              const hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
+              const orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
+
+              viewer.entities.add({
+                id: entityId,
+                position,
+                orientation,
+                name: `${trackerName} [${idx + 1}]`,
+                model: {
+                  uri: normalizeAssetUrl(modelUrl),
+                  scale: modelScale,
+                  minimumPixelSize: 32,
+                  maximumScale: 20000,
+                  heightReference,
+                },
+                label: {
+                  text: idx === 0 ? trackerName : undefined,
+                  font: '12px sans-serif',
+                  fillColor: Cesium.Color.YELLOW,
+                  outlineColor: Cesium.Color.BLACK,
+                  outlineWidth: 2,
+                  pixelOffset: new Cesium.Cartesian2(0, -40),
+                  heightReference,
+                  show: idx === 0, // Only show label on first instance
+                },
+                description: `Type: AgriEnergyTracker\nTilt: ${tilt}°\nAzimuth: ${azimuth}°\nInstance: ${idx + 1}/${coordsList.length}`,
+              });
+            } else {
+              // Fallback: yellow point marker
+              viewer.entities.add({
+                id: entityId,
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+                name: `${trackerName} [${idx + 1}]`,
+                point: {
+                  pixelSize: 10,
+                  color: Cesium.Color.YELLOW.withAlpha(0.9),
+                  outlineColor: Cesium.Color.WHITE,
+                  outlineWidth: 2,
+                  heightReference,
+                },
+                label: idx === 0 ? {
+                  text: trackerName,
+                  font: '12px sans-serif',
+                  fillColor: Cesium.Color.YELLOW,
+                  outlineColor: Cesium.Color.BLACK,
+                  outlineWidth: 2,
+                  pixelOffset: new Cesium.Cartesian2(0, -20),
+                  heightReference,
+                } : undefined,
+              });
+            }
+          });
+        } catch (e) {
+          logger.warn('[CesiumMap] Error adding energy tracker:', tracker.id, e);
+        }
+      });
+
       // Calculate center of parcels for camera positioning
       let parcelCenter: { lon: number; lat: number } | null = null;
       if (parcels.length > 0) {
@@ -1461,6 +1556,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     buildings,
     devices,
     trees,
+    energyTrackers,
     parcels,
     enable3DTerrain,
     enable3DTiles,

@@ -298,6 +298,7 @@ const UnifiedViewerInner: React.FC = () => {
     const [crops, setCrops] = useState<any[]>([]);
     const [buildings, setBuildings] = useState<any[]>([]);
     const [trees, setTrees] = useState<any[]>([]); // OliveTree, AgriTree, FruitTree, Vine
+    const [energyTrackers, setEnergyTrackers] = useState<any[]>([]); // AgriEnergyTracker
 
     // Risk overlay
     const { enabled: riskEnabled, setEnabled: setRiskEnabled, overlay: riskOverlay } = useRiskOverlay();
@@ -347,10 +348,12 @@ const UnifiedViewerInner: React.FC = () => {
                 api.getSDMEntityInstances('Vine').catch(() => []),
                 // Fetch sensors from NGSI-LD (created via EntityWizard)
                 api.getSDMEntityInstances('AgriSensor').catch(() => []),
+                // Energy trackers
+                api.getSDMEntityInstances('AgriEnergyTracker').catch(() => []),
             ]);
 
             const [robotsRes, sensorsRes, machinesRes, livestockRes, weatherRes, parcelsRes, cropsRes, buildingsRes,
-                oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes] = results;
+                oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes] = results;
 
             setRobots(robotsRes.status === 'fulfilled' ? robotsRes.value : []);
             // Combine sensors from PostgreSQL API and NGSI-LD (SDM)
@@ -376,6 +379,8 @@ const UnifiedViewerInner: React.FC = () => {
             ];
             setTrees(allTrees);
             logger.debug('[UnifiedViewer] Trees loaded:', allTrees.length);
+
+            setEnergyTrackers(energyTrackersRes.status === 'fulfilled' ? energyTrackersRes.value : []);
 
             logger.debug('[UnifiedViewer] Entities loaded for map');
         } catch (error) {
@@ -632,6 +637,7 @@ const UnifiedViewerInner: React.FC = () => {
                     crops={isLayerActive('crops') ? crops : []}
                     buildings={isLayerActive('buildings') ? buildings : []}
                     trees={trees} // Always show trees (OliveTree, AgriTree, etc.)
+                    energyTrackers={energyTrackers} // AgriEnergyTracker (solar panels)
                     enable3DTerrain={true}
                     terrainProvider="auto"
                     selectedEntity={getSelectedEntityData()}
