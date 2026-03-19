@@ -234,7 +234,7 @@ def create_weather_observed_entity(
             entity['atmosphericPressure'] = {
                 'type': 'Property',
                 'value': float(weather_data['pressure_hpa']),
-                'unitCode': 'A97'  # Hectopascal
+                'unitCode': 'HPA'  # Hectopascal
             }
         
         if weather_data.get('precip_mm') is not None:

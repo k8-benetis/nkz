@@ -14,6 +14,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from typing import Dict, Any, Optional, List
 from functools import wraps
+from common.tenant_utils import normalize_tenant_id
 
 # Configure logging
 logging.basicConfig(
@@ -99,7 +100,7 @@ def validate_tenant_admin(f):
                 return jsonify({'error': 'Only TenantAdmin or PlatformAdmin can manage users'}), 403
             
             # Get tenant from user attributes (try multiple possible field names)
-            tenant = (
+            raw_tenant = (
                 user_info.get('tenant_id') or 
                 user_info.get('tenant') or 
                 user_info.get('tenant-id') or
@@ -107,14 +108,20 @@ def validate_tenant_admin(f):
             )
             
             # If tenant is still empty, try to get from user attributes
-            if not tenant:
+            if not raw_tenant:
                 attributes = user_info.get('attributes', {})
                 if isinstance(attributes, dict):
-                    tenant = (
+                    raw_tenant = (
                         (attributes.get('tenant_id') or [''])[0] if isinstance(attributes.get('tenant_id'), list) else attributes.get('tenant_id') or
                         (attributes.get('tenant') or [''])[0] if isinstance(attributes.get('tenant'), list) else attributes.get('tenant') or
                         ''
                     )
+            
+            # CRITICAL SOTA: Always normalize tenant ID before use
+            try:
+                tenant = normalize_tenant_id(raw_tenant) if raw_tenant else ''
+            except ValueError:
+                tenant = raw_tenant.lower().replace('-', '_') if raw_tenant else ''
             
             return f(user_info, tenant, *args, **kwargs)
             

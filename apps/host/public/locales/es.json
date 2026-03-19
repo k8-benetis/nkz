@@ -789,7 +789,10 @@
       "description": "Elige el preset que define cómo se calcula tilt y azimuth.",
       "select": "Seleccionar algoritmo",
       "saved": "Algoritmo guardado",
-      "error": "Error al guardar el algoritmo"
+      "error": "Error al guardar el algoritmo",
+      "activate": "Activar",
+      "customActive": "Algoritmo personalizado",
+      "customDescription": "Se está usando un algoritmo personalizado o un override manual."
     },
     "signals": {
       "title": "Configurar señales",
@@ -800,10 +803,11 @@
       "noSources": "No hay fuentes disponibles. Registra sensores en la plataforma.",
       "selectEntity": "Seleccionar entidad",
       "selectAttribute": "Seleccionar atributo",
-      "configureHint": "Configura señales para ver valores de sensores."
+      "configureHint": "Configura señales para ver valores de sensores.",
+      "clear": "Limpiar"
     },
     "sandbox": {
-      "title": "AgriEnergy Sandbox (Modo sombra)",
+      "title": "Simulación de sombra",
       "targetTiltLabel": "Ángulo objetivo de inclinación (°)",
       "simulating": "Simulando...",
       "runSimulation": "Ejecutar simulación",
@@ -815,7 +819,60 @@
       "weather.ghi": "GHI",
       "weather.dni": "DNI",
       "weather.dhi": "DHI",
-      "weather.temperature": "Temperatura"
+      "weather.temperature": "Temperatura",
+      "weather.wind_speed": "Velocidad viento",
+      "weather.humidity": "Humedad",
+      "crop.stress_index": "Índice estrés",
+      "crop.leaf_temperature": "Temp. foliar",
+      "crop.par": "PAR"
+    },
+    "dashboard": {
+      "statusOk": "En línea",
+      "statusWarning": "Desactualizado",
+      "statusOffline": "Fuera de línea",
+      "tilt": "Inclinación",
+      "power": "Potencia",
+      "orientation": "Orientación",
+      "powerDetails": "Detalle de potencia",
+      "efficiency": "Eficiencia",
+      "battery": "Batería"
+    },
+    "manual": {
+      "title": "Controles manuales",
+      "stow": "Posición segura",
+      "trackSun": "Seguir sol",
+      "customOverride": "Override personalizado",
+      "applyCustom": "Aplicar override",
+      "confirmStow": "¿Confirmar posición segura? El tracker se moverá a -60° (posición de estiba).",
+      "confirmTrack": "¿Confirmar seguimiento solar? El tracker se moverá a 0° inclinación, 180° acimut.",
+      "confirmCustom": "¿Confirmar override manual? Inclinación: {tilt}°, Acimut: {azimuth}°.",
+      "confirm": "Confirmar",
+      "overrideSent": "Override enviado correctamente",
+      "overrideError": "Error al enviar override"
+    },
+    "algorithmDescriptions": {
+      "maximize": "Maximiza captación solar. Paneles planos cuando hay sol, estibados en oscuridad.",
+      "hierarchical_failsafe": "Cascada de seguridad multi-condición: viento → estrés → generación → estiba.",
+      "thermal_stress": "Reduce temperatura celular inclinando paneles a 70° cuando T > 35°C.",
+      "wind_barrier": "Modo protección de viento. Paneles a 75° cuando viento > 15 m/s.",
+      "frost_prevention": "Previene daño por helada. Paneles planos cuando temperatura foliar ≤ 2°C.",
+      "hydric_stress": "Mitiga estrés hídrico. Sombrea cultivos cuando índice de estrés > 0.8.",
+      "par_optimization": "Optimiza luz para cultivos bajo panel. Ajusta según niveles PAR."
+    },
+    "algorithmTriggers": {
+      "maximize": "GHI > 10 → 0° | else → -60°",
+      "hierarchical_failsafe": "Wind > Stress > GHI > Standby",
+      "thermal_stress": "T > 35°C → 70°",
+      "wind_barrier": "Wind > 15 m/s → 75°",
+      "frost_prevention": "T_leaf ≤ 2°C → 0°",
+      "hydric_stress": "Stress > 0.8 → 70°",
+      "par_optimization": "PAR < 800 → -60°"
+    },
+    "parkOverview": {
+      "refresh": "Actualizar",
+      "online": "En línea",
+      "name": "Nombre",
+      "status": "Estado"
     }
   },
   "wizard": {

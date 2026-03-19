@@ -56,9 +56,11 @@ MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
 MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 
 # Types that require IoT provisioning
-# Types that require IoT provisioning
-# Types that require IoT provisioning
-IOT_ENTITY_TYPES = {'Device', 'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'AgriculturalTractor', 'LivestockAnimal', 'AgriculturalMachine'}
+IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'AgriculturalTractor', 'LivestockAnimal', 'AgriculturalMachine'}
+
+# SOTA: Use local unified context from API Gateway
+PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "http://api-gateway-service:5000").rstrip("/")
+SOTA_CONTEXT = f"{PLATFORM_API_URL}/ngsi-ld-context.json"
 
 # Tenant Limits
 MAX_SENSORS_PER_TENANT = int(os.getenv('MAX_SENSORS_PER_TENANT', '100'))
@@ -500,7 +502,7 @@ def get_sdm_entities():
             }
         },
         "Device": {
-            "description": "Generic IoT device",
+            "description": "Generic IoT device (legacy — prefer AgriSensor)",
             "attributes": {
                 "name": {"type": "Text", "description": "Device name"},
                 "location": {"type": "geo:json", "description": "Device location"},
@@ -727,12 +729,9 @@ def create_entity_instance(entity_type):
         if not entity_id.startswith('urn:ngsi-ld:'):
             entity_id = f"urn:ngsi-ld:{entity_type}:{entity_id}"
         
-        # Build NGSI-LD compliant entity with @context
+        # Build NGSI-LD compliant entity with unified SOTA context
         entity_data = {
-            '@context': [
-                'https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld',
-                'https://raw.githubusercontent.com/smart-data-models/dataModel.Agrifood/master/context.jsonld'
-            ],
+            '@context': SOTA_CONTEXT,
             'id': entity_id,
             'type': entity_type
         }
@@ -996,10 +995,7 @@ def create_entity_batch(entity_type):
             entity_id = f"urn:ngsi-ld:{entity_type}:{uuid.uuid4().hex[:16]}"
 
             entity: dict = {
-                '@context': [
-                    'https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld',
-                    'https://raw.githubusercontent.com/smart-data-models/dataModel.Agrifood/master/context.jsonld',
-                ],
+                '@context': SOTA_CONTEXT,
                 'id': entity_id,
                 'type': entity_type,
                 'name': {'type': 'Property', 'value': name},

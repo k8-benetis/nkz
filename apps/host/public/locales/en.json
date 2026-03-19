@@ -387,9 +387,7 @@
     "footer_company": "Robotika.cloud",
     "footer_contact": "kate@robotika.cloud",
     "footer_copyright": "© 2025 NKZ. All rights reserved.",
-    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE",
-    "access": "Acceder",
-    "register_with_code": "Registro con Código"
+    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE"
   },
   "machines": {
     "title": "Register Agricultural Machinery",
@@ -765,7 +763,10 @@
       "description": "Choose the preset that defines how tilt and azimuth are computed.",
       "select": "Select algorithm",
       "saved": "Algorithm saved",
-      "error": "Error saving algorithm"
+      "error": "Error saving algorithm",
+      "activate": "Activate",
+      "customActive": "Custom algorithm",
+      "customDescription": "A custom algorithm or manual override is currently active."
     },
     "signals": {
       "title": "Configure signals",
@@ -776,10 +777,11 @@
       "noSources": "No sources available. Register sensors in the platform.",
       "selectEntity": "Select entity",
       "selectAttribute": "Select attribute",
-      "configureHint": "Configure signals to see sensor values."
+      "configureHint": "Configure signals to see sensor values.",
+      "clear": "Clear"
     },
     "sandbox": {
-      "title": "AgriEnergy Sandbox (Shadow Mode)",
+      "title": "Shadow simulation",
       "targetTiltLabel": "Target tilt angle (°)",
       "simulating": "Simulating...",
       "runSimulation": "Run simulation",
@@ -791,7 +793,60 @@
       "weather.ghi": "GHI",
       "weather.dni": "DNI",
       "weather.dhi": "DHI",
-      "weather.temperature": "Temperature"
+      "weather.temperature": "Temperature",
+      "weather.wind_speed": "Wind speed",
+      "weather.humidity": "Humidity",
+      "crop.stress_index": "Stress index",
+      "crop.leaf_temperature": "Leaf temp.",
+      "crop.par": "PAR"
+    },
+    "dashboard": {
+      "statusOk": "Online",
+      "statusWarning": "Stale",
+      "statusOffline": "Offline",
+      "tilt": "Tilt",
+      "power": "Power",
+      "orientation": "Orientation",
+      "powerDetails": "Power details",
+      "efficiency": "Efficiency",
+      "battery": "Battery"
+    },
+    "manual": {
+      "title": "Manual controls",
+      "stow": "Stow position",
+      "trackSun": "Track sun",
+      "customOverride": "Custom override",
+      "applyCustom": "Apply override",
+      "confirmStow": "Confirm stow position? Tracker will move to -60° (stow position).",
+      "confirmTrack": "Confirm sun tracking? Tracker will move to 0° tilt, 180° azimuth.",
+      "confirmCustom": "Confirm manual override? Tilt: {tilt}°, Azimuth: {azimuth}°.",
+      "confirm": "Confirm",
+      "overrideSent": "Override sent successfully",
+      "overrideError": "Error sending override"
+    },
+    "algorithmDescriptions": {
+      "maximize": "Maximizes solar capture. Panels flat when sunny, stowed when dark.",
+      "hierarchical_failsafe": "Multi-condition safety cascade: wind → stress → generation → stow.",
+      "thermal_stress": "Reduces cell temperature by angling panels at 70° when T > 35°C.",
+      "wind_barrier": "Wind protection mode. Panels steep at 75° when wind > 15 m/s.",
+      "frost_prevention": "Prevents frost damage. Panels flat when leaf temperature ≤ 2°C.",
+      "hydric_stress": "Water stress mitigation. Shades crops when stress index > 0.8.",
+      "par_optimization": "Optimizes light for understory crops. Adjusts based on PAR levels."
+    },
+    "algorithmTriggers": {
+      "maximize": "GHI > 10 → 0° | else → -60°",
+      "hierarchical_failsafe": "Wind > Stress > GHI > Standby",
+      "thermal_stress": "T > 35°C → 70°",
+      "wind_barrier": "Wind > 15 m/s → 75°",
+      "frost_prevention": "T_leaf ≤ 2°C → 0°",
+      "hydric_stress": "Stress > 0.8 → 70°",
+      "par_optimization": "PAR < 800 → -60°"
+    },
+    "parkOverview": {
+      "refresh": "Refresh",
+      "online": "Online",
+      "name": "Name",
+      "status": "Status"
     }
   },
   "wizard": {

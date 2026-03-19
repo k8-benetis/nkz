@@ -13,7 +13,19 @@ NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify"
 
 SUBSCRIPTIONS = [
     {
-        "description": "Notify Telemetry Worker of all Device measurements",
+        "description": "Notify Telemetry Worker of all AgriSensor measurements (SOTA)",
+        "type": "Subscription",
+        "entities": [{"type": "AgriSensor"}],
+        "watchedAttributes": ["value", "observedAt", "batteryLevel", "rssi", "temperature", "humidity", "moisture"],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json"
+            }
+        }
+    },
+    {
+        "description": "Notify Telemetry Worker of all Device measurements (Legacy)",
         "type": "Subscription",
         "entities": [{"type": "Device"}],
         "watchedAttributes": ["value", "observedAt", "batteryLevel", "rssi"],
