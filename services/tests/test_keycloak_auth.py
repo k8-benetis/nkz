@@ -10,9 +10,8 @@ import sys
 import time
 import hmac
 import hashlib
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 
-import jwt as pyjwt
 import pytest
 from flask import Flask
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
@@ -92,7 +91,10 @@ class TestRequireKeycloakAuthNoHeader:
         assert resp.status_code == 401
         data = resp.get_json()
         assert "error" in data
-        assert "authorization" in data["error"].lower() or "missing" in data["error"].lower()
+        assert (
+            "authorization" in data["error"].lower()
+            or "missing" in data["error"].lower()
+        )
 
     def test_malformed_auth_header_returns_401(self, mock_keycloak_config):
         """Authorization header present but not 'Bearer <token>' format."""
@@ -118,7 +120,9 @@ class TestRequireKeycloakAuthNoHeader:
 class TestIssuerValidation:
     """validate_keycloak_token must reject tokens whose ``iss`` is not whitelisted."""
 
-    def test_wrong_issuer_is_rejected(self, mock_keycloak_config, mock_jwt_token, rsa_keys):
+    def test_wrong_issuer_is_rejected(
+        self, mock_keycloak_config, mock_jwt_token, rsa_keys
+    ):
         """A token signed correctly but with a foreign issuer must be rejected."""
         priv, pub = rsa_keys
         token = mock_jwt_token(
@@ -140,7 +144,9 @@ class TestIssuerValidation:
             with pytest.raises(mod.TokenValidationError, match="[Ii]ssuer"):
                 mod.validate_keycloak_token(token)
 
-    def test_correct_issuer_internal_url_accepted(self, mock_keycloak_config, mock_jwt_token, rsa_keys):
+    def test_correct_issuer_internal_url_accepted(
+        self, mock_keycloak_config, mock_jwt_token, rsa_keys
+    ):
         """A token with the internal Keycloak issuer URL should be accepted."""
         priv, pub = rsa_keys
         correct_issuer = f"{TEST_KEYCLOAK_URL}/auth/realms/{TEST_KEYCLOAK_REALM}"
@@ -160,7 +166,9 @@ class TestIssuerValidation:
             assert payload is not None
             assert payload["iss"] == correct_issuer
 
-    def test_correct_issuer_public_url_accepted(self, mock_keycloak_config, mock_jwt_token, rsa_keys):
+    def test_correct_issuer_public_url_accepted(
+        self, mock_keycloak_config, mock_jwt_token, rsa_keys
+    ):
         """A token with the public Keycloak URL should also be accepted."""
         priv, pub = rsa_keys
         public_issuer = f"{TEST_KEYCLOAK_PUBLIC_URL}/auth/realms/{TEST_KEYCLOAK_REALM}"
@@ -180,10 +188,14 @@ class TestIssuerValidation:
             assert payload is not None
             assert payload["iss"] == public_issuer
 
-    def test_correct_issuer_hostname_https_accepted(self, mock_keycloak_config, mock_jwt_token, rsa_keys):
+    def test_correct_issuer_hostname_https_accepted(
+        self, mock_keycloak_config, mock_jwt_token, rsa_keys
+    ):
         """A token with the KEYCLOAK_HOSTNAME-based issuer should be accepted."""
         priv, pub = rsa_keys
-        hostname_issuer = f"https://{TEST_KEYCLOAK_HOSTNAME}/auth/realms/{TEST_KEYCLOAK_REALM}"
+        hostname_issuer = (
+            f"https://{TEST_KEYCLOAK_HOSTNAME}/auth/realms/{TEST_KEYCLOAK_REALM}"
+        )
         token = mock_jwt_token(issuer=hostname_issuer, algorithm="RS256")
 
         _, mod = _make_app()
@@ -221,18 +233,19 @@ class TestExtractTenantId:
         assert result is not None
         assert "my_farm" in result.lower()
 
-    def test_tenant_from_tenant_claim(self, mock_keycloak_config):
+    def test_tenant_claim_not_supported(self, mock_keycloak_config):
+        """The bare 'tenant' claim is no longer supported (canonical is tenant_id)."""
         _, mod = _make_app()
         payload = {"tenant": "another-farm"}
         result = mod.extract_tenant_id(payload)
-        assert result is not None
+        assert result is None
 
-    def test_tenant_from_groups_fallback(self, mock_keycloak_config):
+    def test_groups_fallback_removed(self, mock_keycloak_config):
+        """Groups fallback was removed — only tenant_id/tenant-id claims work."""
         _, mod = _make_app()
         payload = {"groups": ["/my_farm_group"]}
         result = mod.extract_tenant_id(payload)
-        assert result is not None
-        assert "my_farm_group" in result.lower()
+        assert result is None
 
     def test_no_tenant_returns_none(self, mock_keycloak_config):
         _, mod = _make_app()
@@ -240,19 +253,13 @@ class TestExtractTenantId:
         result = mod.extract_tenant_id(payload)
         assert result is None
 
-    def test_system_groups_are_skipped(self, mock_keycloak_config):
-        """Groups like 'default' or 'offline_access' must not be used as tenant."""
+    def test_legacy_tenant_hyphen_id_fallback(self, mock_keycloak_config):
+        """Legacy 'tenant-id' claim still works during migration period."""
         _, mod = _make_app()
-        payload = {"groups": ["/default", "/offline_access", "/uma_authorization"]}
+        payload = {"tenant-id": "legacy-farm"}
         result = mod.extract_tenant_id(payload)
-        assert result is None
-
-    def test_platform_group_accepted(self, mock_keycloak_config):
-        """The special 'platform' group should be accepted as tenant."""
-        _, mod = _make_app()
-        payload = {"groups": ["/platform"]}
-        result = mod.extract_tenant_id(payload)
-        assert result == "platform"
+        assert result is not None
+        assert "legacy" in result.lower()
 
 
 # =========================================================================
@@ -369,7 +376,9 @@ class TestHmacSignature:
         result = mod.verify_hmac_signature(sig_header, token, tenant_id)
         assert result is False
 
-    def test_empty_hmac_secret_returns_empty_string(self, mock_keycloak_config, monkeypatch):
+    def test_empty_hmac_secret_returns_empty_string(
+        self, mock_keycloak_config, monkeypatch
+    ):
         monkeypatch.setenv("HMAC_SECRET", "")
         monkeypatch.setenv("JWT_SECRET", "")
 
@@ -378,7 +387,9 @@ class TestHmacSignature:
         sig = mod.generate_hmac_signature("token", "tenant")
         assert sig == ""
 
-    def test_verify_without_signature_configured_returns_true(self, mock_keycloak_config, monkeypatch):
+    def test_verify_without_signature_configured_returns_true(
+        self, mock_keycloak_config, monkeypatch
+    ):
         """When HMAC is not configured, verification should not block requests."""
         monkeypatch.setenv("HMAC_SECRET", "")
         monkeypatch.setenv("JWT_SECRET", "")
