@@ -2,7 +2,7 @@
 
 Quick reference for developers and AI agents. Everything here reflects how the platform **actually works** in production. If your code contradicts this document, your code has a bug.
 
-Last verified: 2026-03-19 (nomenclature unification applied)
+Last verified: 2026-03-19 (nomenclature unification + billing roles)
 
 ---
 
@@ -284,3 +284,21 @@ IIFE module backends that bypass the gateway. The module handles its own auth:
 - Entry: `src/moduleEntry.ts` → `window.__NKZ__.register({ id, viewerSlots, version })`.
 - Deploy: upload to MinIO `nekazari-frontend/modules/{moduleId}/nkz-module.js`.
 - Module `id` must match `marketplace_modules.id` in the database exactly.
+
+---
+
+## 10. Billing & subscription roles (Keycloak)
+
+Canonical **realm role names** for Stripe ↔ Keycloak orchestration (billing module + api-gateway):
+
+| Role | Meaning |
+|------|---------|
+| `role_pro_trial` | Subscription in trial |
+| `role_pro_active` | Paid / active access |
+| `role_pro_expired` | Terminal non-payment or cancellation; **read-only** platform lock (gateway mutating API → 403) |
+
+### Rules
+
+- **Never** use legacy names such as `role_locked` in new code, docs, or Keycloak configuration — use **`role_pro_expired`**.
+- Checkout trial length is configured with **`STRIPE_TRIAL_PERIOD_DAYS`** (default `45` in billing module settings); keep product copy and Stripe dashboard aligned.
+- Billing admin HTTP routes accept **`PlatformAdmin`** or **`TenantAdmin`** JWT roles; tenant/user context always comes from JWT claims, never from the request body.
