@@ -126,14 +126,14 @@ export const DashboardImproved: React.FC = () => {
           </MetricCard>
 
           <MetricCard
-            title="Sensores Activos"
+            title={t('dashboard.active_sensors')}
             value={sensors.length}
-            description="en línea"
+            description={t('dashboard.online')}
             icon={Gauge}
             accentIcon={Activity}
             gradientFrom="from-blue-500"
             gradientTo="to-blue-600"
-            footer={usageStats && sensorLimit ? `Capacidad: ${usageStats.sensors}/${sensorLimit}` : undefined}
+            footer={usageStats && sensorLimit ? t('dashboard.capacity', { current: String(usageStats.sensors), limit: String(sensorLimit) }) : undefined}
           >
             {usageStats && sensorLimit ? (
               <ProgressBar
@@ -149,14 +149,14 @@ export const DashboardImproved: React.FC = () => {
           </MetricCard>
 
           <MetricCard
-            title="Robots"
+            title={t('dashboard.total_robots')}
             value={robots.length}
-            description={`${activeRobots} activos`}
+            description={t('dashboard.active_count', { count: String(activeRobots) })}
             icon={Bot}
             accentIcon={Activity}
             gradientFrom="from-indigo-500"
             gradientTo="to-indigo-600"
-            footer={usageStats && robotLimit ? `Capacidad: ${usageStats.robots}/${robotLimit}` : undefined}
+            footer={usageStats && robotLimit ? t('dashboard.capacity', { current: String(usageStats.robots), limit: String(robotLimit) }) : undefined}
           >
             {usageStats && robotLimit ? (
               <ProgressBar
@@ -172,21 +172,21 @@ export const DashboardImproved: React.FC = () => {
           </MetricCard>
 
           <MetricCard
-            title="Entidades Registradas"
+            title={t('dashboard.registered_entities')}
             value={isLoading ? '…' : totalEntities}
-            description={`${parcels.length} parcelas · ${sensors.length} sensores · ${robots.length} robots`}
+            description={t('dashboard.entities_summary', { parcels: String(parcels.length), sensors: String(sensors.length), robots: String(robots.length) })}
             icon={Layers}
             gradientFrom="from-purple-500"
             gradientTo="to-purple-600"
             footer={lastUsageUpdate
-              ? `Actualizado ${new Date(lastUsageUpdate).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+              ? t('dashboard.updated_at', { time: new Date(lastUsageUpdate).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) })
               : undefined}
           >
             <button
               onClick={() => navigate('/entities')}
               className="text-xs text-white/80 hover:text-white underline underline-offset-2 transition"
             >
-              Ver todas las entidades →
+              {t('dashboard.view_all_entities')}
             </button>
           </MetricCard>
         </div>

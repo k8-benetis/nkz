@@ -102,48 +102,48 @@ export const AdminManagement: React.FC = () => {
     try {
       await client.delete(`/api/admin/tenants/${tenantId}/purge`);
       setTenants(tenants.filter(t => t.tenant_id !== tenantId));
-      alert('Tenant purgado con éxito');
+      alert(t('admin.tenant_purged'));
     } catch (error) {
-      alert('Error al purgar tenant');
+      alert(t('admin.tenant_purge_error'));
     }
   };
 
   const handleGenerateCode = async () => {
-    const email = window.prompt('Email del destinatario:');
+    const email = window.prompt(t('admin.email_prompt'));
     if (!email) return;
-    
-    const tenant_name = window.prompt('Nombre de la Explotación / Granja:');
+
+    const tenant_name = window.prompt(t('admin.farm_name_prompt'));
     if (!tenant_name) return;
 
     try {
       setLoading(true);
       await client.createActivationCode({ email, tenant_name });
-      alert('Código generado con éxito');
+      alert(t('admin.code_generated'));
       if (activeTab === 'activations') loadData();
     } catch (error) {
-      alert('Error al generar código');
+      alert(t('admin.code_generate_error'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleConfigTenant = async (tenant: Tenant) => {
-    const newName = window.prompt('Nuevo nombre de la Explotación:', tenant.tenant_name);
+    const newName = window.prompt(t('admin.new_farm_name_prompt'), tenant.tenant_name);
     if (!newName) return;
 
-    const contactEmail = window.prompt('Email de contacto (metadata):', '');
+    const contactEmail = window.prompt(t('admin.contact_email_prompt'), '');
     if (contactEmail === null) return;
 
     try {
       setLoading(true);
-      await client.updateTenant(tenant.tenant_id, { 
+      await client.updateTenant(tenant.tenant_id, {
         tenant_name: newName,
         metadata: { contact_email: contactEmail }
       });
-      alert('Tenant actualizado con éxito');
+      alert(t('admin.tenant_updated'));
       loadData();
     } catch (error) {
-      alert('Error al actualizar tenant');
+      alert(t('admin.tenant_update_error'));
     } finally {
       setLoading(false);
     }
