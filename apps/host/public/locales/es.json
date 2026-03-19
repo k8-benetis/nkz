@@ -83,7 +83,14 @@
     "minutes_ago": "Hace {minutes} minutos",
     "hour_ago": "Hace {hours} hora",
     "hours_ago": "Hace {hours} horas",
-    "environmental_sensors": "Sensores Ambientales"
+    "environmental_sensors": "Sensores Ambientales",
+    "online": "en línea",
+    "active_count": "{count} activos",
+    "capacity": "Capacidad: {current}/{limit}",
+    "registered_entities": "Entidades Registradas",
+    "entities_summary": "{parcels} parcelas · {sensors} sensores · {robots} robots",
+    "updated_at": "Actualizado {time}",
+    "view_all_entities": "Ver todas las entidades →"
   },
   "robots": {
     "title": "Gestión de Robots",
@@ -750,7 +757,18 @@
     "terms_for_language": "Términos para {language}",
     "all_languages": "Todos los idiomas",
     "current_content": "Contenido actual",
-    "preview": "Vista previa"
+    "preview": "Vista previa",
+    "confirm_delete_tenant": "¿Estás seguro de que deseas purgar el tenant '{tenantId}'? Esta acción no se puede deshacer.",
+    "tenant_purged": "Tenant purgado con éxito",
+    "tenant_purge_error": "Error al purgar tenant",
+    "email_prompt": "Email del destinatario:",
+    "farm_name_prompt": "Nombre de la Explotación / Granja:",
+    "code_generated": "Código generado con éxito",
+    "code_generate_error": "Error al generar código",
+    "new_farm_name_prompt": "Nuevo nombre de la Explotación:",
+    "contact_email_prompt": "Email de contacto (metadata):",
+    "tenant_updated": "Tenant actualizado con éxito",
+    "tenant_update_error": "Error al actualizar tenant"
   },
   "agrienergy": {
     "parks": {
