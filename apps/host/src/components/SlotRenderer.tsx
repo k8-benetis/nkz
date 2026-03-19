@@ -11,6 +11,7 @@ import { SlotType, SlotWidgetDefinition, useModules, ModuleDefinition } from '@/
 import { Loader2 } from 'lucide-react';
 import { ModuleErrorBoundary } from './ModuleErrorBoundary';
 import { loadRemoteModule } from './RemoteModuleLoader';
+import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 
 interface SlotRendererProps {
     /** Which slot to render */
@@ -264,13 +265,23 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
             return (
                 <ModuleProvider key={moduleId}>
                     {widgetsContent}
+                    <div className="px-3 pb-3 pt-2 border-t border-gray-200 text-[10px] text-gray-500">
+                        <NkzAttribution variant="core" />
+                    </div>
                 </ModuleProvider>
             );
         }
 
         // Local modules don't need providers (they're in the bundle)
         // Render widgets directly
-        return <React.Fragment key={moduleId}>{widgetsContent}</React.Fragment>;
+        return (
+            <div key={moduleId}>
+                {widgetsContent}
+                <div className="px-3 pb-3 pt-2 border-t border-gray-200 text-[10px] text-gray-500">
+                    <NkzAttribution variant="core" />
+                </div>
+            </div>
+        );
     });
 
     if (inline) {

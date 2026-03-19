@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
 COPY services/tenant-user-api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy common modules
+COPY services/common /app/common
+
 # Copy application code
 COPY services/tenant-user-api/tenant_user_api.py .
 

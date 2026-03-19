@@ -237,6 +237,16 @@ function getEnvVar(key: string, defaultValue: string = ''): string {
 }
 
 /**
+ * Landing / marketing edition.
+ * Reads `VITE_NKZ_EDITION` with runtime-first semantics (`window.__ENV__` from nginx, then Vite build).
+ * Use `commercial` for Robotika-style landing (pricing, partners); anything else → OSS-style landing.
+ */
+export function isCommercialEdition(): boolean {
+  const raw = getEnvVar('VITE_NKZ_EDITION', '').trim().toLowerCase();
+  return raw === 'commercial';
+}
+
+/**
  * Load configuration from environment variables
  */
 function loadEnvironmentConfig(): Partial<EnvironmentConfig> {

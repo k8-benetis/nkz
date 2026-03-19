@@ -5,6 +5,7 @@ import { CookieBanner } from '@/components/CookieBanner';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { LoadingBar } from '@/components/loading/LoadingBar';
 import { LogOut, User } from 'lucide-react';
+import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 
 export interface LayoutProps {
   children: React.ReactNode;
@@ -74,6 +75,10 @@ export const Layout: React.FC<LayoutProps> = ({
                   {t('layout.logout')}
                 </button>
               </div>
+            </div>
+
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <NkzAttribution variant="core" />
             </div>
           </div>
         </footer>

@@ -38,6 +38,8 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_MONITORING?: string;
   readonly VITE_ENABLE_DEBUG?: string;
   readonly VITE_ENVIRONMENT?: string;
+  /** `commercial` → commercial landing; omit or other → OSS landing. Runtime: window.__ENV__. */
+  readonly VITE_NKZ_EDITION?: string;
 }
 
 interface ImportMeta {

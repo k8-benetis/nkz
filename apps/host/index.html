@@ -23,6 +23,7 @@
     if (!e.VITE_KEYCLOAK_CLIENT_ID) e.VITE_KEYCLOAK_CLIENT_ID = e.KEYCLOAK_CLIENT_ID || 'nekazari-frontend';
     if (!e.VITE_API_URL) e.VITE_API_URL = e.API_URL || 'https://nkz.robotika.cloud';
     if (!e.VITE_TITILER_URL) e.VITE_TITILER_URL = e.TITILER_URL || 'https://nkz.robotika.cloud/titiler';
+    if (e.VITE_NKZ_EDITION === undefined && e.NKZ_EDITION) e.VITE_NKZ_EDITION = e.NKZ_EDITION;
   </script>
 </head>
 <body>

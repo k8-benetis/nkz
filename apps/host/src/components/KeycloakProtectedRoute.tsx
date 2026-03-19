@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/KeycloakAuthContext';
 import { logger } from '@/utils/logger';
+import { getConfig } from '@/config/environment';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -165,8 +166,38 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }
 
+  const isProExpired = Boolean(user?.roles?.includes('role_pro_expired'));
+  const billingUrl = getConfig().external.billingUrl;
+
   logger.debug('[ProtectedRoute] Access granted. Location:', location.pathname, 'User:', user?.email, 'Tenant:', user?.tenant);
-  return <>{children}</>;
+
+  return (
+    <>
+      {isProExpired && (
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 pt-3 pb-1">
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3">
+            <div className="font-semibold text-sm">Subscription expired: read-only mode</div>
+            <div className="text-xs mt-1 text-amber-800">
+              You can view your data, but creating or editing is disabled until reactivation.
+            </div>
+            {billingUrl && (
+              <div className="mt-2">
+                <a
+                  href={billingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 transition"
+                >
+                  Reactivate subscription
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {children}
+    </>
+  );
 };
 
 // Specific route components for different access levels

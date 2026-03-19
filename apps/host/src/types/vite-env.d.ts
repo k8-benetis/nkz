@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_I18N: string
   readonly VITE_ENABLE_MONITORING: string
   readonly VITE_ENABLE_DEBUG: string
+  readonly VITE_NKZ_EDITION?: string
   readonly MODE: string
 }
 
