@@ -91,7 +91,7 @@ spec:
           mountPath: /app/scripts
       containers:
       - name: tenant-webhook
-        image: nekazari/tenant-webhook:latest
+        image: ghcr.io/k8-benetis/nkz/tenant-webhook:latest
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
