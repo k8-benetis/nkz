@@ -214,6 +214,7 @@ All requests go through the gateway, which handles auth + tenant injection:
 | Path | Backend service | Notes |
 |------|----------------|-------|
 | `/api/auth/session` | gateway itself | Cookie set/clear |
+| `/api/public/platform-settings` | entity-manager-service:5000 (via gateway) | Public, non-sensitive frontend boot config (e.g. `landing_mode`) |
 | `/ngsi-ld/v1/*` | orion-ld-service:1026 | NGSI-LD CRUD. Gateway injects NGSILD-Tenant |
 | `/api/weather/*` | weather-worker:8080 | Weather data + agroclimatology |
 | `/api/risks/*` | risk-api-service:5000 | Risk states, catalog, webhooks |

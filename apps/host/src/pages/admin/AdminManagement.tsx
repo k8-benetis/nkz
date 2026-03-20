@@ -4,7 +4,7 @@ import {
   Users, Building2, Ticket, Search, Filter, Plus, 
   Trash2, ShieldCheck, AlertTriangle, RefreshCcw, 
   Mail, Settings2, Shield, Database, Key, ScrollText, 
-  FileText, Activity, Box, Puzzle
+  FileText, Activity, Box, Puzzle, Monitor
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import client from '@/services/api';
@@ -61,6 +61,10 @@ export const AdminManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activations, setActivations] = useState<ActivationCode[]>([]);
+  const [landingMode, setLandingMode] = useState<'standard' | 'commercial'>('standard');
+  const [landingModeLoading, setLandingModeLoading] = useState(false);
+  const [landingModeSaving, setLandingModeSaving] = useState(false);
+  const [landingMessage, setLandingMessage] = useState<string>('');
 
   // Find modules that provide admin-tab slots
   const adminTabModules = Array.isArray(modules) 
@@ -89,9 +93,46 @@ export const AdminManagement: React.FC = () => {
     }
   };
 
+  const loadLandingMode = async () => {
+    setLandingModeLoading(true);
+    try {
+      const response = await client.get('/api/public/platform-settings');
+      const mode = String(response?.data?.landing_mode || '').toLowerCase() === 'commercial' ? 'commercial' : 'standard';
+      setLandingMode(mode);
+      setLandingMessage('');
+    } catch (error) {
+      setLandingMessage('Could not read current landing mode. Using standard as fallback.');
+      setLandingMode('standard');
+    } finally {
+      setLandingModeLoading(false);
+    }
+  };
+
+  const handleLandingModeToggle = async () => {
+    setLandingModeSaving(true);
+    setLandingMessage('');
+    const nextMode = landingMode === 'standard' ? 'commercial' : 'standard';
+    try {
+      await client.put('/api/admin/platform-settings/landing-mode', { landing_mode: nextMode });
+      setLandingMode(nextMode);
+      setLandingMessage(`Landing mode updated to "${nextMode}". This affects new visits to "/".`);
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || 'Failed to update landing mode.';
+      setLandingMessage(String(detail));
+    } finally {
+      setLandingModeSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (['users', 'tenants', 'activations'].includes(activeTab)) {
       loadData();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'platform') {
+      loadLandingMode();
     }
   }, [activeTab]);
 
@@ -181,6 +222,7 @@ export const AdminManagement: React.FC = () => {
           { id: 'sdm', label: 'Modelos SDM', icon: Database },
           { id: 'terms', label: 'Términos', icon: FileText },
           { id: 'apis', label: 'APIs Plataforma', icon: Key },
+          { id: 'platform', label: 'Plataforma', icon: Monitor },
           { id: 'logs', label: 'Logs', icon: ScrollText },
           { id: 'assets', label: 'Assets', icon: Box },
         ].map((tab) => (
@@ -417,6 +459,36 @@ export const AdminManagement: React.FC = () => {
               {activeTab === 'sdm' && <div className="p-6"><SDMManagement /></div>}
               {activeTab === 'terms' && <div className="p-6"><TermsManagement /></div>}
               {activeTab === 'apis' && <div className="p-6"><PlatformApiCredentials /></div>}
+              {activeTab === 'platform' && (
+                <div className="p-6">
+                  <div className="max-w-2xl rounded-xl border border-gray-200 bg-gray-50 p-5">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Landing page mode</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Switch between the standard OSS landing and the commercial landing. This is a global platform setting and only affects new visits to the public home route.
+                    </p>
+                    <div className="flex items-center justify-between gap-4 rounded-lg bg-white border border-gray-200 p-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          Current mode: <span className="uppercase">{landingModeLoading ? 'loading...' : landingMode}</span>
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          standard = OSS landing, commercial = branded/commercial landing
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleLandingModeToggle}
+                        disabled={landingModeLoading || landingModeSaving}
+                        className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
+                      >
+                        {landingModeSaving ? 'Saving...' : `Switch to ${landingMode === 'standard' ? 'commercial' : 'standard'}`}
+                      </button>
+                    </div>
+                    {landingMessage && (
+                      <p className="mt-3 text-sm text-gray-700">{landingMessage}</p>
+                    )}
+                  </div>
+                </div>
+              )}
               {activeTab === 'logs' && <div className="p-0"><AuditLogsPanel /></div>}
               {activeTab === 'assets' && <div className="p-6"><GlobalAssetManager /></div>}
             </div>
