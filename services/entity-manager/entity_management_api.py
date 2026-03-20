@@ -7333,6 +7333,114 @@ def get_module_uploads():
         }), 500
 
 
+def _ensure_platform_settings_table(cur):
+    """Create the platform settings table if needed."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS platform_settings (
+            key TEXT PRIMARY KEY,
+            value_json JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_by TEXT
+        )
+    """)
+
+
+@app.route('/api/public/platform-settings', methods=['GET'])
+def get_public_platform_settings():
+    """
+    Public read endpoint for non-sensitive platform settings used by frontend boot.
+    Returns landing_mode: "standard" | "commercial".
+    """
+    default_mode = os.getenv('VITE_NKZ_EDITION', '').strip().lower()
+    default_mode = 'commercial' if default_mode == 'commercial' else 'standard'
+
+    conn = None
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT value_json FROM platform_settings WHERE key = %s",
+            ('landing_mode',),
+        )
+        row = cur.fetchone()
+        mode = default_mode
+        if row and isinstance(row.get('value_json'), dict):
+            configured = str(row['value_json'].get('value', '')).strip().lower()
+            if configured in ('standard', 'commercial'):
+                mode = configured
+
+        cur.close()
+        return_db_connection(conn)
+        conn = None
+        return jsonify({'landing_mode': mode}), 200
+    except Exception as e:
+        logger.error(f"Error reading public platform settings: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return_db_connection(conn)
+        return jsonify({'landing_mode': default_mode}), 200
+
+
+@app.route('/api/admin/platform-settings/landing-mode', methods=['PUT'])
+@require_auth
+def update_platform_landing_mode():
+    """
+    Update global landing mode.
+    PlatformAdmin only.
+    """
+    user_roles = g.roles or []
+    if 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
+
+    data = request.json or {}
+    mode = str(data.get('landing_mode', '')).strip().lower()
+    if mode not in ('standard', 'commercial'):
+        return jsonify({'error': 'Invalid landing_mode. Use standard or commercial.'}), 400
+
+    payload = getattr(g, 'current_user', {}) or {}
+    updated_by = payload.get('preferred_username') or payload.get('email') or payload.get('sub') or 'unknown'
+
+    conn = None
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_platform_settings_table(cur)
+        cur.execute(
+            """
+            INSERT INTO platform_settings (key, value_json, updated_by)
+            VALUES (%s, %s::jsonb, %s)
+            ON CONFLICT (key)
+            DO UPDATE SET value_json = EXCLUDED.value_json, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+            RETURNING key, value_json, updated_at, updated_by
+            """,
+            ('landing_mode', json.dumps({'value': mode}), updated_by),
+        )
+        updated = cur.fetchone()
+        conn.commit()
+        cur.close()
+        return_db_connection(conn)
+        conn = None
+
+        return jsonify({
+            'key': updated['key'],
+            'landing_mode': (updated.get('value_json') or {}).get('value', mode),
+            'updated_at': updated['updated_at'].isoformat() if updated.get('updated_at') else None,
+            'updated_by': updated.get('updated_by'),
+        }), 200
+    except Exception as e:
+        logger.error(f"Error updating platform landing mode: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return_db_connection(conn)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/api/admin/tenants/<tenant_id>/governance', methods=['GET'])
 @require_auth
 def get_tenant_governance(tenant_id):

@@ -1674,6 +1674,20 @@ def public_terms_proxy(language):
         return jsonify({"content": "", "last_updated": None, "language": language}), 200
 
 
+@app.route("/api/public/platform-settings", methods=["GET", "OPTIONS"])
+def public_platform_settings_proxy():
+    """Public endpoint for non-sensitive platform settings used before login."""
+    if request.method == "OPTIONS":
+        return "", 204
+    target_url = f"{ENTITY_MANAGER_URL}/api/public/platform-settings"
+    try:
+        resp = requests.get(target_url, timeout=10)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"Error proxying public platform settings: {e}")
+        return jsonify({"landing_mode": "standard"}), 200
+
+
 @app.route(
     "/api/admin/<path:subpath>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -1703,6 +1717,7 @@ def proxy_admin_requests(subpath):
         # ENTITY-MANAGER: Core entity metadata, logs, and assets
         "audit-logs": ENTITY_MANAGER_URL,
         "terms": ENTITY_MANAGER_URL,
+        "platform-settings": ENTITY_MANAGER_URL,
         "tenant-usage": ENTITY_MANAGER_URL,
         "assets": ENTITY_MANAGER_URL,
         "parcels": ENTITY_MANAGER_URL,
