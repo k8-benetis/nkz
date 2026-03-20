@@ -1745,11 +1745,18 @@ def proxy_admin_requests(subpath):
 
     target_url = f"{target_base_url}/api/admin/{subpath}"
 
+    tenant = extract_tenant_id(payload)
+
     try:
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": request.content_type or "application/json",
+            "X-Tenant-ID": tenant,
         }
+
+        signature = generate_hmac_signature(token, tenant)
+        if signature:
+            headers["X-Auth-Signature"] = signature
 
         method = request.method
         params = dict(request.args)
