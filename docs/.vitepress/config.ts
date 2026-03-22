@@ -17,7 +17,7 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started' },
       { text: 'API', link: '/api/01-getting-started' },
       { text: 'Modules', link: '/development/EXTERNAL_DEVELOPER_GUIDE' },
-      { text: 'GitHub', link: 'https://github.com/k8-benetis/nkz' },
+      { text: 'GitHub', link: 'https://github.com/nkz-os/nkz' },
     ],
 
     sidebar: [
@@ -64,11 +64,11 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/k8-benetis/nkz' },
+      { icon: 'github', link: 'https://github.com/nkz-os/nkz' },
     ],
 
     editLink: {
-      pattern: 'https://github.com/k8-benetis/nkz/edit/main/docs/:path',
+      pattern: 'https://github.com/nkz-os/nkz/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
 

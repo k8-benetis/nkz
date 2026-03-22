@@ -31,7 +31,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-api
-        image: ghcr.io/k8-benetis/nkz/risk-api:latest
+        image: ghcr.io/nkz-os/nkz/risk-api:latest
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

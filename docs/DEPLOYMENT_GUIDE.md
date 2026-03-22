@@ -1,5 +1,9 @@
 # Professional Deployment Guide
 
+## GHCR registry migration (org move)
+
+If you still need to copy images from `ghcr.io/k8-benetis/nkz/*` to `ghcr.io/nkz-os/nkz/*`, see [GHCR_MIGRATION.md](operations/GHCR_MIGRATION.md) and `scripts/ghcr-migrate-nkz-core.sh`.
+
 ## Overview
 
 This guide explains the professional deployment system that ensures:
@@ -53,8 +57,8 @@ git add -A && git commit -m "feat: description" && git push
 # On server (SSH)
 ssh user@your-server-ip "
   cd nekazari-public && git pull
-  docker build -t ghcr.io/k8-benetis/nkz/SERVICE:latest -f services/SERVICE/Dockerfile services/SERVICE/
-  docker save ghcr.io/k8-benetis/nkz/SERVICE:latest | sudo k3s ctr images import -
+  docker build -t ghcr.io/nkz-os/nkz/SERVICE:latest -f services/SERVICE/Dockerfile services/SERVICE/
+  docker save ghcr.io/nkz-os/nkz/SERVICE:latest | sudo k3s ctr images import -
   sudo kubectl rollout restart deployment/SERVICE -n nekazari
 "
 ```

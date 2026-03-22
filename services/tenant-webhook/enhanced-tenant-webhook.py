@@ -117,14 +117,25 @@ if redis_password:
 else:
     REDIS_URL = os.getenv("REDIS_URL", f"redis://{redis_host}/0")
 
-limiter = Limiter(
-    key_func=get_remote_address,
-    app=app,
-    storage_uri=REDIS_URL,
-    strategy="fixed-window",
-    default_limits=["1000 per hour"],
-    storage_options={"socket_connect_timeout": 30},
-)
+try:
+    limiter = Limiter(
+        key_func=get_remote_address,
+        app=app,
+        storage_uri=REDIS_URL,
+        strategy="fixed-window",
+        default_limits=["1000 per hour"],
+        storage_options={"socket_connect_timeout": 5},
+    )
+    logger.info(f"Rate limiter initialized with Redis: {REDIS_URL.split('@')[0]}@***")
+except Exception as e:
+    logger.warning(f"Redis unavailable for rate limiting ({e}), using in-memory fallback")
+    limiter = Limiter(
+        key_func=get_remote_address,
+        app=app,
+        storage_uri="memory://",
+        strategy="fixed-window",
+        default_limits=["1000 per hour"],
+    )
 
 # Configure CORS — origins configured via CORS_ORIGINS env var (comma-separated)
 _cors_origins = [
@@ -260,7 +271,15 @@ def require_keycloak_auth(f):
             g.tenant_id = extract_tenant_id(payload)
             g.username = payload.get("preferred_username")
             g.email = payload.get("email")
-            g.roles = payload.get("realm_access", {}).get("roles", [])
+            # Merge roles from all sources (realm, resource, root)
+            realm_roles = payload.get("realm_access", {}).get("roles", [])
+            resource_roles = [
+                r
+                for res in payload.get("resource_access", {}).values()
+                if isinstance(res, dict)
+                for r in res.get("roles", [])
+            ]
+            g.roles = list(set(realm_roles + resource_roles + payload.get("roles", [])))
 
             return f(*args, **kwargs)
 
@@ -2200,6 +2219,7 @@ def update_tenant_limits():
 
 @app.route("/admin/codes/<int:code_id>", methods=["DELETE"])
 @app.route("/webhook/admin/codes/<int:code_id>", methods=["DELETE"])
+@app.route("/api/admin/activations/<int:code_id>", methods=["DELETE"])
 @require_platform_admin
 def revoke_activation_code(code_id):
     """Revoke an activation code (admin only)"""

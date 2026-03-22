@@ -60,7 +60,7 @@ if [ -n "$CUSTOM_ROUTE" ]; then
 fi
 
 # GitHub Organization
-read -p "GitHub Organization (e.g., 'k8-benetis'): " YOUR_ORG
+read -p "GitHub Organization (e.g., 'nkz-os'): " YOUR_ORG
 if [ -z "$YOUR_ORG" ]; then
     echo -e "${RED}Error: GitHub organization is required.${NC}"
     exit 1

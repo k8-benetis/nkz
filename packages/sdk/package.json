@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/k8-benetis/nkz.git"
+    "url": "git+https://github.com/nkz-os/nkz.git"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.js",

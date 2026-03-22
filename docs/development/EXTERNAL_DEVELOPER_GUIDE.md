@@ -64,7 +64,7 @@ Let's create a simple "Hello World" module to get started.
 
 ```bash
 # Clone the template repository
-git clone https://github.com/k8-benetis/nkz-module-template.git my-module
+git clone https://github.com/nkz-os/nkz-module-template.git my-module
 cd my-module
 
 # Install dependencies
@@ -119,7 +119,7 @@ npm install @nekazari/sdk @nekazari/ui-kit
 We provide a template repository with all dependencies pre-configured:
 
 ```bash
-git clone https://github.com/k8-benetis/nkz-module-template.git my-module
+git clone https://github.com/nkz-os/nkz-module-template.git my-module
 cd my-module
 npm install
 ```
@@ -1563,11 +1563,11 @@ When developing your module in isolation (`npm run dev` on `localhost:5003`), yo
 
 ### Template Repository
 
-**🚀 Quick Start Template**: [nkz-module-template](https://github.com/k8-benetis/nkz-module-template)
+**🚀 Quick Start Template**: [nkz-module-template](https://github.com/nkz-os/nkz-module-template)
 
 Clone and start developing in minutes:
 ```bash
-git clone https://github.com/k8-benetis/nkz-module-template.git my-module
+git clone https://github.com/nkz-os/nkz-module-template.git my-module
 cd my-module && npm install
 ```
 

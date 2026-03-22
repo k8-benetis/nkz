@@ -142,10 +142,11 @@ export const AdminManagement: React.FC = () => {
     }
     try {
       await client.delete(`/api/admin/tenants/${tenantId}/purge`);
-      setTenants(tenants.filter(t => t.tenant_id !== tenantId));
+      setTenants(tenants.filter(tn => tn.tenant_id !== tenantId));
       alert(t('admin.tenant_purged'));
-    } catch (error) {
-      alert(t('admin.tenant_purge_error'));
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || error?.message || '';
+      alert(`${t('admin.tenant_purge_error')}${detail ? ': ' + detail : ''}`);
     }
   };
 
@@ -161,8 +162,9 @@ export const AdminManagement: React.FC = () => {
       await client.createActivationCode({ email, tenant_name });
       alert(t('admin.code_generated'));
       if (activeTab === 'activations') loadData();
-    } catch (error) {
-      alert(t('admin.code_generate_error'));
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || error?.message || '';
+      alert(`${t('admin.code_generate_error')}${detail ? ': ' + detail : ''}`);
     } finally {
       setLoading(false);
     }
@@ -187,6 +189,34 @@ export const AdminManagement: React.FC = () => {
       alert(t('admin.tenant_update_error'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!window.confirm(t('admin.confirm_delete_user', { email }))) {
+      return;
+    }
+    try {
+      await client.delete(`/api/admin/users/${userId}`);
+      setUsers(users.filter(u => u.id !== userId));
+      alert(t('admin.user_deleted'));
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || error?.message || '';
+      alert(`${t('admin.user_delete_error')}${detail ? ': ' + detail : ''}`);
+    }
+  };
+
+  const handleRevokeCode = async (codeId: number) => {
+    if (!window.confirm(t('admin.confirm_revoke_code'))) {
+      return;
+    }
+    try {
+      await client.delete(`/api/admin/activations/${codeId}`);
+      setActivations(activations.map(a => a.id === codeId ? { ...a, status: 'revoked' } : a));
+      alert(t('admin.code_revoked'));
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || error?.message || '';
+      alert(`${t('admin.code_revoke_error')}${detail ? ': ' + detail : ''}`);
     }
   };
 
@@ -348,7 +378,11 @@ export const AdminManagement: React.FC = () => {
                         {user.createdAt ? format(user.createdAt, 'dd/MM/yyyy') : 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-2 text-gray-400 hover:text-red-600 transition-colors" title="Borrar usuario">
+                        <button
+                          onClick={() => handleDeleteUser(user.id, user.email)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          title={t('admin.delete_user')}
+                        >
                           <Trash2 className="h-5 w-5" />
                         </button>
                       </td>
@@ -443,7 +477,11 @@ export const AdminManagement: React.FC = () => {
                         {format(new Date(activation.expires_at), 'dd/MM/yyyy')}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-2 text-gray-400 hover:text-red-600 transition-colors">
+                        <button
+                          onClick={() => handleRevokeCode(activation.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          title={t('admin.revoke_code')}
+                        >
                           <Trash2 className="h-5 w-5" />
                         </button>
                       </td>

@@ -46,22 +46,23 @@ class KeycloakService:
         self.token = None
     
     def get_admin_token(self) -> Optional[str]:
-        """Get admin access token from Keycloak"""
+        """Get admin access token from Keycloak using password grant (admin credentials)"""
         try:
             token_url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
             data = {
-                'grant_type': 'client_credentials',
-                'client_id': KEYCLOAK_CLIENT_ID,
-                'client_secret': KEYCLOAK_CLIENT_SECRET
+                'grant_type': 'password',
+                'client_id': 'admin-cli',
+                'username': os.getenv('KEYCLOAK_ADMIN_USER', 'admin'),
+                'password': os.getenv('KEYCLOAK_ADMIN_PASSWORD', ''),
             }
-            
+
             response = requests.post(token_url, data=data, timeout=10)
             response.raise_for_status()
-            
+
             token_data = response.json()
             self.token = token_data['access_token']
             return self.token
-            
+
         except Exception as e:
             logger.error(f"Failed to get admin token: {e}")
             return None
@@ -236,10 +237,11 @@ def list_team_members(user_info: Dict[str, Any], tenant: str):
         # Filter users by tenant
         filtered_users = []
         for user in users:
-            user_tenant = user.get('attributes', {}).get('tenant', [''])[0] if user.get('attributes', {}).get('tenant') else ''
-            
+            attrs = user.get('attributes', {})
+            user_tenant = (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '') or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
+
             # Only show users from the same tenant (or all if PlatformAdmin)
-            if user_tenant == tenant or user_info.get('roles', []).__contains__('PlatformAdmin'):
+            if user_tenant == tenant or 'PlatformAdmin' in user_info.get('roles', []):
                 # Get user's roles
                 user_id = user['id']
                 roles_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
@@ -313,7 +315,7 @@ def create_user(user_info: Dict[str, Any], tenant: str):
                 'temporary': temporary
             }],
             'attributes': {
-                'tenant': [tenant]
+                'tenant_id': [tenant]
             }
         }
         
@@ -470,8 +472,9 @@ def delete_user(user_info: Dict[str, Any], tenant: str, user_id: str):
             return jsonify({'error': 'User not found'}), 404
         
         user_data = user_response.json()
-        user_tenant = user_data.get('attributes', {}).get('tenant', [''])[0] if user_data.get('attributes', {}).get('tenant') else ''
-        
+        attrs = user_data.get('attributes', {})
+        user_tenant = (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '') or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
+
         # PlatformAdmin can delete any user, TenantAdmin only from their tenant
         is_platform_admin = 'PlatformAdmin' in user_info.get('roles', [])
         if not is_platform_admin and user_tenant != tenant:
@@ -675,10 +678,11 @@ def get_user_stats(user_info: Dict[str, Any], tenant: str):
         
         count = 0
         for user in users:
-            user_tenant = user.get('attributes', {}).get('tenant', [''])[0] if user.get('attributes', {}).get('tenant') else ''
-            
+            attrs = user.get('attributes', {})
+            user_tenant = (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '') or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
+
             # Only count users from the same tenant (or all if PlatformAdmin)
-            if user_tenant == tenant or user_info.get('roles', []).__contains__('PlatformAdmin'):
+            if user_tenant == tenant or 'PlatformAdmin' in user_info.get('roles', []):
                 count += 1
         
         return jsonify({'total': count}), 200

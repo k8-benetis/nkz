@@ -177,7 +177,7 @@ sudo kubectl apply -f k8s/...
 
 ### Container Images
 
-All core service images are published to `ghcr.io/k8-benetis/nkz/<service>:latest`.
+All core service images are published to `ghcr.io/nkz-os/nkz/<service>:latest`.
 
 Build locally with:
 ```bash

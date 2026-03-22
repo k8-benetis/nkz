@@ -267,7 +267,7 @@ export const Settings: React.FC = () => {
             <p className="text-sm text-gray-600 mb-3">{t('settings.docs.title')}</p>
             <div className="flex flex-wrap justify-center gap-4">
               <a
-                href="https://github.com/k8-benetis/nkz/blob/main/docs/api/01-getting-started.md"
+                href="https://github.com/nkz-os/nkz/blob/main/docs/api/01-getting-started.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
@@ -276,7 +276,7 @@ export const Settings: React.FC = () => {
               </a>
               <span className="text-gray-400">|</span>
               <a
-                href="https://github.com/k8-benetis/nkz/blob/main/docs/api/devices/iot-devices.md"
+                href="https://github.com/nkz-os/nkz/blob/main/docs/api/devices/iot-devices.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
@@ -285,7 +285,7 @@ export const Settings: React.FC = () => {
               </a>
               <span className="text-gray-400">|</span>
               <a
-                href="https://github.com/k8-benetis/nkz/blob/main/docs/api/devices/weather-stations.md"
+                href="https://github.com/nkz-os/nkz/blob/main/docs/api/devices/weather-stations.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"

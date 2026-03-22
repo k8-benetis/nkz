@@ -167,7 +167,7 @@ addons:
   # Analytics Modules
   # ---------------------------------------------------------------------------
   # NOTE: NDVI is now handled by external vegetation module
-  # ndvi: DEPRECATED - See https://github.com/k8-benetis/nekazari-module-vegetation
+  # ndvi: DEPRECATED - See https://github.com/nkz-os/nekazari-module-vegetation
 
   risk:
     id: "risk"

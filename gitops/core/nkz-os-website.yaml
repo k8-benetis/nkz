@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nkz-os-website
+  namespace: nekazari
+  labels:
+    app: nkz-os-website
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nkz-os-website
+  template:
+    metadata:
+      labels:
+        app: nkz-os-website
+    spec:
+      containers:
+      - name: website
+        image: ghcr.io/nkz-os/nkz-os-website:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nkz-os-website-service
+  namespace: nekazari
+spec:
+  selector:
+    app: nkz-os-website
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: nkz-os-website-redirect-https
+  namespace: nekazari
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: nkz-os-website-http
+  namespace: nekazari
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`nkz-os.org`) || Host(`www.nkz-os.org`)
+      kind: Rule
+      services:
+        - name: nkz-os-website-service
+          port: 80
+      middlewares:
+        - name: nkz-os-website-redirect-https
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: nkz-os-website-https
+  namespace: nekazari
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`nkz-os.org`) || Host(`www.nkz-os.org`)
+      kind: Rule
+      services:
+        - name: nkz-os-website-service
+          port: 80
+  tls:
+    secretName: nkz-os-org-tls
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nkz-os-org-cert
+  namespace: nekazari
+spec:
+  secretName: nkz-os-org-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - nkz-os.org
+    - www.nkz-os.org

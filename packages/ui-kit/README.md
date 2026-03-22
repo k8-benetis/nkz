@@ -31,7 +31,7 @@ function MyComponent() {
 
 ## Documentation
 
-See the [External Developer Guide](https://github.com/k8-benetis/nekazari-public/blob/main/docs/EXTERNAL_DEVELOPER_GUIDE.md) for complete component documentation.
+See the [External Developer Guide](https://github.com/nkz-os/nekazari-public/blob/main/docs/EXTERNAL_DEVELOPER_GUIDE.md) for complete component documentation.
 
 ## License Note
 
