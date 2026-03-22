@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: host
-        image: ghcr.io/k8-benetis/nkz/host:latest
+        image: ghcr.io/nkz-os/nkz/host:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80

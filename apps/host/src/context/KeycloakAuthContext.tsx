@@ -343,6 +343,10 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             tokenTenant = (kc.tokenParsed as any)?.tenant_id || (kc.tokenParsed as any)?.['tenant-id'] || '';
           }
 
+          if (!tokenTenant) {
+            logger.warn('[Auth] tenant_id is empty after token decode. Ensure Keycloak has the tenant_id user attribute mapper configured on the client.');
+          }
+
           // Cargar perfil de usuario
           try {
             const userInfo = await kc.loadUserProfile();
@@ -497,6 +501,9 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             tokenTenant = (kc.tokenParsed as any)?.tenant_id || (kc.tokenParsed as any)?.['tenant-id'] || '';
           }
 
+          if (!tokenTenant) {
+            logger.warn('[Auth] tenant_id is empty after token decode. Ensure Keycloak has the tenant_id user attribute mapper configured on the client.');
+          }
           logger.debug('[Auth] Configured roles:', roles);
           logger.debug('[Auth] Configured tenant:', tokenTenant);
 

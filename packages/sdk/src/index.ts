@@ -2,7 +2,7 @@
  * Copyright 2025 NKZ Platform (Nekazari)
  * Licensed under Apache-2.0
  * 
- * @see https://github.com/k8-benetis/nekazari-public/tree/main/packages/sdk
+ * @see https://github.com/nkz-os/nekazari-public/tree/main/packages/sdk
  */
 
 export * from './auth/useAuth';

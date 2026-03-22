@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api-gateway
-          image: ghcr.io/k8-benetis/nkz/api-gateway:latest
+          image: ghcr.io/nkz-os/nkz/api-gateway:latest
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -94,6 +94,8 @@ spec:
               value: http://entity-manager-service:5000
             - name: ENTITY_MANAGER_URL
               value: http://entity-manager-service:5000
+            - name: TENANT_USER_API_URL
+              value: http://tenant-user-api-service:5000
           command: ["gunicorn"]
           args:
             [
@@ -172,7 +174,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/k8-benetis/nkz/entity-manager:latest
+          image: ghcr.io/nkz-os/nkz/entity-manager:latest
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -200,7 +202,7 @@ spec:
             - name: ORION_URL
               value: http://orion-ld-service:1026
             - name: KEYCLOAK_URL
-              value: http://keycloak-service:8080
+              value: http://keycloak-service:8080/auth
             - name: KEYCLOAK_PUBLIC_URL
               valueFrom:
                 configMapKeyRef:

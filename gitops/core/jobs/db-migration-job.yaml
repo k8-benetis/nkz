@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: migration-worker
-        image: ghcr.io/k8-benetis/nkz/tenant-webhook:latest
+        image: ghcr.io/nkz-os/nkz/tenant-webhook:latest
         command: ["/bin/bash", "-c"]
         args:
           - |

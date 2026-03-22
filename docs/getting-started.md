@@ -9,7 +9,7 @@
 ## Quick Start with Docker Compose
 
 ```bash
-git clone https://github.com/k8-benetis/nkz.git
+git clone https://github.com/nkz-os/nkz.git
 cd nkz
 cp .env.example .env
 docker compose up -d

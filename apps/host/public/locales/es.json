@@ -781,7 +781,15 @@
     "new_farm_name_prompt": "Nuevo nombre de la Explotación:",
     "contact_email_prompt": "Email de contacto (metadata):",
     "tenant_updated": "Tenant actualizado con éxito",
-    "tenant_update_error": "Error al actualizar tenant"
+    "tenant_update_error": "Error al actualizar tenant",
+    "confirm_delete_user": "¿Estás seguro de que deseas eliminar al usuario '{email}'?",
+    "delete_user": "Eliminar usuario",
+    "user_deleted": "Usuario eliminado con éxito",
+    "user_delete_error": "Error al eliminar usuario",
+    "confirm_revoke_code": "¿Estás seguro de que deseas revocar este código de activación?",
+    "revoke_code": "Revocar código",
+    "code_revoked": "Código revocado con éxito",
+    "code_revoke_error": "Error al revocar código"
   },
   "agrienergy": {
     "parks": {

@@ -11,7 +11,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/k8-benetis/nkz
+      link: https://github.com/nkz-os/nkz
 
 features:
   - title: Digital Twins (NGSI-LD)

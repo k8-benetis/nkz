@@ -5,7 +5,7 @@
 ## 1. Clone and rename
 
 ```bash
-git clone https://github.com/k8-benetis/nkz-module-template.git my-module
+git clone https://github.com/nkz-os/nkz-module-template.git my-module
 cd my-module
 ```
 
