@@ -1,8 +1,8 @@
 # =============================================================================
 # AgriEnergy Orchestrator - Production Deployment
 # =============================================================================
-# Deployed from: https://github.com/k8-benetis/nkz-module-agrienergy
-# Image: ghcr.io/k8-benetis/nkz-module-agrienergy/agrienergy-backend:main
+# Deployed from: https://github.com/nkz-os/nkz-module-agrienergy
+# Image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend:main
 # =============================================================================
 
 ---
@@ -39,7 +39,7 @@ spec:
       # No imagePullSecrets: public GHCR images pull anonymously
       containers:
         - name: backend
-          image: ghcr.io/k8-benetis/nkz-module-agrienergy/agrienergy-backend:main
+          image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend:main
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

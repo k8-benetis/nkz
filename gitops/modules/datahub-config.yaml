@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/k8-benetis/nkz
+    repoURL: https://github.com/nkz-os/nkz
     targetRevision: HEAD
     path: gitops/overlays/datahub
   destination:

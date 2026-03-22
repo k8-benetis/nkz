@@ -160,7 +160,7 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                         </p>
                         <div className="mt-3 pt-3 border-t border-amber-200">
                             <a
-                                href="https://github.com/k8-benetis/datak"
+                                href="https://github.com/nkz-os/datak"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 text-sm font-medium text-amber-800 hover:text-amber-900 transition"

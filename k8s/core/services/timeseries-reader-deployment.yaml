@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: timeseries-reader
-          image: ghcr.io/k8-benetis/nkz/timeseries-reader:latest
+          image: ghcr.io/nkz-os/nkz/timeseries-reader:latest
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

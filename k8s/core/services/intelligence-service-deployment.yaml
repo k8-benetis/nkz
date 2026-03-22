@@ -1,8 +1,8 @@
 # =============================================================================
 # Intelligence Module - External Module Deployment (V2)
 # =============================================================================
-# This module is now deployed from: https://github.com/k8-benetis/nekazari-module-intelligence
-# Image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:latest
+# This module is now deployed from: https://github.com/nkz-os/nekazari-module-intelligence
+# Image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend:latest
 # V2: API backend + Celery worker (async task processing via Redis)
 # =============================================================================
 
@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:main
+          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend:main
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -145,7 +145,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: worker
-          image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:main
+          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend:main
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

@@ -33,7 +33,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: risk-worker
-            image: ghcr.io/k8-benetis/nkz/risk-worker:latest
+            image: ghcr.io/nkz-os/nkz/risk-worker:latest
             imagePullPolicy: Always
             env:
             # PostgreSQL Configuration
@@ -119,7 +119,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-worker
-        image: ghcr.io/k8-benetis/nkz/risk-worker:latest
+        image: ghcr.io/nkz-os/nkz/risk-worker:latest
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

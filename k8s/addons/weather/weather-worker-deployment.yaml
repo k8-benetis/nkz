@@ -42,7 +42,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: weather-worker
-        image: ghcr.io/k8-benetis/nkz/weather-worker:latest
+        image: ghcr.io/nkz-os/nkz/weather-worker:latest
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

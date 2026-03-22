@@ -115,7 +115,7 @@ jobs:
       - name: Scan image for vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:sha-${{ github.sha }}
           format: "table"
           exit-code: "0"
           severity: "CRITICAL,HIGH"

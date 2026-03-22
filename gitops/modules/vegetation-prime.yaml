@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/k8-benetis/vegetation-health-nkz
+    repoURL: https://github.com/nkz-os/vegetation-health-nkz
     targetRevision: HEAD
     path: k8s
   destination:

@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/k8-benetis/nkz/actions/workflows/test.yml"><img src="https://github.com/k8-benetis/nkz/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
-  <a href="https://github.com/k8-benetis/nkz/actions/workflows/docker-build.yml"><img src="https://github.com/k8-benetis/nkz/actions/workflows/docker-build.yml/badge.svg" alt="Docker Build" /></a>
+  <a href="https://github.com/nkz-os/nkz/actions/workflows/test.yml"><img src="https://github.com/nkz-os/nkz/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
+  <a href="https://github.com/nkz-os/nkz/actions/workflows/docker-build.yml"><img src="https://github.com/nkz-os/nkz/actions/workflows/docker-build.yml/badge.svg" alt="Docker Build" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="License: AGPL-3.0" /></a>
   <a href="https://www.npmjs.com/package/@nekazari/sdk"><img src="https://img.shields.io/npm/v/@nekazari/sdk?label=SDK" alt="npm SDK" /></a>
 </p>
@@ -20,7 +20,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/k8-benetis/nkz.git && cd nkz
+git clone https://github.com/nkz-os/nkz.git && cd nkz
 cp .env.example .env
 docker compose up -d          # first build ~10 min (frontend multistage)
 # wait ~3 min for healthchecks
@@ -82,18 +82,18 @@ Each organization gets its own isolated tenant with role-based access, and can e
 
 | Module | Description | Status |
 |--------|-------------|--------|
-| [DataHub](https://github.com/k8-benetis/nkz-module-data-hub) | Timeseries Data Canvas with multi-series charts | Active |
-| [Vegetation Health](https://github.com/k8-benetis/vegetation-health-nkz) | NDVI/vegetation indices from satellite imagery | Active |
-| [LiDAR](https://github.com/k8-benetis/nkz-module-lidar) | Point cloud analysis and 3D terrain tiles | Active |
-| [Intelligence](https://github.com/k8-benetis/nekazari-module-intelligence) | AI/ML predictive analytics | Active |
-| [Connectivity](https://github.com/k8-benetis/nkz-module-conectivity) | Cellular/network monitoring for IoT | Active |
-| [Cadastral](https://github.com/k8-benetis/catastro-sp-module-nekazari) | Spanish cadastral registry integration | Active |
-| [Robotics](https://github.com/k8-benetis/nkz-module-robotics) | ROS2 + ISOBUS agricultural equipment | Active |
-| [Odoo ERP](https://github.com/k8-benetis/nkz-module-odoo) | Enterprise resource planning integration | Active |
-| [n8n Workflows](https://github.com/k8-benetis/n8n-module-nkz) | Automation and workflow orchestration | Active |
+| [DataHub](https://github.com/nkz-os/nkz-module-data-hub) | Timeseries Data Canvas with multi-series charts | Active |
+| [Vegetation Health](https://github.com/nkz-os/vegetation-health-nkz) | NDVI/vegetation indices from satellite imagery | Active |
+| [LiDAR](https://github.com/nkz-os/nkz-module-lidar) | Point cloud analysis and 3D terrain tiles | Active |
+| [Intelligence](https://github.com/nkz-os/nekazari-module-intelligence) | AI/ML predictive analytics | Active |
+| [Connectivity](https://github.com/nkz-os/nkz-module-conectivity) | Cellular/network monitoring for IoT | Active |
+| [Cadastral](https://github.com/nkz-os/catastro-sp-module-nekazari) | Spanish cadastral registry integration | Active |
+| [Robotics](https://github.com/nkz-os/nkz-module-robotics) | ROS2 + ISOBUS agricultural equipment | Active |
+| [Odoo ERP](https://github.com/nkz-os/nkz-module-odoo) | Enterprise resource planning integration | Active |
+| [n8n Workflows](https://github.com/nkz-os/n8n-module-nkz) | Automation and workflow orchestration | Active |
 | Carbon | Carbon footprint tracking | In development |
 
-Modules are independent repos that build to a single IIFE bundle. See the [Module Template](https://github.com/k8-benetis/nkz-module-template) to create your own.
+Modules are independent repos that build to a single IIFE bundle. See the [Module Template](https://github.com/nkz-os/nkz-module-template) to create your own.
 
 ## Architecture
 
@@ -126,7 +126,7 @@ Modules are independent repos that build to a single IIFE bundle. See the [Modul
 
 ```bash
 # Use the template
-git clone https://github.com/k8-benetis/nkz-module-template.git my-module
+git clone https://github.com/nkz-os/nkz-module-template.git my-module
 cd my-module && npm install
 npm run dev        # local development with hot reload
 npm run build      # produces dist/nkz-module.js (IIFE bundle)

@@ -44,23 +44,15 @@ CI publishes multiple tags (see `docker/metadata-action` in the workflow). Migra
 
 ## Inventory via GitHub (optional)
 
-GHCR images for this monorepo are published under the **`k8-benetis` user namespace** (`ghcr.io/k8-benetis/nkz/<service>`), not necessarily as GitHub Organization packages. List them with:
-
 ```bash
-# Authenticated user must have read:packages (e.g. classic PAT or `gh auth login -s read:packages`)
-gh auth status   # if active account shows "Token scopes: none", switch: gh auth switch -u <account_with_scopes>
+# Organization packages (requires org access)
+gh api "/orgs/k8-benetis/packages?package_type=container" --paginate
 
-# Container packages owned by GitHub user k8-benetis (canonical for nkz/* images)
-gh api "/users/k8-benetis/packages?package_type=container" --paginate
-
-# Filter core monorepo images only (name prefix nkz/)
-gh api "/users/k8-benetis/packages?package_type=container&per_page=100" --paginate \
-  -q '.[] | select(.name | startswith("nkz/")) | .name'
+# Repo-linked packages
+gh api "/repos/k8-benetis/nkz/packages?package_type=container" --paginate
 ```
 
-If `/orgs/k8-benetis/packages` returns **404**, the org may not exist or packages may live under a **user** account — use `/users/<owner>/packages` instead.
-
-Repo-scoped listing (`/repos/k8-benetis/nkz/packages`) can return **404** after a repo transfer (e.g. to `nkz-os/nkz`); prefer user/org package listing above.
+A `404` usually means the org/repo is not visible to the token or the path changed.
 
 ## Visibility and Kubernetes pulls
 

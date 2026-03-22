@@ -34,7 +34,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-orchestrator
-        image: ghcr.io/k8-benetis/nkz/risk-orchestrator:latest
+        image: ghcr.io/nkz-os/nkz/risk-orchestrator:latest
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

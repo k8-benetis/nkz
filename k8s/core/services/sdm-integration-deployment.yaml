@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sdm-integration
-          image: ghcr.io/k8-benetis/nkz/sdm-integration:latest
+          image: ghcr.io/nkz-os/nkz/sdm-integration:latest
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

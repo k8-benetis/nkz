@@ -1,13 +1,13 @@
 # Nekazari Module Template (platform copy)
 
 > This directory mirrors the canonical public template at
-> **[k8-benetis/nkz-module-template](https://github.com/k8-benetis/nkz-module-template)**.
+> **[nkz-os/nkz-module-template](https://github.com/nkz-os/nkz-module-template)**.
 >
 > External developers should clone that repo. This copy exists inside the `nkz`
 > monorepo so platform contributors have a local reference.
 
-See the canonical repo's [README](https://github.com/k8-benetis/nkz-module-template/blob/main/README.md)
-and [SETUP.md](https://github.com/k8-benetis/nkz-module-template/blob/main/SETUP.md) for full documentation.
+See the canonical repo's [README](https://github.com/nkz-os/nkz-module-template/blob/main/README.md)
+and [SETUP.md](https://github.com/nkz-os/nkz-module-template/blob/main/SETUP.md) for full documentation.
 
 ## Quick start (platform developers)
 
