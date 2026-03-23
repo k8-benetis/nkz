@@ -46,3 +46,15 @@ In the near future, the **[nkz-os/hardware-reference](https://github.com/nkz-os/
 - **Rover Chassis Designs**: 3D-printable and CNC-machinable parts for autonomous agricultural robots.
 
 *Stay tuned for the official release of the hardware reference repository.*
+
+## Datak: Native Software Datalogger
+
+For scenarios where edge computing is required (e.g., remote farms with a local PC gathering sensor data before transmitting it to the cloud), Nekazari provides **[Datak](https://github.com/nkz-os/datak)**.
+
+Datak is an open-source software datalogger designed to run on a separate local machine or Raspberry Pi. It acts as an edge gateway that:
+1. **Collects** data locally from serial ports, Modbus, or local network sensors.
+2. **Buffers** the data if the internet connection is unstable.
+3. **Translates** the payloads into the native JSON format expected by the Nekazari IoT Agent.
+4. **Transmits** securely via MQTT to the `nkz.robotika.cloud` broker when connectivity is restored.
+
+By utilizing Datak on your edge PCs, you guarantee 100% native compatibility with the Nekazari telemetry pipeline without writing custom MQTT clients.
