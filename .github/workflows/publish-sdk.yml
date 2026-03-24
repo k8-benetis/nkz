@@ -1,22 +1,22 @@
-name: Publish SDK to npm
+name: Publish SDK & UI-Kit to npm
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish (patch, minor, major, or specific version)"
-        required: true
-        default: "patch"
   push:
     branches:
       - main
     paths:
       - "packages/sdk/**"
+      - "packages/ui-kit/**"
       - ".github/workflows/publish-sdk.yml"
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [sdk, ui-kit]
     permissions:
       contents: write
       id-token: write
@@ -31,21 +31,33 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10
+        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Build SDK
+      - name: Build package
+        run: pnpm --filter @nekazari/${{ matrix.package }} build
+
+      - name: Check if version is already published
+        id: check
         run: |
-          pnpm --filter @nekazari/sdk build
+          PKG_NAME=$(node -p "require('./packages/${{ matrix.package }}/package.json').name")
+          PKG_VERSION=$(node -p "require('./packages/${{ matrix.package }}/package.json').version")
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${PKG_NAME}@${PKG_VERSION} already published, skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "${PKG_NAME}@${PKG_VERSION} not found on npm, will publish"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
+        if: steps.check.outputs.exists == 'false'
         run: |
-          cd packages/sdk
+          cd packages/${{ matrix.package }}
           npm publish --access=public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
