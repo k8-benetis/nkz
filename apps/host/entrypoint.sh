@@ -7,7 +7,7 @@ INDEX_HTML="${NGINX_HTML_DIR}/index.html"
 echo "🚀 Nekazari Frontend - Generando configuración de runtime..."
 
 VITE_API_URL="${VITE_API_URL:-https://nkz.robotika.cloud}"
-VITE_KEYCLOAK_URL="${VITE_KEYCLOAK_URL:-https://auth.robotika.cloud}"
+VITE_KEYCLOAK_URL="${VITE_KEYCLOAK_URL:-https://auth.robotika.cloud/auth}"
 VITE_KEYCLOAK_REALM="${VITE_KEYCLOAK_REALM:-nekazari}"
 VITE_KEYCLOAK_CLIENT_ID="${VITE_KEYCLOAK_CLIENT_ID:-nekazari-frontend}"
 VITE_CESIUM_TOKEN="${VITE_CESIUM_TOKEN:-}"
