@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/sdk",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": false,
   "license": "Apache-2.0",
   "repository": {
@@ -22,6 +22,7 @@
     "dist",
     "README.md",
     "LICENSE",
+    "LICENSE-APACHE",
     "package.json"
   ],
   "publishConfig": {
