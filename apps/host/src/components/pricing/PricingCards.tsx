@@ -23,35 +23,35 @@ export const PricingCards: React.FC = () => {
             {t('landing.pricing.popular') || 'Más Popular'}
           </div>
           <div className="p-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('landing.pricing.pro.title') || 'Pro'}</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
             <div className="flex items-baseline mb-4">
-              <span className="text-4xl font-extrabold text-gray-900">{t('landing.pricing.pro.price') || '49€'}</span>
-              <span className="text-xl text-gray-500 ml-2">{t('landing.pricing.pro.period') || '/mes'}</span>
+              <span className="text-4xl font-extrabold text-gray-900">49€</span>
+              <span className="text-xl text-gray-500 ml-2">/mes</span>
             </div>
-            <p className="text-gray-600 mb-6">{t('landing.pricing.pro.desc') || 'Ideal para agrónomos profesionales y fincas medianas.'}</p>
+            <p className="text-gray-600 mb-6">Ideal para agrónomos profesionales y fincas medianas.</p>
             <ul className="space-y-4 mb-8">
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.pro.feat1') || 'Prueba gratuita de 45 días'}</span>
+                <span className="text-gray-700">Prueba gratuita de 45 días</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.pro.feat2') || 'Hasta 500 Hectáreas de cultivo y 5 usuarios'}</span>
+                <span className="text-gray-700">Hasta 500 Hectáreas de cultivo</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.pro.feat3') || 'Todos los módulos activos'}</span>
+                <span className="text-gray-700">3 Módulos Pro activos a elegir</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.pro.feat4') || 'Soporte prioritario'}</span>
+                <span className="text-gray-700">Soporte prioritario</span>
               </li>
             </ul>
             <a 
               href="/register" 
               className="block w-full py-4 px-6 text-center rounded-xl bg-gradient-to-r from-green-500 to-green-700 text-white font-bold text-lg shadow-md hover:shadow-xl transition-all"
             >
-              {t('landing.pricing.pro.cta') || 'Comenzar Prueba Gratis'}
+              Comenzar Prueba Gratis
             </a>
           </div>
         </div>
@@ -59,34 +59,34 @@ export const PricingCards: React.FC = () => {
         {/* Enterprise Tier */}
         <div className="bg-gray-50 rounded-3xl shadow-lg border border-gray-200 overflow-hidden transform transition-all duration-300 hover:-translate-y-2">
           <div className="p-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('landing.pricing.ent.title') || 'Enterprise'}</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
             <div className="flex items-baseline mb-4">
-              <span className="text-4xl font-extrabold text-gray-900">{t('landing.pricing.ent.price') || 'A medida'}</span>
+              <span className="text-4xl font-extrabold text-gray-900">A medida</span>
             </div>
-            <p className="text-gray-600 mb-6">{t('landing.pricing.ent.desc') || 'Para cooperativas, grandes latifundios e instituciones.'}</p>
+            <p className="text-gray-600 mb-6">Para cooperativas, grandes latifundios e instituciones.</p>
             <ul className="space-y-4 mb-8">
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.ent.feat1') || 'Hectáreas y usuarios ilimitados'}</span>
+                <span className="text-gray-700">Hectáreas ilimitadas</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.ent.feat2') || 'Todos los módulos incluidos (IA, Lidar, etc)'}</span>
+                <span className="text-gray-700">Todos los módulos incluidos (IA, Lidar, etc)</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.ent.feat3') || 'Aislamiento de inquilino (Tenant) dedicado'}</span>
+                <span className="text-gray-700">Aislamiento de inquilino (Tenant) dedicado</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-green-500 mr-3 shrink-0 mt-0.5" />
-                <span className="text-gray-700">{t('landing.pricing.ent.feat4') || 'SLA y gestor de cuenta'}</span>
+                <span className="text-gray-700">SLA y gestor de cuenta</span>
               </li>
             </ul>
             <a 
-              href="mailto:kate@robotika.cloud" 
+              href="mailto:soporte@robotika.cloud" 
               className="block w-full py-4 px-6 text-center rounded-xl bg-white text-gray-900 border-2 border-gray-300 font-bold text-lg hover:border-gray-900 transition-all"
             >
-              {t('landing.pricing.ent.cta') || 'Contactar Ventas'}
+              Contactar Ventas
             </a>
           </div>
         </div>
