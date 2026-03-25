@@ -20,6 +20,17 @@ spec:
       - name: host
         image: ghcr.io/nkz-os/nkz/host:latest
         imagePullPolicy: Always
+        env:
+        - name: COMPANY_URL
+          value: "https://robotika.cloud"
+        - name: COMPANY_NAME
+          value: "Robotika.cloud"
+        - name: SUPPORT_EMAIL
+          value: "kate@robotika.cloud"
+        - name: SALES_EMAIL
+          value: "kate@robotika.cloud"
+        - name: PARTNERS_JSON
+          value: '[{"name":"Robotika.cloud","url":"https://robotika.cloud/","logo":"/modules/assets/logo-robotika.svg"},{"name":"Biosasun","url":"https://biosasun.eu/","logo":"/modules/assets/logo-biosasun.png"},{"name":"Allotarra","url":"https://allotarra.eu/","logo":"/modules/assets/logo-allotarra.webp"},{"name":"Artotxiki","url":"https://artotxiki.com/","logo":"/modules/assets/logo-artotxiki.png"}]'
         ports:
         - containerPort: 80
           name: http

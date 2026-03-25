@@ -22,23 +22,43 @@ COMPANY_NAME="${COMPANY_NAME:-}"
 SUPPORT_EMAIL="${SUPPORT_EMAIL:-}"
 SALES_EMAIL="${SALES_EMAIL:-}"
 PARTNERS_JSON="${PARTNERS_JSON:-}"
-# Escape double-quotes inside PARTNERS_JSON so it survives HTML injection as a JS string
-PARTNERS_JSON_ESCAPED=$(printf '%s' "${PARTNERS_JSON}" | sed 's/"/\\"/g')
 
 CESIUM_SCRIPT=""
 if [ -d "${NGINX_HTML_DIR}/cesium" ]; then
     CESIUM_SCRIPT="<script src=\"/cesium/Cesium.js\"></script>"
 fi
 
-ENV_SCRIPT="<script id=\"runtime-config\">window.__ENV__ = { VITE_API_URL: \"${VITE_API_URL}\", VITE_KEYCLOAK_URL: \"${VITE_KEYCLOAK_URL}\", VITE_KEYCLOAK_REALM: \"${VITE_KEYCLOAK_REALM}\", VITE_KEYCLOAK_CLIENT_ID: \"${VITE_KEYCLOAK_CLIENT_ID}\", VITE_CESIUM_TOKEN: \"${VITE_CESIUM_TOKEN}\", VITE_ENABLE_NDVI: ${VITE_ENABLE_NDVI}, VITE_ENABLE_WEATHER: ${VITE_ENABLE_WEATHER}, VITE_ENABLE_RISK: ${VITE_ENABLE_RISK}, VITE_MODULES_CDN_URL: \"${VITE_MODULES_CDN_URL}\", COMPANY_URL: \"${COMPANY_URL}\", COMPANY_NAME: \"${COMPANY_NAME}\", SUPPORT_EMAIL: \"${SUPPORT_EMAIL}\", SALES_EMAIL: \"${SALES_EMAIL}\", PARTNERS_JSON: \"${PARTNERS_JSON_ESCAPED}\" }; console.log('[Nekazari] Runtime config injected');</script>"
+# Write runtime config to a temp file, then inject into index.html.
+# PARTNERS_JSON is written separately to avoid shell quoting issues with nested JSON.
+RUNTIME_JS="${NGINX_HTML_DIR}/__nkz_runtime__.js"
+cat > "${RUNTIME_JS}" <<JSEOF
+window.__ENV__ = {
+  VITE_API_URL: "${VITE_API_URL}",
+  VITE_KEYCLOAK_URL: "${VITE_KEYCLOAK_URL}",
+  VITE_KEYCLOAK_REALM: "${VITE_KEYCLOAK_REALM}",
+  VITE_KEYCLOAK_CLIENT_ID: "${VITE_KEYCLOAK_CLIENT_ID}",
+  VITE_CESIUM_TOKEN: "${VITE_CESIUM_TOKEN}",
+  VITE_ENABLE_NDVI: ${VITE_ENABLE_NDVI},
+  VITE_ENABLE_WEATHER: ${VITE_ENABLE_WEATHER},
+  VITE_ENABLE_RISK: ${VITE_ENABLE_RISK},
+  VITE_MODULES_CDN_URL: "${VITE_MODULES_CDN_URL}",
+  COMPANY_URL: "${COMPANY_URL}",
+  COMPANY_NAME: "${COMPANY_NAME}",
+  SUPPORT_EMAIL: "${SUPPORT_EMAIL}",
+  SALES_EMAIL: "${SALES_EMAIL}",
+  PARTNERS_JSON: ${PARTNERS_JSON:-"\"\""}
+};
+console.log('[Nekazari] Runtime config injected');
+JSEOF
 
 if [ -f "${INDEX_HTML}" ]; then
+    # Remove any previous runtime-config script (inline or external)
     sed -i '/<script id="runtime-config">/,/<\/script>/d' "${INDEX_HTML}"
+    sed -i '/<script src="\/__nkz_runtime__\.js"><\/script>/d' "${INDEX_HTML}"
     sed -i '/<script src="\/cesium\/Cesium.js"><\/script>/d' "${INDEX_HTML}"
-    
-    # Inserción con saltos de línea literales para BusyBox sed (Alpine)
-    # Importante poner la etiqueta de cierre en una línea nueva para evitar borrados accidentales
-    sed -i "s|<\/head>|${CESIUM_SCRIPT}\n${ENV_SCRIPT}\n<\/head>|" "${INDEX_HTML}"
+
+    # Inject external runtime script + optional Cesium
+    sed -i "s|</head>|${CESIUM_SCRIPT}\n<script src=\"/__nkz_runtime__.js\"></script>\n</head>|" "${INDEX_HTML}"
     echo "✅ Configuración y dependencias inyectadas en index.html"
 else
     echo "⚠️  Archivo index.html no encontrado"

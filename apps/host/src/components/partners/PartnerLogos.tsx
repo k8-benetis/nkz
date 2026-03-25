@@ -17,10 +17,10 @@ interface Partner {
 function getPartners(): Partner[] {
   try {
     const raw = (window as any).__ENV__?.PARTNERS_JSON;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
+    if (!raw) return [];
+    // raw may be a JS array (from external script) or a JSON string (from inline config)
+    const parsed = Array.isArray(raw) ? raw : JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
   } catch { /* ignore malformed JSON */ }
   return [];
 }
