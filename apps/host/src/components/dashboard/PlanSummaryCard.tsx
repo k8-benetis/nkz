@@ -2,6 +2,7 @@ import React from 'react';
 import { CalendarClock, ShieldCheck, Zap, Users, Bot, Gauge, MapPin, RefreshCw } from 'lucide-react';
 import type { TenantLimits, TenantUsageStats } from '@/types';
 import { ProgressBar } from './ProgressBar';
+import { useI18n } from '@/context/I18nContext';
 
 interface PlanSummaryCardProps {
   planType?: string | null;
@@ -62,6 +63,7 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
   usage,
   updatedAt,
 }) => {
+  const { t: _t } = useI18n();
   const expiration = formatExpiration(daysRemaining);
   const planName = formatPlanName(planType ?? limits?.planType ?? undefined);
   const robotsInUse = usage?.robots ?? 0;

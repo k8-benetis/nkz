@@ -142,7 +142,7 @@ export const TenantInfoWidget: React.FC = () => {
             {/* Forecast Section */}
             {!loading && forecast.length > 0 && (
                 <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">Previsión 5 días</h3>
+                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">{t('dashboard.five_day_forecast') || 'Previsión 5 días'}</h3>
                     <div className="grid grid-cols-5 gap-4">
                         {forecast.map((day) => (
                             <div key={day.date} className="text-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">

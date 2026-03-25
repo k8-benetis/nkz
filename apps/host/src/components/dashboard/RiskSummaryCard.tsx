@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
 import { api } from '@/services/api';
 import type { RiskState } from '@/types';
+import { useTranslation } from '@nekazari/sdk';
 
 // Human-readable labels for known risk codes
 const RISK_LABELS: Record<string, string> = {
@@ -73,6 +74,7 @@ function riskLabel(code: string): string {
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const RiskSummaryCard: React.FC = () => {
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   const [states, setStates] = useState<RiskState[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,7 +119,7 @@ export const RiskSummaryCard: React.FC = () => {
           {alertCount > 0
             ? <ShieldAlert className="w-6 h-6" />
             : <ShieldCheck className="w-6 h-6" />}
-          Riesgos Activos
+          {t('dashboard.risk_summary') || 'Riesgos Activos'}
         </h2>
         <div className="flex items-center gap-2">
           {alertCount > 0 && (

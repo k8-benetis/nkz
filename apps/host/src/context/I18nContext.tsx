@@ -1,16 +1,28 @@
 // =============================================================================
-// I18n Context - Multi-language Support
+// I18n Context - Compatibility Wrapper
 // =============================================================================
+//
+// The host uses `@nekazari/sdk` (react-i18next) for SOTA i18n.
+// This context exists for backward compatibility with legacy components that
+// call `useI18n().t('namespace.key')`.
+//
+// It delegates to the SDK i18n instance and maps `namespace.key` to:
+// - namespace = i18next namespace (e.g. 'common', 'navigation', 'layout')
+// - key       = translation key within that namespace
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { SupportedLanguage, Translations } from '@/types';
-import { logger } from '@/utils/logger';
+import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import type { SupportedLanguage } from '@/types';
+import {
+  changeLanguage,
+  getCurrentLanguage,
+  getSupportedLanguages,
+  useTranslation,
+} from '@nekazari/sdk';
 
 interface I18nContextType {
   language: SupportedLanguage;
-  translations: Translations;
   setLanguage: (lang: SupportedLanguage) => Promise<void>;
-  t: (key: string, params?: Record<string, string>) => string;
+  t: (key: string, params?: Record<string, unknown>) => string;
   supportedLanguages: Record<string, string>;
   isLoading: boolean;
 }
@@ -29,172 +41,43 @@ interface I18nProviderProps {
   children: ReactNode;
 }
 
-const DEFAULT_LANGUAGE: SupportedLanguage = 'es';
-
 export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
-  const [language, setLanguageState] = useState<SupportedLanguage>(DEFAULT_LANGUAGE);
-  const [translations, setTranslations] = useState<Translations>({});
-  const [supportedLanguages, setSupportedLanguages] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const { i18n } = useTranslation();
+  const [language, setLanguageState] = useState<SupportedLanguage>(getCurrentLanguage());
+  const supportedLanguages = useMemo(() => getSupportedLanguages(), []);
 
-  // Load translations from local files
   useEffect(() => {
-    const loadTranslations = async () => {
-      setIsLoading(true);
-      try {
-        logger.debug(`[I18n] Loading translations for '${language}'`);
-        const fetchUrl = `/locales/${language}.json`;
-        logger.debug('[I18n] Fetch URL:', fetchUrl);
-        // Añadir timeout para evitar que se quede bloqueado
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
-        
-        const response = await fetch(`/locales/${language}.json`, {
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (response.ok) {
-          const data = await response.json();
-          logger.debug(`[I18n] Successfully loaded translations for ${language}, keys:`, Object.keys(data).length);
-          setTranslations(data);
-        } else {
-          logger.warn(`Translations for ${language} not found (status ${response.status}), attempting dynamic import fallback`);
-          // Fallback: try dynamic import from bundled assets
-          try {
-            // Note: dynamic import path must match build-time assets
-            // This works when locales are bundled into the app
-             
-            const mod = await import(/* @vite-ignore */ `/locales/${language}.json`);
-            const fallbackData = mod.default || mod;
-            logger.debug(`[I18n] Fallback dynamic import succeeded for ${language}, keys:`, Object.keys(fallbackData).length);
-            setTranslations(fallbackData as Translations);
-          } catch (impErr) {
-            logger.warn('[I18n] Dynamic import fallback failed:', impErr);
-            // Último fallback: cargar español
-            if (language !== 'es') {
-              logger.debug('[I18n] Attempting to load Spanish as final fallback');
-              try {
-                const esResponse = await fetch('/locales/es.json');
-                if (esResponse.ok) {
-                  const esData = await esResponse.json();
-                  logger.debug('[I18n] Loaded Spanish as final fallback, keys:', Object.keys(esData).length);
-                  setTranslations(esData);
-                }
-              } catch (esErr) {
-                logger.error('[I18n] Failed to load Spanish fallback:', esErr);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          logger.warn('Translation load timeout, continuing without translations');
-        } else {
-          logger.error('Error loading translations:', error);
-        }
-        // Continuar sin traducciones en lugar de bloquear
-      } finally {
-        setIsLoading(false);
-      }
+    const handler = (lng: string) => {
+      setLanguageState(lng.split('-')[0] as SupportedLanguage);
     };
-
-    loadTranslations();
-  }, [language]);
-
-  // Set supported languages
-  useEffect(() => {
-    setSupportedLanguages({
-      es: 'Español',
-      en: 'English',
-      ca: 'Català',
-      eu: 'Euskera',
-      fr: 'Français',
-      pt: 'Português',
-    });
-  }, []);
-
-  // Initialize language from localStorage or browser
-  useEffect(() => {
-    const storedLang = localStorage.getItem('language') as SupportedLanguage;
-    if (storedLang) {
-      setLanguageState(storedLang);
-    } else {
-      // Detect browser language
-      const browserLang = navigator.language.split('-')[0] as SupportedLanguage;
-      if (['es', 'en', 'ca', 'eu', 'fr', 'pt'].includes(browserLang)) {
-        setLanguageState(browserLang);
-      }
-    }
-  }, []);
+    i18n.on('languageChanged', handler);
+    return () => {
+      i18n.off('languageChanged', handler);
+    };
+  }, [i18n]);
 
   const setLanguage = async (lang: SupportedLanguage) => {
-    setLanguageState(lang);
-    localStorage.setItem('language', lang);
+    await changeLanguage(lang);
   };
 
-  const t = (key: string, params?: Record<string, string>): string => {
-    // Si las traducciones aún no están cargadas, intentar cargar español como fallback
-    if (Object.keys(translations).length === 0) {
-      logger.warn(`[I18n] Translations not loaded yet, key: ${key}`);
-      // Si no hay traducciones y el idioma no es español, intentar cargar español
-      if (language !== 'es' && isLoading === false) {
-        logger.warn(`[I18n] Translations empty for ${language}, falling back to Spanish`);
-        // Intentar cargar español como fallback
-        fetch('/locales/es.json')
-          .then(res => res.json())
-          .then(data => {
-            setTranslations(data);
-            logger.debug('[I18n] Loaded Spanish as fallback');
-          })
-          .catch(err => {
-            logger.error('[I18n] Failed to load Spanish fallback:', err);
-          });
-      }
-      // Devolver la clave con un prefijo para debugging, o la clave directamente
-      return key;
-    }
+  const t = (key: string, params?: Record<string, unknown>): string => {
+    if (!key) return '';
 
-    const keys = key.split('.');
-    let value: any = translations;
+    const [maybeNs, ...rest] = key.split('.');
+    const knownNamespaces = new Set(['common', 'navigation', 'layout']);
+    const ns = knownNamespaces.has(maybeNs) ? maybeNs : 'common';
+    const realKey = knownNamespaces.has(maybeNs) ? rest.join('.') : key;
 
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        // Si no se encuentra la traducción, loguear para debugging
-        logger.warn(`[I18n] Translation key not found: ${key} (language: ${language})`);
-        // Devolver la clave para que sea visible que falta la traducción
-        return key;
-      }
-    }
-
-    if (typeof value === 'string') {
-      // Replace parameters in string
-      if (params) {
-        return Object.entries(params).reduce(
-          (str, [paramKey, val]) => str.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), val),
-          value
-        );
-      }
-      return value;
-    }
-
-    // Si el valor no es un string, devolver la clave
-    logger.warn(`[I18n] Translation value is not a string for key: ${key}`);
-    return key;
+    return i18n.t(realKey, { ns, ...(params ?? {}) });
   };
 
   const value: I18nContextType = {
     language,
-    translations,
     setLanguage,
     t,
     supportedLanguages,
-    isLoading,
+    isLoading: !i18n.isInitialized,
   };
 
-  // No bloquear el render mientras carga - siempre renderizar children
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };
