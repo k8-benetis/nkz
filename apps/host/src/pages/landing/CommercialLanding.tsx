@@ -187,14 +187,14 @@ export const CommercialLanding: React.FC = () => {
               <div className="flex flex-col sm:flex-row items-stretch justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-6">
                 <button
                   onClick={() => navigate('/register')}
-                  className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
+                  className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
-                  <span>{t('landing.try_free')}</span>
+                  <span>{t('landing.try_free') || 'Probar 45 días gratis'}</span>
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </button>
                 <button
                   onClick={handleLogin}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
                   {t('landing.access')}
                 </button>
@@ -203,26 +203,54 @@ export const CommercialLanding: React.FC = () => {
                     const el = document.getElementById('pricing');
                     el?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-gray-50 text-gray-600 text-lg font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
-                  Ver Precios
+                  {t('landing.view_pricing') || 'Ver Precios'}
                 </button>
               </div>
 
-              {/* Trust Badges - Perfectly aligned to left on desktop */}
-              <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-8 gap-y-4 pt-10 text-sm font-medium text-gray-600">
-                <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
-                  <Shield className="h-4 w-4 text-green-600" />
-                  <span>{t('landing.trust_enterprise_security')}</span>
+              {/* Trust Badges - Slider of Features */}
+              <div className="pt-10 overflow-hidden relative w-full h-12 flex items-center">
+                <div className="absolute flex space-x-8 animate-[slide_20s_linear_infinite] whitespace-nowrap text-sm font-medium text-gray-600">
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-green-100 shadow-sm">
+                    <Users className="h-4 w-4 text-green-600" />
+                    <span>Plataforma Multitenant SOTA</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-blue-100 shadow-sm">
+                    <Database className="h-4 w-4 text-blue-600" />
+                    <span>Arquitectura Abierta FIWARE NGSI-LD</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-purple-100 shadow-sm">
+                    <Smartphone className="h-4 w-4 text-purple-600" />
+                    <span>IoT Nativo & Edge Computing</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-orange-100 shadow-sm">
+                    <Shield className="h-4 w-4 text-orange-600" />
+                    <span>Seguridad de Grado Empresarial</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-green-100 shadow-sm">
+                    <Users className="h-4 w-4 text-green-600" />
+                    <span>Plataforma Multitenant SOTA</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-blue-100 shadow-sm">
+                    <Database className="h-4 w-4 text-blue-600" />
+                    <span>Arquitectura Abierta FIWARE NGSI-LD</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-purple-100 shadow-sm">
+                    <Smartphone className="h-4 w-4 text-purple-600" />
+                    <span>IoT Nativo & Edge Computing</span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white/70 px-4 py-2 rounded-full border border-orange-100 shadow-sm">
+                    <Shield className="h-4 w-4 text-orange-600" />
+                    <span>Seguridad de Grado Empresarial</span>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
-                  <Zap className="h-4 w-4 text-green-600" />
-                  <span>{t('landing.trust_fiware')}</span>
-                </div>
-                <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
-                  <Users className="h-4 w-4 text-green-600" />
-                  <span>{t('landing.trust_multitenant')}</span>
-                </div>
+                <style dangerouslySetInnerHTML={{__html: `
+                  @keyframes slide {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                  }
+                `}} />
               </div>
             </div>
 

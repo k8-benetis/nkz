@@ -361,7 +361,7 @@
     "description": "Next-generation IoT platform for smart agriculture",
     "subdescription": "Manage your farm operations, sensors, robots, and data with enterprise-grade security and multi-tenant architecture powered by FIWARE",
     "cta": "Get Started",
-    "try_free": "Try 30 days for free",
+    "try_free": "Probar 45 días gratis",
     "access": "Log In",
     "register_with_code": "Register with Code",
     "trust_enterprise_security": "Enterprise Security",
@@ -407,7 +407,34 @@
     "footer_company": "Robotika.cloud",
     "footer_contact": "kate@robotika.cloud",
     "footer_copyright": "© 2025 NKZ. All rights reserved.",
-    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE"
+    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE",
+    "view_pricing": "Ver Precios",
+    "pricing": {
+      "title": "Planes adaptados a tu terreno",
+      "subtitle": "Comienza gratis durante 45 días y mejora cuando lo necesites.",
+      "popular": "Más Popular",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mes",
+        "desc": "Ideal para agrónomos profesionales y fincas medianas.",
+        "feat1": "Prueba gratuita de 45 días",
+        "feat2": "Hasta 500 Hectáreas de cultivo y 5 usuarios",
+        "feat3": "Todos los módulos activos",
+        "feat4": "Soporte prioritario",
+        "cta": "Comenzar Prueba Gratis"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "A medida",
+        "desc": "Para cooperativas, grandes latifundios e instituciones.",
+        "feat1": "Hectáreas y usuarios ilimitados",
+        "feat2": "Todos los módulos incluidos (IA, Lidar, etc)",
+        "feat3": "Aislamiento de inquilino (Tenant) dedicado",
+        "feat4": "SLA y gestor de cuenta",
+        "cta": "Contactar Ventas"
+      }
+    }
   },
   "machines": {
     "title": "Register Agricultural Machinery",

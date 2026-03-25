@@ -219,9 +219,9 @@
     "description": "Plataforma IoT de nova geração para agricultura inteligente",
     "subdescription": "Gerencie as suas operações agrícolas, sensores, robots e dados com segurança empresarial e arquitetura multi-tenant alimentada por FIWARE",
     "cta": "Começar",
-    "try_free": "Experimente grátis por 30 dias",
-    "access": "Aceder",
-    "register_with_code": "Registo com Código",
+    "try_free": "Probar 45 días gratis",
+    "access": "Acceder",
+    "register_with_code": "Registro con Código",
     "trust_enterprise_security": "Segurança Empresarial",
     "trust_fiware": "Powered by FIWARE",
     "trust_multitenant": "Multi-Tenant",
@@ -264,10 +264,35 @@
     "footer_isolation": "Isolamento Multi-Tenant",
     "footer_copyright": "© 2025 NKZ. Todos os direitos reservados.",
     "footer_description": "Plataforma IoT agrícola de nível empresarial alimentada por FIWARE",
-    "access": "Acceder",
-    "register_with_code": "Registro con Código",
     "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud"
+    "footer_contact": "kate@robotika.cloud",
+    "view_pricing": "Ver Precios",
+    "pricing": {
+      "title": "Planes adaptados a tu terreno",
+      "subtitle": "Comienza gratis durante 45 días y mejora cuando lo necesites.",
+      "popular": "Más Popular",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mes",
+        "desc": "Ideal para agrónomos profesionales y fincas medianas.",
+        "feat1": "Prueba gratuita de 45 días",
+        "feat2": "Hasta 500 Hectáreas de cultivo y 5 usuarios",
+        "feat3": "Todos los módulos activos",
+        "feat4": "Soporte prioritario",
+        "cta": "Comenzar Prueba Gratis"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "A medida",
+        "desc": "Para cooperativas, grandes latifundios e instituciones.",
+        "feat1": "Hectáreas y usuarios ilimitados",
+        "feat2": "Todos los módulos incluidos (IA, Lidar, etc)",
+        "feat3": "Aislamiento de inquilino (Tenant) dedicado",
+        "feat4": "SLA y gestor de cuenta",
+        "cta": "Contactar Ventas"
+      }
+    }
   },
   "activation": {
     "account_details": "Detalles de tu Cuenta",

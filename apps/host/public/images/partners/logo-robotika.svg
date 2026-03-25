@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#eab308" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Abstract R / Network Shape -->
+  <path d="M30 20 L30 80" stroke="url(#logo-gradient)" stroke-width="8" stroke-linecap="round" />
+  <path d="M30 20 L70 20 C85 20 85 50 70 50 L30 50" stroke="url(#logo-gradient)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M50 50 L75 80" stroke="url(#logo-gradient)" stroke-width="8" stroke-linecap="round" />
+  
+  <!-- Nodes -->
+  <circle cx="30" cy="20" r="6" fill="#fff" />
+  <circle cx="30" cy="50" r="6" fill="#fff" />
+  <circle cx="30" cy="80" r="6" fill="#fff" />
+  <circle cx="70" cy="20" r="6" fill="#fff" />
+  <circle cx="70" cy="50" r="6" fill="#fff" />
+  <circle cx="75" cy="80" r="6" fill="#fff" />
+</svg>
