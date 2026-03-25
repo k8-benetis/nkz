@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       const roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
 
       // Extract tenant - canonical claim names only
-      let tokenTenant = decoded.tenant_id || decoded['tenant-id'] || '';
+      const tokenTenant = decoded.tenant_id || decoded['tenant-id'] || '';
 
       logger.debug('[Auth] Updating user roles from token - roles:', roles, 'tenant:', tokenTenant);
 
@@ -295,7 +295,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
 
           // Guardar token en localStorage
           if (kc.token) {
-            api.setSession(kc.token).catch(() => {});
+            api.setSession(kc.token).then(() => setSessionReady(true)).catch(() => setSessionReady(true));
           }
 
           // Configurar refresh de token
@@ -326,7 +326,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
 
             // Buscar tenant_id en canonical claim names
-            let rawTenant = decoded.tenant_id || decoded['tenant-id'] || '';
+            const rawTenant = decoded.tenant_id || decoded['tenant-id'] || '';
 
             // Si es array (de Keycloak group mapper), tomar primer elemento
             tokenTenant = Array.isArray(rawTenant) ? (rawTenant[0] || '') : rawTenant;
@@ -458,7 +458,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
           setIsAuthenticated(true);
 
           if (kc.token) {
-            api.setSession(kc.token).catch(() => {});
+            api.setSession(kc.token).then(() => setSessionReady(true)).catch(() => setSessionReady(true));
           }
 
           kc.onTokenExpired = async () => {
@@ -592,6 +592,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       setKeycloak(null);
       setUser(null);
       setIsAuthenticated(false);
+      setSessionReady(false);
       api.clearSession().catch(() => {});
     }
   };
@@ -610,9 +611,10 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
 
   const tenantId = user?.tenant || 'master';
   const [tenantProfile, setTenantProfile] = useState<TenantProfile | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
 
   const fetchTenantProfile = React.useCallback(() => {
-    if (!isAuthenticated || !user?.tenant) {
+    if (!isAuthenticated || !sessionReady || !user?.tenant) {
       setTenantProfile(null);
       return;
     }
@@ -625,7 +627,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       .catch(() => {
         setTenantProfile(null);
       });
-  }, [isAuthenticated, user?.tenant]);
+  }, [isAuthenticated, sessionReady, user?.tenant]);
 
   React.useEffect(() => {
     fetchTenantProfile();
@@ -752,7 +754,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
         if (authenticated && kc.token) {
           setIsAuthenticated(true);
           // Set httpOnly cookie for the restored session
-          api.setSession(kc.token).catch(() => {});
+          api.setSession(kc.token).then(() => setSessionReady(true)).catch(() => setSessionReady(true));
           // Configurar usuario y roles desde el token
           try {
             const decoded = JSON.parse(atob(kc.token.split('.')[1]));
