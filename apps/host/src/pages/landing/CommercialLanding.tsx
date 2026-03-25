@@ -187,14 +187,14 @@ export const CommercialLanding: React.FC = () => {
               <div className="flex flex-col sm:flex-row items-stretch justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-6">
                 <button
                   onClick={() => navigate('/register')}
-                  className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
+                  className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
                   <span>{t('landing.try_free')}</span>
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </button>
                 <button
                   onClick={handleLogin}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
                 >
                   {t('landing.access')}
                 </button>
@@ -203,9 +203,9 @@ export const CommercialLanding: React.FC = () => {
                     const el = document.getElementById('pricing');
                     el?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-gray-50 text-gray-600 text-lg font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-gray-50 text-gray-600 text-lg font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 w-full sm:w-auto"
                 >
-                  Ver Precios
+                  {t('landing.view_pricing') || 'View Pricing'}
                 </button>
               </div>
 
@@ -318,7 +318,7 @@ export const CommercialLanding: React.FC = () => {
                     className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    {t('landing.footer_company') || (window as any).__ENV__.COMPANY_URL}
+                    {(window as any).__ENV__.COMPANY_NAME || (window as any).__ENV__.COMPANY_URL}
                   </a>
                 )}
                 {(window as any).__ENV__?.SUPPORT_EMAIL && (
@@ -327,7 +327,7 @@ export const CommercialLanding: React.FC = () => {
                     className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
                   >
                     <Mail className="h-4 w-4 mr-2" />
-                    {t('landing.footer_contact') || (window as any).__ENV__.SUPPORT_EMAIL}
+                    {(window as any).__ENV__.SUPPORT_EMAIL}
                   </a>
                 )}
               </div>

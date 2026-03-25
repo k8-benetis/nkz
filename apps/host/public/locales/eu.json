@@ -229,7 +229,9 @@
     "description": "Nekazarientzako IoT plataformarik berriena",
     "subdescription": "Kudeatu zure nekazaritza eragiketak, sentsoreak, robotak eta datuak enpresaren segurtasun mailarekin eta FIWARE-k indartutako multi-tenant arkitekturarekin",
     "cta": "Hasi",
-    "try_free": "Probatu 30 egunez doan",
+    "try_free": "Probatu doan",
+    "view_pricing": "Prezioak Ikusi",
+    "partners_title": "Konfiantza dute",
     "access": "Sartu",
     "register_with_code": "Erregistroa Kodearekin",
     "trust_enterprise_security": "Enpresaren Segurtasuna",
@@ -276,8 +278,32 @@
     "footer_description": "Enpresaren mailako nekazaritza IoT plataforma FIWARE-k indartuta",
     "access": "Acceder",
     "register_with_code": "Registro con Código",
-    "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud"
+    "pricing": {
+      "title": "Zure lurrera egokitutako planak",
+      "subtitle": "Hasi doan eta hobetu behar duzunean.",
+      "popular": "Ezagunena",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/hil",
+        "desc": "Agronomo profesionalentzat eta tamaina ertaineko baserrientzat.",
+        "feat1": "45 eguneko proba doakoa",
+        "feat2": "500 hektarea eta 5 erabiltzaile arte",
+        "feat3": "Modulu guztiak barne",
+        "feat4": "Lehentasunezko laguntza",
+        "cta": "Proba Doakoa Hasi"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Neurri",
+        "desc": "Kooperatiba, latifundio handi eta erakundeentzat.",
+        "feat1": "Hektarea eta erabiltzaile mugagabeak",
+        "feat2": "Modulu guztiak barne (AI, Lidar, etab.)",
+        "feat3": "Tenant isolamendu dedikatua",
+        "feat4": "SLA eta kontu kudeatzailea",
+        "cta": "Salmentekin Harremanetan Jarri"
+      }
+    }
   },
   "activation": {
     "account_details": "Detalles de tu Cuenta",

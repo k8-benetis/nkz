@@ -219,7 +219,9 @@
     "description": "Plataforma IoT de nova generació per a agricultura intel·ligent",
     "subdescription": "Gestiona les teves operacions agrícoles, sensors, robots i dades amb seguretat empresarial i arquitectura multi-tenant impulsada per FIWARE",
     "cta": "Començar",
-    "try_free": "Prova 30 dies gratis",
+    "try_free": "Prova gratis",
+    "view_pricing": "Veure Preus",
+    "partners_title": "Confien en Nekazari",
     "access": "Accedir",
     "register_with_code": "Registre amb Codi",
     "trust_enterprise_security": "Seguretat Empresarial",
@@ -266,8 +268,32 @@
     "footer_description": "Plataforma IoT agrícola de grau empresarial impulsada per FIWARE",
     "access": "Acceder",
     "register_with_code": "Registro con Código",
-    "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud"
+    "pricing": {
+      "title": "Plans adaptats al teu terreny",
+      "subtitle": "Comença gratis i millora quan ho necessitis.",
+      "popular": "Més Popular",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mes",
+        "desc": "Per a agrònoms professionals i finques mitjanes.",
+        "feat1": "Prova gratuïta de 45 dies",
+        "feat2": "Fins a 500 hectàrees i 5 usuaris",
+        "feat3": "Tots els mòduls inclosos",
+        "feat4": "Suport prioritari",
+        "cta": "Començar Prova Gratis"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "A mida",
+        "desc": "Per a cooperatives, grans explotacions i institucions.",
+        "feat1": "Hectàrees i usuaris il·limitats",
+        "feat2": "Tots els mòduls inclosos (IA, Lidar, etc.)",
+        "feat3": "Aïllament de tenant dedicat",
+        "feat4": "SLA i gestor de compte",
+        "cta": "Contactar Vendes"
+      }
+    }
   },
   "activation": {
     "account_details": "Detalles de tu Cuenta",

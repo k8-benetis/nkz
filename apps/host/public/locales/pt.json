@@ -219,7 +219,9 @@
     "description": "Plataforma IoT de nova geração para agricultura inteligente",
     "subdescription": "Gerencie as suas operações agrícolas, sensores, robots e dados com segurança empresarial e arquitetura multi-tenant alimentada por FIWARE",
     "cta": "Começar",
-    "try_free": "Experimente grátis por 30 dias",
+    "try_free": "Experimente grátis",
+    "view_pricing": "Ver Preços",
+    "partners_title": "Confiam no Nekazari",
     "access": "Aceder",
     "register_with_code": "Registo com Código",
     "trust_enterprise_security": "Segurança Empresarial",
@@ -266,8 +268,32 @@
     "footer_description": "Plataforma IoT agrícola de nível empresarial alimentada por FIWARE",
     "access": "Acceder",
     "register_with_code": "Registro con Código",
-    "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud"
+    "pricing": {
+      "title": "Planos adaptados ao seu terreno",
+      "subtitle": "Comece grátis e evolua quando precisar.",
+      "popular": "Mais Popular",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mês",
+        "desc": "Para agrônomos profissionais e fazendas médias.",
+        "feat1": "Teste gratuito de 45 dias",
+        "feat2": "Até 500 hectares e 5 utilizadores",
+        "feat3": "Todos os módulos incluídos",
+        "feat4": "Suporte prioritário",
+        "cta": "Começar Teste Grátis"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Sob medida",
+        "desc": "Para cooperativas, grandes propriedades e instituições.",
+        "feat1": "Hectares e utilizadores ilimitados",
+        "feat2": "Todos os módulos incluídos (IA, Lidar, etc.)",
+        "feat3": "Isolamento de tenant dedicado",
+        "feat4": "SLA e gestor de conta",
+        "cta": "Contactar Vendas"
+      }
+    }
   },
   "activation": {
     "account_details": "Detalles de tu Cuenta",

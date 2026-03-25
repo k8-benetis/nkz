@@ -217,7 +217,9 @@
     "description": "Plataforma IoT de nueva generación para agricultura inteligente",
     "subdescription": "Gestiona tus operaciones agrícolas, sensores, robots y datos con seguridad empresarial y arquitectura multi-tenant potenciada por FIWARE",
     "cta": "Empezar",
-    "try_free": "Probar 30 días gratis",
+    "try_free": "Probar gratis",
+    "view_pricing": "Ver Precios",
+    "partners_title": "Confían en Nekazari",
     "access": "Acceder",
     "register_with_code": "Registro con Código",
     "trust_enterprise_security": "Seguridad Empresarial",
@@ -260,10 +262,34 @@
     "footer_auth": "Autenticación Keycloak",
     "footer_rbac": "Acceso Basado en Roles",
     "footer_isolation": "Aislamiento Multi-Tenant",
-    "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud",
-    "footer_copyright": "© 2025 NKZ. Todos los derechos reservados.",
-    "footer_description": "Plataforma IoT agrícola de grado empresarial potenciada por FIWARE"
+    "footer_copyright": "© 2025 NKZ. All rights reserved.",
+    "footer_description": "Plataforma IoT agrícola de grado empresarial potenciada por FIWARE",
+    "pricing": {
+      "title": "Planes adaptados a tu terreno",
+      "subtitle": "Comienza gratis y mejora cuando lo necesites.",
+      "popular": "Más Popular",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mes",
+        "desc": "Ideal para agrónomos profesionales y fincas medianas.",
+        "feat1": "Prueba gratuita de 45 días",
+        "feat2": "Hasta 500 hectáreas y 5 usuarios",
+        "feat3": "Todos los módulos incluidos",
+        "feat4": "Soporte prioritario",
+        "cta": "Comenzar Prueba Gratis"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "A medida",
+        "desc": "Para cooperativas, grandes latifundios e instituciones.",
+        "feat1": "Hectáreas y usuarios ilimitados",
+        "feat2": "Todos los módulos incluidos (IA, Lidar, etc.)",
+        "feat3": "Aislamiento de tenant dedicado",
+        "feat4": "SLA y gestor de cuenta",
+        "cta": "Contactar Ventas"
+      }
+    }
   },
   "settings": {
     "title": "Configuración",

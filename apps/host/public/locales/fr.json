@@ -219,7 +219,9 @@
     "description": "Plateforme IoT de nouvelle génération pour l'agriculture intelligente",
     "subdescription": "Gérez vos opérations agricoles, capteurs, robots et données avec une sécurité de niveau entreprise et une architecture multi-tenant alimentée par FIWARE",
     "cta": "Commencer",
-    "try_free": "Essayez 30 jours gratuitement",
+    "try_free": "Essayez gratuitement",
+    "view_pricing": "Voir les prix",
+    "partners_title": "Ils nous font confiance",
     "access": "Accéder",
     "register_with_code": "Inscription avec Code",
     "trust_enterprise_security": "Sécurité Entreprise",
@@ -266,8 +268,32 @@
     "footer_description": "Plateforme IoT agricole de niveau entreprise alimentée par FIWARE",
     "access": "Acceder",
     "register_with_code": "Registro con Código",
-    "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud"
+    "pricing": {
+      "title": "Des plans adaptés à votre terrain",
+      "subtitle": "Commencez gratuitement et évoluez selon vos besoins.",
+      "popular": "Le Plus Populaire",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mois",
+        "desc": "Pour les agronomes professionnels et les exploitations moyennes.",
+        "feat1": "Essai gratuit de 45 jours",
+        "feat2": "Jusqu'à 500 hectares et 5 utilisateurs",
+        "feat3": "Tous les modules inclus",
+        "feat4": "Support prioritaire",
+        "cta": "Commencer l'essai gratuit"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Sur mesure",
+        "desc": "Pour les coopératives, grands domaines et institutions.",
+        "feat1": "Hectares et utilisateurs illimités",
+        "feat2": "Tous les modules inclus (IA, Lidar, etc.)",
+        "feat3": "Isolation tenant dédiée",
+        "feat4": "SLA et gestionnaire de compte",
+        "cta": "Contacter les ventes"
+      }
+    }
   },
   "activation": {
     "account_details": "Detalles de tu Cuenta",

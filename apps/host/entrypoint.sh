@@ -16,12 +16,21 @@ VITE_ENABLE_WEATHER="${VITE_ENABLE_WEATHER:-true}"
 VITE_ENABLE_RISK="${VITE_ENABLE_RISK:-true}"
 VITE_MODULES_CDN_URL="${VITE_MODULES_CDN_URL:-/modules}"
 
+# Commercial landing env vars (optional — only needed when landing_mode=commercial)
+COMPANY_URL="${COMPANY_URL:-}"
+COMPANY_NAME="${COMPANY_NAME:-}"
+SUPPORT_EMAIL="${SUPPORT_EMAIL:-}"
+SALES_EMAIL="${SALES_EMAIL:-}"
+PARTNERS_JSON="${PARTNERS_JSON:-}"
+# Escape double-quotes inside PARTNERS_JSON so it survives HTML injection as a JS string
+PARTNERS_JSON_ESCAPED=$(printf '%s' "${PARTNERS_JSON}" | sed 's/"/\\"/g')
+
 CESIUM_SCRIPT=""
 if [ -d "${NGINX_HTML_DIR}/cesium" ]; then
     CESIUM_SCRIPT="<script src=\"/cesium/Cesium.js\"></script>"
 fi
 
-ENV_SCRIPT="<script id=\"runtime-config\">window.__ENV__ = { VITE_API_URL: \"${VITE_API_URL}\", VITE_KEYCLOAK_URL: \"${VITE_KEYCLOAK_URL}\", VITE_KEYCLOAK_REALM: \"${VITE_KEYCLOAK_REALM}\", VITE_KEYCLOAK_CLIENT_ID: \"${VITE_KEYCLOAK_CLIENT_ID}\", VITE_CESIUM_TOKEN: \"${VITE_CESIUM_TOKEN}\", VITE_ENABLE_NDVI: ${VITE_ENABLE_NDVI}, VITE_ENABLE_WEATHER: ${VITE_ENABLE_WEATHER}, VITE_ENABLE_RISK: ${VITE_ENABLE_RISK}, VITE_MODULES_CDN_URL: \"${VITE_MODULES_CDN_URL}\" }; console.log('[Nekazari] Runtime config injected');</script>"
+ENV_SCRIPT="<script id=\"runtime-config\">window.__ENV__ = { VITE_API_URL: \"${VITE_API_URL}\", VITE_KEYCLOAK_URL: \"${VITE_KEYCLOAK_URL}\", VITE_KEYCLOAK_REALM: \"${VITE_KEYCLOAK_REALM}\", VITE_KEYCLOAK_CLIENT_ID: \"${VITE_KEYCLOAK_CLIENT_ID}\", VITE_CESIUM_TOKEN: \"${VITE_CESIUM_TOKEN}\", VITE_ENABLE_NDVI: ${VITE_ENABLE_NDVI}, VITE_ENABLE_WEATHER: ${VITE_ENABLE_WEATHER}, VITE_ENABLE_RISK: ${VITE_ENABLE_RISK}, VITE_MODULES_CDN_URL: \"${VITE_MODULES_CDN_URL}\", COMPANY_URL: \"${COMPANY_URL}\", COMPANY_NAME: \"${COMPANY_NAME}\", SUPPORT_EMAIL: \"${SUPPORT_EMAIL}\", SALES_EMAIL: \"${SALES_EMAIL}\", PARTNERS_JSON: \"${PARTNERS_JSON_ESCAPED}\" }; console.log('[Nekazari] Runtime config injected');</script>"
 
 if [ -f "${INDEX_HTML}" ]; then
     sed -i '/<script id="runtime-config">/,/<\/script>/d' "${INDEX_HTML}"

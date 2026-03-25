@@ -361,7 +361,9 @@
     "description": "Next-generation IoT platform for smart agriculture",
     "subdescription": "Manage your farm operations, sensors, robots, and data with enterprise-grade security and multi-tenant architecture powered by FIWARE",
     "cta": "Get Started",
-    "try_free": "Try 30 days for free",
+    "try_free": "Try for free",
+    "view_pricing": "View Pricing",
+    "partners_title": "Trusted by",
     "access": "Log In",
     "register_with_code": "Register with Code",
     "trust_enterprise_security": "Enterprise Security",
@@ -404,10 +406,34 @@
     "footer_auth": "Keycloak Authentication",
     "footer_rbac": "Role-Based Access",
     "footer_isolation": "Multi-Tenant Isolation",
-    "footer_company": "Robotika.cloud",
-    "footer_contact": "kate@robotika.cloud",
     "footer_copyright": "© 2025 NKZ. All rights reserved.",
-    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE"
+    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE",
+    "pricing": {
+      "title": "Plans tailored to your land",
+      "subtitle": "Start for free and upgrade when you need to.",
+      "popular": "Most Popular",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mo",
+        "desc": "For professional agronomists and mid-size farms.",
+        "feat1": "45-day free trial",
+        "feat2": "Up to 500 hectares and 5 users",
+        "feat3": "All modules included",
+        "feat4": "Priority support",
+        "cta": "Start Free Trial"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Custom",
+        "desc": "For cooperatives, large estates and institutions.",
+        "feat1": "Unlimited hectares and users",
+        "feat2": "All modules included (AI, Lidar, etc.)",
+        "feat3": "Dedicated tenant isolation",
+        "feat4": "SLA and account manager",
+        "cta": "Contact Sales"
+      }
+    }
   },
   "machines": {
     "title": "Register Agricultural Machinery",
