@@ -36,7 +36,11 @@ data:
   KEYCLOAK_PUBLIC_URL: "https://auth.robotika.cloud/auth"
   KEYCLOAK_HOSTNAME: "auth.robotika.cloud"  # Keycloak hostname (without protocol)
   CONTEXT_URL: "http://api-gateway-service:5000/ngsi-ld-context.json"
-  
+
+  # MQTT external endpoint (shown to users/devices connecting from outside the cluster)
+  MQTT_EXTERNAL_HOST: "109.123.252.120"
+  MQTT_EXTERNAL_PORT: "31883"
+
   # Frontend configuration
   REACT_APP_API_BASE_URL: "https://nekazari.robotika.cloud"
   REACT_APP_KEYCLOAK_URL: "https://nekazari.robotika.cloud"

@@ -82,24 +82,22 @@ def get_mongodb_connection():
         return None
 
 
-def generate_iot_api_key(tenant_id: str, device_id: str) -> str:
-    """Generate a unique API key for IoT device authentication"""
-    # Create a unique key: nkz_iot_<random>
-    random_part = secrets.token_hex(16)
-    return f"nkz_iot_{random_part}"
+def _generate_tenant_apikey() -> str:
+    """Generate a random API key for a tenant service group."""
+    return f"nkz_iot_{secrets.token_hex(16)}"
 
 
-def ensure_service_group(tenant_id: str, api_key: str) -> bool:
+def get_or_create_service_group(tenant_id: str) -> str | None:
     """
-    Ensure a FIWARE IoT Agent service group exists for the given tenant.
+    Get or create the FIWARE IoT Agent service group for a tenant.
 
-    In multi-tenant mode (IOTA_MULTI_TENANT=true), the IoT Agent requires
-    at least one service group per Fiware-Service before devices can be
-    registered. This follows the standard FIWARE IoT Agent provisioning flow:
-      1. Create service group (POST /iot/services)
-      2. Register device   (POST /iot/devices)
+    FIWARE standard provisioning flow (IoT Agent multi-tenant mode):
+      1. One service group per tenant — the apikey identifies the tenant
+         in MQTT topics: /<tenant_apikey>/<device_id>/attrs
+      2. All devices within the tenant share this apikey
+      3. The device_id differentiates individual devices
 
-    Returns True if the group exists or was created successfully.
+    Returns the tenant's apikey on success, None on failure.
     """
     headers = {
         'Content-Type': 'application/json',
@@ -108,7 +106,7 @@ def ensure_service_group(tenant_id: str, api_key: str) -> bool:
     }
 
     try:
-        # Check if any service group already exists for this tenant
+        # Check if a service group already exists for this tenant
         resp = requests.get(
             f'{IOT_AGENT_URL}/iot/services',
             headers=headers,
@@ -117,16 +115,17 @@ def ensure_service_group(tenant_id: str, api_key: str) -> bool:
         if resp.status_code == 200:
             data = resp.json()
             services = data.get('services', [])
-            if len(services) > 0:
-                logger.debug(f"Service group already exists for tenant '{tenant_id}' ({len(services)} groups)")
-                return True
+            if services:
+                existing_apikey = services[0].get('apikey')
+                logger.debug(f"Service group exists for tenant '{tenant_id}', apikey={existing_apikey[:20]}...")
+                return existing_apikey
 
-        # Create a default service group for this tenant
-        # resource + apikey define the MQTT topic prefix the IoT Agent listens on
+        # Create a new service group with a tenant-level apikey
+        tenant_apikey = _generate_tenant_apikey()
         service_group = {
             'services': [{
                 'resource': '/iot/json',
-                'apikey': api_key,
+                'apikey': tenant_apikey,
                 'cbroker': ORION_URL,
                 'entity_type': 'Device',
                 'attributes': [],
@@ -144,20 +143,25 @@ def ensure_service_group(tenant_id: str, api_key: str) -> bool:
         )
 
         if resp.status_code in [200, 201]:
-            logger.info(f"Created service group for tenant '{tenant_id}'")
-            return True
+            logger.info(f"Created service group for tenant '{tenant_id}' with apikey={tenant_apikey[:20]}...")
+            return tenant_apikey
         elif resp.status_code == 409:
-            # Already exists (race condition) — fine
-            logger.debug(f"Service group for tenant '{tenant_id}' already exists (409)")
-            return True
+            # Race condition: another request created it first — retrieve it
+            resp2 = requests.get(f'{IOT_AGENT_URL}/iot/services', headers=headers, timeout=5)
+            if resp2.status_code == 200:
+                services = resp2.json().get('services', [])
+                if services:
+                    return services[0].get('apikey')
+            logger.warning(f"Service group 409 but cannot retrieve for tenant '{tenant_id}'")
+            return None
         else:
             logger.error(f"Failed to create service group for tenant '{tenant_id}': "
                          f"{resp.status_code} - {resp.text[:200]}")
-            return False
+            return None
 
     except Exception as e:
-        logger.error(f"Error ensuring service group for tenant '{tenant_id}': {e}")
-        return False
+        logger.error(f"Error in get_or_create_service_group for tenant '{tenant_id}': {e}")
+        return None
 
 
 def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
@@ -180,15 +184,15 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
     }
 
     try:
-        # Generate unique API key for this device
         # Extract device_id from entity_id (e.g., urn:ngsi-ld:AgriSensor:sensor001 -> sensor001)
         device_id = entity_id.split(':')[-1] if ':' in entity_id else entity_id
-        api_key = generate_iot_api_key(tenant_id, device_id)
 
-        # FIWARE standard: ensure a service group exists for the tenant
-        # before registering any device (required in multi-tenant mode)
-        if not ensure_service_group(tenant_id, api_key):
-            result['error'] = "Failed to create IoT Agent service group for tenant"
+        # FIWARE standard: one apikey per tenant (service group).
+        # The apikey identifies the tenant in MQTT topics: /<apikey>/<device_id>/attrs
+        # The device_id differentiates individual devices within the tenant.
+        api_key = get_or_create_service_group(tenant_id)
+        if not api_key:
+            result['error'] = "Failed to get/create IoT Agent service group for tenant"
             return result
 
         # Build IoT Agent device configuration

@@ -49,11 +49,11 @@ data:
     };
     
     config.mqtt = {
-      host: process.env.MQTT_HOST || 'mosquitto-service',
-      port: process.env.MQTT_PORT || '1883',
+      host: process.env.IOTA_MQTT_HOST || process.env.MQTT_HOST || 'mosquitto-service',
+      port: parseInt(process.env.IOTA_MQTT_PORT || process.env.MQTT_PORT || '1883'),
       protocol: 'mqtt',
-      username: process.env.MQTT_USERNAME || '',
-      password: process.env.MQTT_PASSWORD || '',
+      username: process.env.IOTA_MQTT_USERNAME || process.env.MQTT_USERNAME || '',
+      password: process.env.IOTA_MQTT_PASSWORD || process.env.MQTT_PASSWORD || '',
       // Topics pattern: tenant/{tenant_id}/{device_id}/data
       topics: {
         data: '+/+/data',
@@ -129,13 +129,26 @@ spec:
             secretKeyRef:
               name: mosquitto-credentials
               key: iot-agent-username
-              optional: true
         - name: MQTT_PASSWORD
           valueFrom:
             secretKeyRef:
               name: mosquitto-credentials
               key: iot-agent-password
-              optional: true
+        # IOTA_MQTT_* vars: used by IoT Agent FIWARE internally (takes precedence)
+        - name: IOTA_MQTT_HOST
+          value: "mosquitto-service"
+        - name: IOTA_MQTT_PORT
+          value: "1883"
+        - name: IOTA_MQTT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: iot-agent-username
+        - name: IOTA_MQTT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mosquitto-credentials
+              key: iot-agent-password
         - name: LOG_LEVEL
           value: "INFO"
         - name: IOTA_MULTI_TENANT
@@ -156,7 +169,22 @@ spec:
           valueFrom:
             secretKeyRef:
               name: sdm-secrets
-              key: mongodb-password # Reusing the secret if possible or I need to check where mongo password is stored. Earlier I saw MONGODB_URL used admin:<password>. I should probably create a shared mongo secret or use existing. The user said "Rotar ya: MongoDB admin password". Ideally I should use a secret for this.
+              key: mongodb-password
+        - name: IOTA_CB_HOST
+          value: "orion-ld-service"
+        - name: IOTA_CB_PORT
+          value: "1026"
+        # NGSIv2 mode (Orion-LD supports both v2 and LD APIs)
+        # v2 mode is more stable with IoT Agent 1.25.0 for attribute updates
+        - name: IOTA_CB_NGSI_VERSION
+          value: "v2"
+        # Append mode: auto-create attributes that don't yet exist on the entity
+        # Without this, updates for new attributes fail with "entity does not have such attribute"
+        - name: IOTA_APPEND_MODE
+          value: "true"
+        # Explicit attrs false: accept any attribute from devices, not just declared ones
+        - name: IOTA_EXPLICIT_ATTRS
+          value: "false"
         volumeMounts:
         - name: config
           mountPath: /opt/iotagent-json/conf

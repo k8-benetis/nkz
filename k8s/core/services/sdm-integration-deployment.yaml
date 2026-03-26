@@ -71,6 +71,26 @@ spec:
               value: "false"
             - name: REQUIRE_HMAC_SIGNATURE
               value: "false"
+            # IoT Agent provisioning
+            - name: IOT_AGENT_URL
+              value: "http://iot-agent-json-service:4041"
+            - name: MQTT_HOST
+              value: "mosquitto-service"
+            # External MQTT endpoint shown to users in credentials modal
+            # Must resolve from external networks (devices connecting to the platform)
+            - name: MQTT_EXTERNAL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: MQTT_EXTERNAL_HOST
+            - name: MQTT_EXTERNAL_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: MQTT_EXTERNAL_PORT
+            # NGSI-LD context URL (cluster-internal)
+            - name: CONTEXT_URL
+              value: "http://api-gateway-service:5000/ngsi-ld-context.json"
           resources:
             requests:
               memory: "128Mi"
