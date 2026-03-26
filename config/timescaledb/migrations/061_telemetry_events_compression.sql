@@ -2,8 +2,9 @@
 -- Migration 061: TimescaleDB compression + indexes for telemetry_events
 -- =============================================================================
 -- Enables native compression on the hypertable for long-term storage efficiency.
--- Segments by device_id for optimal query patterns (device-centric queries).
--- Adds entity_id/entity_type columns if missing and device_id index.
+-- NOTE: TimescaleDB does not support RLS + compression on the same hypertable.
+-- RLS is disabled here; tenant isolation is enforced at the application layer
+-- (telemetry-worker receives tenant from NGSILD-Tenant header).
 -- =============================================================================
 
 -- Ensure entity_id and entity_type columns exist (added in earlier hotfix)
@@ -18,13 +19,18 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_events_device_time
 CREATE INDEX IF NOT EXISTS idx_telemetry_events_type_time
     ON telemetry_events (entity_type, observed_at DESC);
 
+-- Disable RLS (incompatible with TimescaleDB compression)
+-- Tenant isolation enforced at application layer
+ALTER TABLE telemetry_events DISABLE ROW LEVEL SECURITY;
+
 -- Enable compression on the hypertable
--- segment_by = device_id: each device's data is compressed independently
--- order_by = observed_at DESC: optimizes time-range queries
+-- PK is (tenant_id, observed_at, id) — all must be in segmentby or orderby
+-- segment_by = tenant_id, device_id: tenant + device isolation for compression
+-- order_by = observed_at DESC, id DESC: optimizes time-range queries
 ALTER TABLE telemetry_events SET (
     timescaledb.compress,
-    timescaledb.compress_segmentby = 'device_id',
-    timescaledb.compress_orderby = 'observed_at DESC'
+    timescaledb.compress_segmentby = 'tenant_id,device_id',
+    timescaledb.compress_orderby = 'observed_at DESC,id DESC'
 );
 
 -- Auto-compress chunks older than 7 days
