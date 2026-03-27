@@ -5,6 +5,17 @@
 
 export type TerrainProviderType = 'idena' | 'ign' | 'auto';
 
+type PointCoordinates = [number, number];
+type PolygonCoordinates = number[][] | number[][][];
+type GeometryLike = {
+  type?: 'Point' | 'Polygon' | string;
+  coordinates?: PointCoordinates | PolygonCoordinates;
+  value?: {
+    type?: 'Point' | 'Polygon' | string;
+    coordinates?: PointCoordinates | PolygonCoordinates;
+  };
+};
+
 // Terrain provider URLs
 export const TERRAIN_PROVIDERS = {
   idena: 'https://idena.navarra.es/cesiumTerrain/2017/epsg4326/5m/layer.json',
@@ -53,7 +64,7 @@ export function detectTerrainProvider(
  * @returns Detected terrain provider
  */
 export function detectTerrainProviderFromParcels(
-  parcels: Array<{ geometry?: { coordinates?: number[][][] } | any }>,
+  parcels: Array<{ geometry?: GeometryLike }>,
   cameraPosition?: [number, number]
 ): 'idena' | 'ign' {
   // If camera position provided, use it
@@ -67,12 +78,26 @@ export function detectTerrainProviderFromParcels(
       // Handle both Parcel type (with geometry.value) and simple geometry objects
       const geometry = parcel.geometry?.value || parcel.geometry;
       
-      if (geometry?.coordinates?.[0]) {
-        // Get first coordinate (centroid approximation)
-        const coords = geometry.coordinates[0];
-        if (coords.length > 0) {
-          const [lon, lat] = coords[0];
+      if (!geometry?.coordinates) {
+        continue;
+      }
+
+      // Point geometry: [lon, lat]
+      if (geometry.type === 'Point' && Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
+        const [lon, lat] = geometry.coordinates as PointCoordinates;
+        if (typeof lon === 'number' && typeof lat === 'number') {
           return detectTerrainProvider(lon, lat);
+        }
+      }
+
+      // Polygon geometry: first coordinate of first ring
+      if (Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0) {
+        const first = geometry.coordinates[0] as unknown;
+        if (Array.isArray(first) && first.length > 0 && Array.isArray(first[0])) {
+          const [lon, lat] = first[0] as [number, number];
+          if (typeof lon === 'number' && typeof lat === 'number') {
+            return detectTerrainProvider(lon, lat);
+          }
         }
       }
     }

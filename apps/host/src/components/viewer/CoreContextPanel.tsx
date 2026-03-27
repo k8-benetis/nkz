@@ -139,7 +139,11 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
                                 <span className="text-xs text-slate-500 uppercase font-semibold">{attr.label}</span>
                                 <div className="flex justify-between items-baseline">
                                     <span className="text-sm font-medium text-slate-800">
-                                        {String(attr.value)} {attr.unit ? <span className="text-slate-500 text-xs ml-1">{attr.unit}</span> : ''}
+                                        {typeof attr.value === 'object' && attr.value !== null
+                                            ? (attr.value.type === 'Point' && attr.value.coordinates
+                                                ? `${attr.value.coordinates[1]?.toFixed(6)}, ${attr.value.coordinates[0]?.toFixed(6)}`
+                                                : JSON.stringify(attr.value).substring(0, 60))
+                                            : String(attr.value)} {attr.unit ? <span className="text-slate-500 text-xs ml-1">{attr.unit}</span> : ''}
                                     </span>
                                     {attr.observedAt && (
                                         <span className="text-[10px] text-slate-400">
@@ -371,6 +375,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                                 entityId={selectedEntityId}
                                 entityType={selectedEntityType}
                                 entityName={entityData?.name}
+                                entityData={entityData}
                             />
                         </div>
                     </div>
@@ -486,12 +491,14 @@ interface EntityTelemetrySectionProps {
     entityId: string | null;
     entityType: string | null;
     entityName?: any;
+    entityData?: any;
 }
 
 const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
     entityId,
     entityType: _entityType,
     entityName: _entityName,
+    entityData,
 }) => {
     const {
         latestTelemetry,
@@ -513,11 +520,43 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
         return null;
     }
 
-    const temperature = getMeasurementValue('temperature') || getMeasurementValue('airTemperature');
-    const humidity = getMeasurementValue('humidity') || getMeasurementValue('relativeHumidity');
-    const moisture = getMeasurementValue('moisture') || getMeasurementValue('soilMoisture');
-    const battery = getMeasurementValue('batteryLevel') || getMeasurementValue('battery');
-    const pressure = getMeasurementValue('pressure') || getMeasurementValue('atmosphericPressure');
+    // Helper to extract numeric value from NGSI-LD entity attribute
+    const getEntityAttrValue = (key: string): number | null => {
+        if (!entityData) return null;
+        const attr = entityData[key];
+        if (!attr) return null;
+        if (typeof attr === 'number') return attr;
+        if (typeof attr?.value === 'number') return attr.value;
+        return null;
+    };
+
+    // Try telemetry API first, fall back to NGSI-LD entity data
+    const temperature = getMeasurementValue('temperature') || getMeasurementValue('airTemperature')
+        || getEntityAttrValue('airTemperature') || getEntityAttrValue('temperature');
+    const humidity = getMeasurementValue('humidity') || getMeasurementValue('relativeHumidity')
+        || getEntityAttrValue('relativeHumidity') || getEntityAttrValue('humidity');
+    const moisture = getMeasurementValue('moisture') || getMeasurementValue('soilMoisture')
+        || getEntityAttrValue('soilMoisture') || getEntityAttrValue('moisture');
+    const battery = getMeasurementValue('batteryLevel') || getMeasurementValue('battery')
+        || getEntityAttrValue('batteryLevel');
+    const pressure = getMeasurementValue('pressure') || getMeasurementValue('atmosphericPressure')
+        || getEntityAttrValue('atmosphericPressure') || getEntityAttrValue('pressure');
+
+    // Extract most recent observedAt from NGSI-LD entity attributes
+    const entityObservedAt = (() => {
+        if (!entityData) return null;
+        let latest: string | null = null;
+        for (const val of Object.values(entityData)) {
+            if (val && typeof val === 'object' && 'observedAt' in (val as any) && (val as any).observedAt) {
+                const ts = (val as any).observedAt;
+                if (!latest || ts > latest) latest = ts;
+            }
+        }
+        return latest;
+    })();
+
+    const hasEntityData = temperature !== null || humidity !== null || moisture !== null || battery !== null || pressure !== null;
+    const displayTimestamp = latestTelemetry?.observed_at || entityObservedAt;
 
     return (
         <div className="space-y-2">
@@ -527,10 +566,10 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     Telemetría en Tiempo Real
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                    {latestTelemetry && (
+                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                    {displayTimestamp && (
                         <span className="text-xs text-slate-500">
-                            {new Date(latestTelemetry.observed_at).toLocaleTimeString('es-ES', {
+                            {new Date(displayTimestamp).toLocaleTimeString('es-ES', {
                                 hour: '2-digit',
                                 minute: '2-digit',
                                 second: '2-digit'
@@ -552,21 +591,21 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                 </div>
             </div>
 
-            {isLoadingLatest && !latestTelemetry ? (
+            {isLoadingLatest && !latestTelemetry && !entityData ? (
                 <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
                     <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Cargando telemetría...
                     </div>
                 </div>
-            ) : telemetryError ? (
+            ) : telemetryError && !entityData ? (
                 <div className="border border-red-200 rounded-lg p-4 bg-red-50/50">
                     <div className="flex items-center gap-2 text-sm text-red-700">
                         <AlertCircle className="w-4 h-4" />
                         <span>{telemetryError}</span>
                     </div>
                 </div>
-            ) : latestTelemetry ? (
+            ) : latestTelemetry || (temperature !== null || humidity !== null || moisture !== null || battery !== null || pressure !== null) ? (
                 <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
                     <div className="grid grid-cols-2 gap-3">
                         {temperature !== null && (
@@ -632,13 +671,13 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                             )}
                     </div>
 
-                    {latestTelemetry.payload && Object.keys(latestTelemetry.payload).length > 0 && (
+                    {latestTelemetry?.payload && Object.keys(latestTelemetry.payload).length > 0 && (
                         <details className="mt-3 pt-3 border-t border-slate-200">
                             <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-900">
                                 Ver datos completos
                             </summary>
                             <pre className="mt-2 p-2 bg-slate-100 rounded text-xs overflow-auto max-h-32">
-                                {JSON.stringify(latestTelemetry.payload, null, 2)}
+                                {JSON.stringify(latestTelemetry?.payload, null, 2)}
                             </pre>
                         </details>
                     )}
@@ -662,12 +701,14 @@ interface TelemetryTabsSectionProps {
     entityId: string | null;
     entityType: string | null;
     entityName?: any;
+    entityData?: any;
 }
 
 const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
     entityId,
     entityType,
     entityName,
+    entityData,
 }) => {
     const [activeTab, setActiveTab] = useState<'realtime' | 'historical'>('realtime');
 
@@ -706,6 +747,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
                         entityId={entityId}
                         entityType={entityType}
                         entityName={entityName}
+                        entityData={entityData}
                     />
                 ) : (
                     <TimelineView

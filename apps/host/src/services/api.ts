@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
 // API Service - HTTP Client for Nekazari Backend
 // =============================================================================
@@ -114,7 +115,7 @@ async function retryRequest<T>(
       lastError = error;
       const err = error as { response?: { status?: number } };
 
-      if (err.response && err.response.status != null && err.response.status >= 400 && err.response.status < 500) {
+      if (err.response && err.response.status !== null && err.response.status !== undefined && err.response.status >= 400 && err.response.status < 500) {
         throw error;
       }
 
