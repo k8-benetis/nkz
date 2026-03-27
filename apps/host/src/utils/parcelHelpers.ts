@@ -5,6 +5,10 @@
 
 import type { Parcel, GeoPolygon } from '@/types';
 
+function hasValueProperty(field: unknown): field is { value: unknown } {
+    return typeof field === 'object' && field !== null && 'value' in field;
+}
+
 /**
  * Normalize any value to string (handles both NGSI-LD and plain formats)
  * This is for legacy compatibility with components using old NGSI-LD format
@@ -14,7 +18,7 @@ export function normalizeParcelValue(field: unknown): string {
     // If it's already a string, return it
     if (typeof field === 'string') return field;
     // If it's NGSI-LD format {type: 'Property', value: '...'}, extract value
-    if (field.value !== undefined) return String(field.value);
+    if (hasValueProperty(field) && field.value !== undefined) return String(field.value);
     // Fallback
     return '';
 }
@@ -27,7 +31,7 @@ export function normalizeNumberValue(field: unknown): number {
     // If it's already a number, return it
     if (typeof field === 'number') return field;
     // If it's NGSI-LD format {type: 'Property', value: 123}, extract value
-    if (field.value !== undefined) return Number(field.value) || 0;
+    if (hasValueProperty(field) && field.value !== undefined) return Number(field.value) || 0;
     // Fallback
     return 0;
 }
