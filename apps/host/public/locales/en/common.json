@@ -195,5 +195,32 @@
     "user_management_desc": "Create users with API-KEY and NEK-XXXX code",
     "user_management_message": "User management is handled through Keycloak Admin Panel.",
     "user_management_title": "User Management"
+  },
+  "search": "Search",
+  "actions": "Actions",
+  "online": "Online",
+  "warning": "Away",
+  "offline": "Offline",
+  "unknown": "Unknown",
+  "sensors": {
+    "title": "IoT Sensors",
+    "subtitle": "Connection status and device monitoring",
+    "online": "Online",
+    "intermittent": "Intermittent",
+    "offline": "Offline",
+    "no_signal": "No signal",
+    "new_sensor": "New Sensor",
+    "device": "Device",
+    "status": "Status",
+    "readings": "Readings",
+    "battery": "Battery",
+    "last_signal": "Last signal",
+    "devices": "devices",
+    "empty_title": "No sensors registered",
+    "empty_subtitle": "Use the wizard to register an IoT sensor. It will be automatically provisioned on the IoT Agent with MQTT credentials.",
+    "unnamed": "Unnamed",
+    "no_data": "No data",
+    "never": "Never",
+    "view_on_map": "View on map"
   }
 }

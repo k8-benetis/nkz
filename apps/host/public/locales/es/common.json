@@ -195,5 +195,32 @@
     "revoke_code": "Revocar código",
     "code_revoked": "Código revocado con éxito",
     "code_revoke_error": "Error al revocar código"
+  },
+  "search": "Buscar",
+  "actions": "Acciones",
+  "online": "En línea",
+  "warning": "Ausente",
+  "offline": "Desconectado",
+  "unknown": "Desconocido",
+  "sensors": {
+    "title": "Sensores IoT",
+    "subtitle": "Estado de conexión y monitorización de dispositivos",
+    "online": "En línea",
+    "intermittent": "Intermitente",
+    "offline": "Desconectado",
+    "no_signal": "Sin señal",
+    "new_sensor": "Nuevo Sensor",
+    "device": "Dispositivo",
+    "status": "Estado",
+    "readings": "Lecturas",
+    "battery": "Batería",
+    "last_signal": "Última señal",
+    "devices": "dispositivos",
+    "empty_title": "No hay sensores registrados",
+    "empty_subtitle": "Usa el asistente para registrar un sensor IoT. Se aprovisionará automáticamente en el IoT Agent con credenciales MQTT.",
+    "unnamed": "Sin nombre",
+    "no_data": "Sin datos",
+    "never": "Nunca",
+    "view_on_map": "Ver en mapa"
   }
 }

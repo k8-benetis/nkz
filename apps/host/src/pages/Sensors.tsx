@@ -124,12 +124,16 @@ export const Sensors: React.FC = () => {
 
   // Status calculation
   const getStatus = (sensor: SensorEntity) => {
-    // Check various timestamps to determine if active
-    let lastActivityStr = sensor.observedAt;
+    // NGSI-LD has observedAt per-attribute, NOT at entity root level.
+    // Iterate all attributes to find the most recent observedAt.
+    let lastActivityStr: string | undefined;
 
-    // Also check property specific observedAt (e.g. from battery or measurement)
-    if (!lastActivityStr && sensor.batteryLevel?.observedAt) {
-      lastActivityStr = sensor.batteryLevel.observedAt;
+    for (const val of Object.values(sensor)) {
+      if (val && typeof val === 'object' && 'observedAt' in val && val.observedAt) {
+        if (!lastActivityStr || val.observedAt > lastActivityStr) {
+          lastActivityStr = val.observedAt;
+        }
+      }
     }
 
     if (!lastActivityStr) return 'unknown';
@@ -386,7 +390,15 @@ export const Sensors: React.FC = () => {
                   .map((sensor) => {
                     const status = getStatus(sensor);
                     const battery = sensor.batteryLevel?.value;
-                    const lastSignalDate = sensor.observedAt || sensor.batteryLevel?.observedAt;
+                    // Find most recent observedAt from any NGSI-LD attribute
+                    let lastSignalDate: string | undefined;
+                    for (const val of Object.values(sensor)) {
+                      if (val && typeof val === 'object' && 'observedAt' in val && val.observedAt) {
+                        if (!lastSignalDate || val.observedAt > lastSignalDate) {
+                          lastSignalDate = val.observedAt;
+                        }
+                      }
+                    }
                     const dynamicAttrs = getDynamicAttrs(sensor);
 
                     return (
