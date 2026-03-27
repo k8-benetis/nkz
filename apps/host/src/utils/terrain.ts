@@ -53,7 +53,7 @@ export function detectTerrainProvider(
  * @returns Detected terrain provider
  */
 export function detectTerrainProviderFromParcels(
-  parcels: Array<{ geometry?: { coordinates?: number[][][] } | any }>,
+  parcels: Array<{ geometry?: { coordinates?: number[][][]; value?: { coordinates?: number[][][] } } }>,
   cameraPosition?: [number, number]
 ): 'idena' | 'ign' {
   // If camera position provided, use it

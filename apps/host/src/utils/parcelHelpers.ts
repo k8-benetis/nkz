@@ -9,7 +9,7 @@ import type { Parcel, GeoPolygon } from '@/types';
  * Normalize any value to string (handles both NGSI-LD and plain formats)
  * This is for legacy compatibility with components using old NGSI-LD format
  */
-export function normalizeParcelValue(field: any): string {
+export function normalizeParcelValue(field: unknown): string {
     if (!field) return '';
     // If it's already a string, return it
     if (typeof field === 'string') return field;
@@ -22,7 +22,7 @@ export function normalizeParcelValue(field: any): string {
 /**
  * Normalize number value (handles both NGSI-LD and plain formats)
  */
-export function normalizeNumberValue(field: any): number {
+export function normalizeNumberValue(field: unknown): number {
     if (!field) return 0;
     // If it's already a number, return it
     if (typeof field === 'number') return field;
