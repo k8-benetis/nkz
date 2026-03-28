@@ -27,7 +27,7 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.validate_pat_key_hash(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.validate_pat_key_hash(TEXT) TO timescale;
+GRANT EXECUTE ON FUNCTION public.validate_pat_key_hash(TEXT) TO nekazari;
 
 COMMENT ON FUNCTION public.validate_pat_key_hash(TEXT) IS
     'Returns tenant_id and validity for a PAT key hash; SECURITY DEFINER for PAT validation without RLS tenant context.';
