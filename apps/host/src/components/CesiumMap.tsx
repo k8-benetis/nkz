@@ -31,6 +31,9 @@ const RISK_SEVERITY_COLORS: Record<RiskOverlayInfo['severity'], string> = {
   low:      '#22c55e',
 };
 
+/** DOM event from DataHub uPlot cursor (must match DATAHUB_EVENT_TIME_HOVER in nkz-module-datahub). */
+const DATAHUB_EVENT_TIME_HOVER = 'nekazari:datahub:timeHover';
+
 // Import Cesium CSS
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 
@@ -434,6 +437,28 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     logger.debug('[CesiumMap] Component Mounted');
     return () => logger.debug('[CesiumMap] Component Unmounted');
   }, []);
+
+  // DataHub uPlot → Cesium clock (imperative; detail.timestamp is Unix ms)
+  useEffect(() => {
+    if (!isViewerReady || !viewerRef.current) return;
+    const viewer = viewerRef.current;
+    const Cesium = window.Cesium;
+    if (!Cesium) return;
+
+    const onDataHubTimeHover = (e: Event) => {
+      const ce = e as CustomEvent<{ timestamp?: number }>;
+      const ts = ce.detail?.timestamp;
+      if (typeof ts !== 'number' || !Number.isFinite(ts)) return;
+      if (viewer.isDestroyed?.()) return;
+      viewer.clock.shouldAnimate = false;
+      viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(ts));
+    };
+
+    window.addEventListener(DATAHUB_EVENT_TIME_HOVER, onDataHubTimeHover);
+    return () => {
+      window.removeEventListener(DATAHUB_EVENT_TIME_HOVER, onDataHubTimeHover);
+    };
+  }, [isViewerReady]);
 
   // Log to confirm refactor is active
   useEffect(() => {
