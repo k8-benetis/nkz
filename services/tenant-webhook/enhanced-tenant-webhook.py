@@ -6,6 +6,7 @@
 # with activation codes
 
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -18,6 +19,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
+from uuid import UUID
 from urllib.parse import quote, urlencode
 
 import psycopg2
@@ -301,6 +303,18 @@ def require_keycloak_auth(f):
             return jsonify({"error": str(e)}), 401
 
     return decorated_function
+
+
+def _verify_internal_pat_secret() -> bool:
+    """Layer-7 auth for POST /internal/validate-pat (ADR 003)."""
+    expected = (os.getenv("INTERNAL_PAT_VALIDATE_SECRET") or "").strip()
+    if not expected:
+        return False
+    got = (request.headers.get("X-Internal-Secret") or "").strip()
+    try:
+        return hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # Configuration from environment
@@ -2275,6 +2289,211 @@ def revoke_activation_code(code_id):
         audit_log(action='admin.activation_code.revoke', resource_type='activation_code',
                   resource_id=str(code_id), success=False, error=str(e))
         return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/internal/validate-pat", methods=["POST"])
+@limiter.exempt
+def internal_validate_pat():
+    """
+    Internal-only PAT validation (hash in JSON body). ADR 003.
+    """
+    if not _verify_internal_pat_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+    if not POSTGRES_URL:
+        return jsonify({"error": "Database not configured"}), 500
+    data = request.get_json(silent=True) or {}
+    token_hash = data.get("token_hash")
+    if (
+        not token_hash
+        or not isinstance(token_hash, str)
+        or len(token_hash) != 64
+        or not re.match(r"^[a-f0-9]{64}$", token_hash)
+    ):
+        return jsonify({"error": "Invalid token_hash"}), 400
+
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection error"}), 500
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT tenant_id, valid FROM validate_pat_key_hash(%s)",
+            (token_hash,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return jsonify({"valid": False}), 200
+        tid = row.get("tenant_id") if isinstance(row, dict) else row[0]
+        ok = row.get("valid") if isinstance(row, dict) else row[1]
+        if not ok:
+            return jsonify({"valid": False}), 200
+        return jsonify({"valid": True, "tenant_id": tid}), 200
+    except Exception as e:
+        logger.error("internal_validate_pat: %s", e)
+        if conn:
+            conn.close()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/tenant/api-keys", methods=["GET"])
+@require_keycloak_auth
+def list_tenant_personal_access_tokens():
+    """List PAT metadata for the JWT tenant (no raw secrets). ADR 003."""
+    tenant_id = g.tenant_id
+    if not tenant_id:
+        return jsonify({"error": "Tenant context required"}), 403
+    if not POSTGRES_URL:
+        return jsonify({"error": "Database not configured"}), 500
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection error"}), 500
+    try:
+        webhook_service._apply_tenant_context(conn, tenant_id)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, name, description, is_active, created_at, expires_at, created_by_sub
+            FROM api_keys
+            WHERE key_type = 'pat'
+            ORDER BY created_at DESC
+            """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        out = []
+        for row in rows:
+            out.append(
+                {
+                    "id": str(row["id"]),
+                    "name": row.get("name") or "",
+                    "description": row.get("description") or "",
+                    "is_active": bool(row.get("is_active")),
+                    "created_at": row["created_at"].isoformat()
+                    if row.get("created_at")
+                    else None,
+                    "expires_at": row["expires_at"].isoformat()
+                    if row.get("expires_at")
+                    else None,
+                    "created_by_sub": row.get("created_by_sub"),
+                }
+            )
+        return jsonify(out), 200
+    except Exception as e:
+        logger.error("list_tenant_personal_access_tokens: %s", e)
+        if conn:
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tenant/api-keys", methods=["POST"])
+@require_keycloak_auth
+def create_tenant_personal_access_token():
+    """Create PAT; raw token returned once. Tenant from JWT only. ADR 003."""
+    tenant_id = g.tenant_id
+    if not tenant_id:
+        return jsonify({"error": "Tenant context required"}), 403
+    if not POSTGRES_URL:
+        return jsonify({"error": "Database not configured"}), 500
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "Personal access token").strip()[:200]
+    description = (data.get("description") or "").strip()[:2000] or None
+    expires_at = None
+    if data.get("expires_at"):
+        try:
+            expires_at = datetime.fromisoformat(
+                str(data["expires_at"]).replace("Z", "+00:00")
+            )
+        except ValueError:
+            return jsonify({"error": "Invalid expires_at"}), 400
+
+    raw_token = f"nkz_pat_{secrets.token_urlsafe(32)}"
+    key_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    creator_sub = (g.current_user or {}).get("sub")
+
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection error"}), 500
+    try:
+        webhook_service._apply_tenant_context(conn, tenant_id)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO api_keys (
+                key_hash, name, description, tenant_id, key_type,
+                is_active, expires_at, created_by_sub
+            )
+            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s)
+            RETURNING id, created_at
+            """,
+            (key_hash, name, description, tenant_id, expires_at, creator_sub),
+        )
+        ins = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify(
+            {
+                "id": str(ins["id"]),
+                "token": raw_token,
+                "name": name,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+                "created_at": ins["created_at"].isoformat()
+                if ins.get("created_at")
+                else None,
+                "warning": "Save this token now. It cannot be shown again.",
+            }
+        ), 201
+    except Exception as e:
+        logger.error("create_tenant_personal_access_token: %s", e)
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tenant/api-keys/<key_id>", methods=["DELETE"])
+@require_keycloak_auth
+def revoke_tenant_personal_access_token(key_id: str):
+    """Deactivate a PAT for the JWT tenant. ADR 003."""
+    tenant_id = g.tenant_id
+    if not tenant_id:
+        return jsonify({"error": "Tenant context required"}), 403
+    try:
+        UUID(key_id)
+    except ValueError:
+        return jsonify({"error": "Invalid id"}), 400
+    if not POSTGRES_URL:
+        return jsonify({"error": "Database not configured"}), 500
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection error"}), 500
+    try:
+        webhook_service._apply_tenant_context(conn, tenant_id)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE api_keys SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s::uuid AND tenant_id = %s AND key_type = 'pat'
+            RETURNING id
+            """,
+            (key_id, tenant_id),
+        )
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        logger.error("revoke_tenant_personal_access_token: %s", e)
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/admin/api-keys", methods=["GET"])

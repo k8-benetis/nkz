@@ -49,6 +49,28 @@ except ImportError as e:
     logger.warning("Falling back to old JWT_SECRET validation")
     KEYCLOAK_AUTH_AVAILABLE = False
 
+    def get_request_token():
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            return auth_header.split(" ")[1]
+        return request.cookies.get("nkz_token")
+
+try:
+    from gateway_pat import (
+        is_pat_token,
+        obtain_gateway_service_jwt,
+        resolve_pat_tenant_id,
+    )
+except ImportError:
+    is_pat_token = lambda t: False  # noqa: E731
+
+    def obtain_gateway_service_jwt():
+        return None
+
+    def resolve_pat_tenant_id(raw, base):
+        return None
+
+
 app = Flask(__name__)
 # CORS: Handled by Traefik Middleware at infrastructure level
 
@@ -100,6 +122,25 @@ logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))
 
 # Rate limiting simple por tenant (ventana deslizante en memoria)
 tenant_requests = defaultdict(deque)
+
+
+@app.before_request
+def reject_pat_outside_timeseries():
+    """ADR 003: PAT (nkz_pat_) is valid only under /api/timeseries (QA case 3)."""
+    if request.method == "OPTIONS":
+        return None
+    p = request.path or ""
+    if p.startswith("/api/timeseries"):
+        return None
+    if p == "/health" or p.startswith("/health"):
+        return None
+    auth = request.headers.get("Authorization") or ""
+    if not auth.startswith("Bearer "):
+        return None
+    tok = auth[7:].strip()
+    if tok.startswith("nkz_pat_"):
+        return jsonify({"error": "PAT allowed only on /api/timeseries"}), 401
+    return None
 
 
 def rate_limit(tenant: str) -> bool:
@@ -239,16 +280,6 @@ def inject_fiware_headers(headers, tenant=None):
     headers["Accept"] = "application/ld+json"
 
     return headers
-
-
-def get_request_token():
-    """Extract JWT token from Authorization header or nkz_token cookie (fallback)"""
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.split(" ")[1]
-
-    # Check cookie for browser requests
-    return request.cookies.get("nkz_token")
 
 
 @app.route("/api/auth/session", methods=["POST", "OPTIONS"])
@@ -677,35 +708,59 @@ def get_device_latest_telemetry(device_id):
 @app.route("/api/timeseries/<path:path>", methods=["GET", "POST"])
 def timeseries_proxy(path):
     """Proxy to Timeseries Reader Service (GET for data/align, POST for export)."""
-    # Validate JWT token
     token = get_request_token()
     if not token:
         return jsonify({"error": "Missing or invalid authorization"}), 401
-    payload = validate_jwt_token(token)
-    if not payload:
-        return jsonify({"error": "Invalid or expired token"}), 401
 
-    # Extract tenant
-    tenant = extract_tenant_id(payload)
-    if not tenant:
-        return jsonify({"error": "Tenant not present in token"}), 401
+    # ADR 003: PAT only on this route; strip any client-supplied delegation header (do not forward).
+    if is_pat_token(token):
+        delegated_raw = resolve_pat_tenant_id(token, TENANT_WEBHOOK_URL)
+        if not delegated_raw:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        try:
+            from tenant_utils import normalize_tenant_id
 
-    # Prepare headers
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "NGSILD-Tenant": tenant,
-        "Fiware-Service": tenant,
-    }
-    if request.method == "POST" and request.is_json:
-        headers["Content-Type"] = "application/json"
+            tenant = normalize_tenant_id(delegated_raw)
+        except (ImportError, ValueError):
+            tenant = delegated_raw
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "NGSILD-Tenant": tenant,
+            "Fiware-Service": tenant,
+            "X-Tenant-ID": tenant,
+        }
+        if request.method == "POST" and request.is_json:
+            headers["Content-Type"] = "application/json"
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
 
-    # Role based access control (Read-Only fallback)
-    has_pro_expired = has_role("role_pro_expired", payload)
-    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-        logger.warning(
-            f"Blocked mutation request to {path} for user with role_pro_expired"
-        )
-        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "NGSILD-Tenant": tenant,
+            "Fiware-Service": tenant,
+            "X-Tenant-ID": tenant,
+        }
+        if request.method == "POST" and request.is_json:
+            headers["Content-Type"] = "application/json"
+
+        has_pro_expired = has_role("role_pro_expired", payload)
+        if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+            logger.warning(
+                f"Blocked mutation request to {path} for user with role_pro_expired"
+            )
+            return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
 
     # Forward request
     try:

@@ -147,6 +147,12 @@ spec:
               key: password
         - name: REDIS_URL
           value: "redis://:$(REDIS_PASSWORD)@redis-service:6379/0"
+        - name: INTERNAL_PAT_VALIDATE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: pat-internal-secret
+              key: secret
+              optional: true
         livenessProbe:
           httpGet:
             path: /health

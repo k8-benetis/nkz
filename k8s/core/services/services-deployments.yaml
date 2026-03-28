@@ -96,6 +96,31 @@ spec:
               value: http://entity-manager-service:5000
             - name: TENANT_USER_API_URL
               value: http://tenant-user-api-service:5000
+            # ADR 003 — PAT + Keycloak client credentials (optional until secrets exist)
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+                  optional: true
+            - name: GATEWAY_KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: api-gateway-keycloak-secret
+                  key: client-id
+                  optional: true
+            - name: GATEWAY_KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: api-gateway-keycloak-secret
+                  key: client-secret
+                  optional: true
+            - name: INTERNAL_PAT_VALIDATE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pat-internal-secret
+                  key: secret
+                  optional: true
           command: ["gunicorn"]
           args:
             [

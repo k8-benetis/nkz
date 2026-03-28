@@ -30,7 +30,16 @@ KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL')
 KEYCLOAK_HOSTNAME = os.getenv('KEYCLOAK_HOSTNAME')  # e.g., auth.robotika.cloud (without protocol)
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', 'nekazari-api-gateway')
-ALLOWED_AUDIENCES = {KEYCLOAK_CLIENT_ID, 'nekazari-frontend', 'account'}
+# Client-credentials tokens for api-gateway → downstream services (PAT delegation); see ADR 003.
+GATEWAY_KEYCLOAK_CLIENT_ID = os.getenv('GATEWAY_KEYCLOAK_CLIENT_ID', 'nkz-api-gateway')
+ALLOWED_AUDIENCES = {
+    KEYCLOAK_CLIENT_ID,
+    GATEWAY_KEYCLOAK_CLIENT_ID,
+    'nekazari-frontend',
+    'account',
+}
+# Realm role embedded in realm_access.roles for service tokens from nkz-api-gateway (client credentials).
+SYSTEM_GATEWAY_ROLE = os.getenv('SYSTEM_GATEWAY_ROLE', 'urn:nkz:role:system-gateway')
 HMAC_SECRET = os.getenv('HMAC_SECRET', os.getenv('JWT_SECRET', ''))  # Fallback temporal
 
 # JWKs URL - Always use internal URL for performance/connectivity
@@ -178,7 +187,11 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
             aud_set.add(token_azp)
 
         if not aud_set.intersection(ALLOWED_AUDIENCES):
-            logger.warning("Token aud/azp %s not in allowed audiences %s", aud_set, ALLOWED_AUDIENCES)
+            logger.warning(
+                "Token aud/azp %s not in allowed audiences %s",
+                aud_set,
+                ALLOWED_AUDIENCES,
+            )
             raise TokenValidationError("Invalid token audience")
 
         issuer = payload.get('iss')
@@ -309,6 +322,14 @@ def extract_tenant_id(payload: Dict[str, Any]) -> Optional[str]:
         normalized = normalized.strip('_')
         logger.debug("Basic normalized Tenant ID: %s (from %s)", normalized, tenant_id)
         return normalized if normalized else tenant_id
+
+
+def has_system_gateway_role(payload: Dict[str, Any]) -> bool:
+    """True if JWT is the api-gateway service token with delegated-tenant privilege (ADR 003)."""
+    if not payload:
+        return False
+    roles = (payload.get("realm_access") or {}).get("roles") or []
+    return SYSTEM_GATEWAY_ROLE in roles
 
 
 def generate_hmac_signature(token: str, tenant_id: str) -> str:
@@ -583,5 +604,8 @@ __all__ = [
     'has_role',
     'generate_hmac_signature',
     'verify_hmac_signature',
+    'has_system_gateway_role',
+    'SYSTEM_GATEWAY_ROLE',
+    'GATEWAY_KEYCLOAK_CLIENT_ID',
 ]
 

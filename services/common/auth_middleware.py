@@ -28,6 +28,7 @@ try:
         TokenValidationError,
         extract_tenant_id,
         verify_hmac_signature,
+        has_system_gateway_role,
     )
 
     KEYCLOAK_AUTH_AVAILABLE = True
@@ -35,6 +36,9 @@ try:
 except ImportError as e:
     logger.warning(f"Keycloak auth not available: {e}, using JWT_SECRET fallback")
     KEYCLOAK_AUTH_AVAILABLE = False
+
+    def has_system_gateway_role(_payload):
+        return False
 
     def verify_hmac_signature(
         signature_header: str, token: str, tenant_id: str
@@ -160,6 +164,40 @@ def require_auth(_func=None, *, require_hmac: bool = None):
                     f"[require_auth] Token validation failed for {request.path}"
                 )
                 return jsonify({"error": "Invalid or expired token"}), 401
+
+            # ADR 003: api-gateway service JWT + X-Delegated-Tenant-ID (ignore user tenant claims)
+            if KEYCLOAK_AUTH_AVAILABLE and has_system_gateway_role(payload):
+                raw_delegated = request.headers.get("X-Delegated-Tenant-ID")
+                if not raw_delegated or not str(raw_delegated).strip():
+                    logger.warning("system-gateway token without X-Delegated-Tenant-ID")
+                    return jsonify({"error": "Missing delegated tenant context"}), 401
+                try:
+                    from tenant_utils import normalize_tenant_id
+
+                    tenant = normalize_tenant_id(str(raw_delegated).strip())
+                except (ImportError, ValueError) as e:
+                    logger.warning("Delegated tenant normalization failed: %s", e)
+                    tenant = str(raw_delegated).strip()
+                g.system_gateway_delegation = True
+                g.current_user = payload
+                g.tenant = tenant
+                g.farmer_id = payload.get("farmer_id")
+                g.user = payload.get("preferred_username") or payload.get(
+                    "clientId"
+                ) or payload.get("sub", "gateway")
+                g.user_id = payload.get("sub")
+                roles = []
+                realm_access = payload.get("realm_access") or {}
+                if isinstance(realm_access.get("roles"), list):
+                    roles.extend(realm_access["roles"])
+                resource_access = payload.get("resource_access") or {}
+                for resource in resource_access.values():
+                    if isinstance(resource, dict) and isinstance(
+                        resource.get("roles"), list
+                    ):
+                        roles.extend(resource["roles"])
+                g.roles = list(set(roles))
+                return f(*args, **kwargs)
 
             if KEYCLOAK_AUTH_AVAILABLE:
                 tenant = extract_tenant_id(payload)
