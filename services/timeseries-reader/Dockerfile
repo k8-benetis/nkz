@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY services/common/ /common/
 
 # Copy application code
-COPY services/timeseries-reader/app.py .
+COPY services/timeseries-reader/app.py services/timeseries-reader/urn_resolution.py ./
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

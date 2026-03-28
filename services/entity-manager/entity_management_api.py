@@ -4224,8 +4224,8 @@ def _parcel_urn_to_municipality_code(tenant_id: str, parcel_urn: str, parcel_ent
 @require_auth(require_hmac=False)
 def get_entity_timeseries_location(entity_id):
     """
-    Resolve an NGSI-LD entity URN (or raw id) to the timeseries entity id used by the platform.
-    Used by DataHub and other clients to query weather_observations by URN (e.g. WeatherObserved, AgriParcel).
+    [Deprecated] Resolve an NGSI-LD entity URN to the timeseries key for weather_observations.
+    Prefer timeseries-reader GET /api/timeseries/v2/entities/<urn>/data (unified read path).
     Returns 200 + { timeseries_entity_id, source }, 204 when entity has no location, or 404 when not found.
     """
     if not entity_id or not entity_id.strip():
@@ -4239,10 +4239,12 @@ def get_entity_timeseries_location(entity_id):
             return jsonify({'error': 'Entity not found'}), 404
         return '', 204
 
-    return jsonify({
+    resp = jsonify({
         'timeseries_entity_id': timeseries_entity_id,
         'source': source,
-    }), 200
+    })
+    resp.headers['Deprecation'] = 'true'
+    return resp, 200
 
 
 @app.route('/api/weather/locations', methods=['POST'])
