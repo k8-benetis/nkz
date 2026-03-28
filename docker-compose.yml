@@ -170,10 +170,10 @@ services:
     volumes:
       - ./docker/keycloak-realm.json:/opt/keycloak/data/import/nekazari-realm.json:ro
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000"]
       interval: 10s
-      timeout: 5s
-      retries: 20
+      timeout: 3s
+      retries: 30
       start_period: 60s
 
   orion-ld:
@@ -228,7 +228,7 @@ services:
       KEYCLOAK_CLIENT_ID: nekazari-frontend
       PRODUCTION_DOMAIN: localhost:3000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -265,7 +265,7 @@ services:
       CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
       PRODUCTION_DOMAIN: localhost:3000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -304,6 +304,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
       REDIS_URL: redis://:${REDIS_PASSWORD:-nekazari-redis-dev}@redis:6379
+      ORION_URL: http://orion-ld:1026
+      CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
       CONTINUOUS_MODE: "true"
 
   risk-orchestrator:
@@ -347,13 +349,14 @@ services:
         condition: service_healthy
     environment:
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
+      MONGODB_URL: mongodb://${MONGODB_ROOT_USER:-admin}:${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}@mongodb:27017
       ORION_URL: http://orion-ld:1026
       KEYCLOAK_URL: http://keycloak:8080/auth
       KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
       KEYCLOAK_REALM: nekazari
       CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -431,6 +434,12 @@ services:
       - "3000:80"
     volumes:
       - ./docker/nginx-compose.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
 # =============================================================================
 # Volumes
