@@ -453,6 +453,37 @@ kubectl logs -n nekazari job/db-migration --tail=50
    kubectl logs -n nekazari job/db-migration | grep -A 5 "XXX_description.sql"
    ```
 
+#### Migration catalog (selected)
+
+| File | Level | Description |
+|------|--------|-------------|
+| `062_telemetry_events_tenant_device_time_index.sql` | **IMPORTANT** | Creates `ix_telemetry_tenant_device_time` on `telemetry_events (tenant_id, device_id, observed_at DESC)` for timeseries-reader v2 and multi-device align (filters match index prefix). **Idempotent** (`CREATE INDEX IF NOT EXISTS`). Requires hypertable from `010_sensor_ingestion_schema.sql`. **Production:** applied 2026-03-28. |
+
+#### `postgresql-migrations` ConfigMap — large bundles
+
+`kubectl apply -f` stores `last-applied-configuration` in an annotation (max ~256 KiB). Recreating the ConfigMap from the full `config/timescaledb/migrations/` directory can exceed that limit. Use **server-side apply**:
+
+```bash
+kubectl create configmap postgresql-migrations \
+  --from-file=config/timescaledb/migrations/ \
+  -n nekazari --dry-run=client -o yaml \
+  | kubectl apply --server-side --force-conflicts -f -
+```
+
+#### One-off SQL on the cluster (hotfix)
+
+```bash
+cat config/timescaledb/migrations/062_telemetry_events_tenant_device_time_index.sql \
+  | kubectl exec -i -n nekazari deployment/postgresql -- psql -U postgres -d nekazari -v ON_ERROR_STOP=1
+```
+
+Verify:
+
+```bash
+kubectl exec -n nekazari deployment/postgresql -- psql -U postgres -d nekazari -c \
+  "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'telemetry_events' AND indexname = 'ix_telemetry_tenant_device_time';"
+```
+
 #### Migration Best Practices:
 - **Idempotency:** All migrations should be safe to run multiple times
 - **Verification:** Include verification blocks to confirm successful execution
