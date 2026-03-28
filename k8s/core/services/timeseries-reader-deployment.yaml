@@ -54,6 +54,8 @@ spec:
               value: "auth.robotika.cloud"
             - name: KEYCLOAK_REALM
               value: "nekazari"
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
           resources:
             requests:
               memory: "128Mi"

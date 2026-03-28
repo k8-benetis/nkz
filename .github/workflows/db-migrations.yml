@@ -1,0 +1,36 @@
+# Ensures Timescale migration files stay present and ordered when migrations/ changes.
+# Does NOT apply SQL to any database (production applies are manual / ops — see DEPLOYMENT.md).
+
+name: Database migrations
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "config/timescaledb/migrations/**"
+      - ".github/workflows/db-migrations.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "config/timescaledb/migrations/**"
+      - ".github/workflows/db-migrations.yml"
+
+jobs:
+  verify-migrations:
+    name: Verify migration tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Count SQL migrations
+        run: |
+          set -e
+          n=$(find config/timescaledb/migrations -maxdepth 1 -name '*.sql' -type f | wc -l)
+          echo "MIGRATION_COUNT=$n"
+          test "$n" -ge 1
+
+      - name: Require 062 telemetry index (timeseries-reader v2)
+        run: test -f config/timescaledb/migrations/062_telemetry_events_tenant_device_time_index.sql
+
+      - name: List last migrations (version sort)
+        run: ls -1 config/timescaledb/migrations/*.sql | sort -V | tail -8
