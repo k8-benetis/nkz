@@ -269,19 +269,19 @@ function App() {
         >
           <ErrorBoundary componentName="AuthProvider" fallback={renderFallback}>
             <AuthProvider>
-              <ErrorBoundary componentName="I18nProvider" fallback={renderFallback}>
-                <I18nProvider>
-                  <ErrorBoundary componentName="NekazariI18nProvider" fallback={renderFallback}>
-                    <NekazariI18nProvider
-                      config={{
-                        defaultLanguage: 'es',
-                        fallbackLanguage: 'es',
-                        supportedLanguages: ['es', 'en', 'ca', 'eu', 'fr', 'pt'],
-                        loadPath: '/locales/{{lng}}/{{ns}}.json',
-                        namespaces: ['common', 'navigation', 'layout'],
-                        debug: import.meta.env.DEV,
-                      }}
-                    >
+              <ErrorBoundary componentName="NekazariI18nProvider" fallback={renderFallback}>
+                <NekazariI18nProvider
+                  config={{
+                    defaultLanguage: 'es',
+                    fallbackLanguage: 'es',
+                    supportedLanguages: ['es', 'en', 'ca', 'eu', 'fr', 'pt'],
+                    loadPath: '/locales/{{lng}}/{{ns}}.json',
+                    namespaces: ['common', 'navigation', 'layout'],
+                    debug: import.meta.env.DEV,
+                  }}
+                >
+                  <ErrorBoundary componentName="I18nProvider" fallback={renderFallback}>
+                    <I18nProvider>
                       <ErrorBoundary componentName="ThemeProvider" fallback={renderFallback}>
                         <ThemeProvider>
                           <ErrorBoundary componentName="ToastProvider" fallback={renderFallback}>
@@ -293,9 +293,9 @@ function App() {
                           </ErrorBoundary>
                         </ThemeProvider>
                       </ErrorBoundary>
-                    </NekazariI18nProvider>
+                    </I18nProvider>
                   </ErrorBoundary>
-                </I18nProvider>
+                </NekazariI18nProvider>
               </ErrorBoundary>
             </AuthProvider>
           </ErrorBoundary>
