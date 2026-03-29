@@ -195,5 +195,36 @@
     "user_management_desc": "Create users with API-KEY and NEK-XXXX code",
     "user_management_message": "User management is handled through Keycloak Admin Panel.",
     "user_management_title": "User Management"
+  },
+  "dashboard": {
+    "title": "Panela",
+    "welcome": "Ongi etorri, {{name}}",
+    "configure_parcel_weather": "Gutxienez parcela bat konfiguratu nekazaritzako eguraldia ikusteko",
+    "five_day_forecast": "5 eguneko iragarpena",
+    "risk_summary": "Arrisku aktiboak",
+    "expiration_date": "Iraungitze-data: {{date}}",
+    "renew_subscription": "Berritu",
+    "registered_parcels": "Erregistratutako parcelak",
+    "monitoring": "Baserritik monitorizazioa",
+    "area": "{{current}} / {{limit}} ha",
+    "area_label": "{{area}} ha",
+    "active_sensors": "Sentsore aktiboak",
+    "online": "Linean",
+    "capacity": "{{current}} / {{limit}}",
+    "total_robots": "Robot guztira",
+    "active_count": "{{count}} aktibo",
+    "registered_entities": "Erregistratutako entitateak",
+    "entities_summary": "{{parcels}} parcela · {{sensors}} sentsore · {{robots}} robot",
+    "updated_at": "Eguneratua {{time}}",
+    "view_all_entities": "Entitate guztiak ikusi",
+    "no_parcels": "Ez dago parcelarik erregistratuta",
+    "add_parcel": "Gehitu parcela",
+    "crop_not_specified": "Laborantza zehaztu gabe",
+    "environmental_sensors": "Ingurumen-sentsoreak"
+  },
+  "sensors": {
+    "empty_title": "Ez dago sentsorerik erregistratuta",
+    "no_sensors_registered": "Ez dago sentsorerik erregistratuta",
+    "new_sensor": "Sentsore berria"
   }
 }

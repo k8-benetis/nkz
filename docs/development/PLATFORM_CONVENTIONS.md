@@ -14,7 +14,7 @@ description: "Core architecture rules, API requirements, and mobile integration 
 3. **FIWARE Context Broker:** El Broker (Orion-LD) es la **única** fuente de verdad de la ontología.
    - **CERO ESCRITURAS DIRECTAS:** Prohibido hacer `INSERT` en bases de datos relacionales para modelos de negocio. La ingesta es vía Orion-LD; las DBs se alimentan vía suscripción (MQTT/QuantumLeap).
    - **SDM Strictly:** Usar Smart Data Models (ej. `AgriParcel`, `AgriEquipment`). No inventar esquemas.
-4. **i18n (Internacionalización):** Todo string expuesto a usuario (frontend) debe usar la función `t()` de `@nekazari/sdk` (react-i18next) garantizando soporte para `es`, `en`, `ca`, `eu`, `fr`, y `pt`.
+4. **i18n (Internacionalización):** Todo string expuesto a usuario (frontend) debe usar la función `t()` de `@nekazari/sdk` (react-i18next) garantizando soporte para `es`, `en`, `ca`, `eu`, `fr`, y `pt`. En el monorepo local, el host usa **un solo** i18next (`NekazariI18nProvider` + `public/locales/{lang}/{common,navigation,layout}.json`). Reglas detalladas de claves y `useI18n()`: ver **`PLATFORM_CONVENTIONS.md` §10** en la **raíz del workspace** (`nekazari/`, no solo el repo `nkz/`).
 
 ## 1b. IoT Device Provisioning (FIWARE Standard)
 

@@ -195,5 +195,36 @@
     "user_management_desc": "Create users with API-KEY and NEK-XXXX code",
     "user_management_message": "User management is handled through Keycloak Admin Panel.",
     "user_management_title": "User Management"
+  },
+  "dashboard": {
+    "title": "Painel",
+    "welcome": "Bem-vindo, {{name}}",
+    "configure_parcel_weather": "Configure pelo menos uma parcela para ver o tempo agrícola",
+    "five_day_forecast": "Previsão de 5 dias",
+    "risk_summary": "Riscos ativos",
+    "expiration_date": "Expira: {{date}}",
+    "renew_subscription": "Renovar",
+    "registered_parcels": "Parcelas registadas",
+    "monitoring": "Monitorização da exploração",
+    "area": "{{current}} / {{limit}} ha",
+    "area_label": "{{area}} ha",
+    "active_sensors": "Sensores ativos",
+    "online": "Online",
+    "capacity": "{{current}} / {{limit}}",
+    "total_robots": "Robots no total",
+    "active_count": "{{count}} ativos",
+    "registered_entities": "Entidades registadas",
+    "entities_summary": "{{parcels}} parcelas · {{sensors}} sensores · {{robots}} robots",
+    "updated_at": "Atualizado {{time}}",
+    "view_all_entities": "Ver todas as entidades",
+    "no_parcels": "Sem parcelas registadas",
+    "add_parcel": "Adicionar parcela",
+    "crop_not_specified": "Cultura não especificada",
+    "environmental_sensors": "Sensores ambientais"
+  },
+  "sensors": {
+    "empty_title": "Sem sensores registados",
+    "no_sensors_registered": "Sem sensores registados",
+    "new_sensor": "Novo sensor"
   }
 }

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { HelpCircle, X, Info, Database, Zap, ShieldCheck } from 'lucide-react';
-import { useTranslation } from '@nekazari/sdk';
+import { useI18n } from '@/context/I18nContext';
 
 export const SDMGuideInfo: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!isOpen) {

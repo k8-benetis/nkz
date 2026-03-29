@@ -50,7 +50,8 @@ interface AuditLogsResponse {
 }
 
 export const AuditLogsPanel: React.FC = () => {
-  useTranslation(['common', 'admin']);
+  // Only namespaces that exist under public/locales/{lang}/ — there is no admin.json
+  useTranslation('common');
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
