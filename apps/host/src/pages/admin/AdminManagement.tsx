@@ -6,7 +6,7 @@ import {
   Mail, Settings2, Shield, Key, ScrollText, 
   FileText, Activity, Box, Puzzle, Monitor
 } from 'lucide-react';
-import { useTranslation } from '@nekazari/sdk';
+import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
 import { format } from 'date-fns';
 import { useModules } from '@/context/ModuleContext';
@@ -51,7 +51,7 @@ interface ActivationCode {
 }
 
 export const AdminManagement: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useI18n();
   const { modules } = useModules();
   const [activeTab, setActiveTab] = useState<string>('users');
   const [loading, setLoading] = useState(true);

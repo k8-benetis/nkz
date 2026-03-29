@@ -195,5 +195,36 @@
     "user_management_desc": "Create users with API-KEY and NEK-XXXX code",
     "user_management_message": "User management is handled through Keycloak Admin Panel.",
     "user_management_title": "User Management"
+  },
+  "dashboard": {
+    "title": "Tauler",
+    "welcome": "Benvingut, {{name}}",
+    "configure_parcel_weather": "Configura almenys una parcel·la per veure el temps agrícola",
+    "five_day_forecast": "Previsió 5 dies",
+    "risk_summary": "Riscos actius",
+    "expiration_date": "Caduca: {{date}}",
+    "renew_subscription": "Renovar",
+    "registered_parcels": "Parcel·les registrades",
+    "monitoring": "Monitoratge de l'explotació",
+    "area": "{{current}} / {{limit}} ha",
+    "area_label": "{{area}} ha",
+    "active_sensors": "Sensors actius",
+    "online": "En línia",
+    "capacity": "{{current}} / {{limit}}",
+    "total_robots": "Robots totals",
+    "active_count": "{{count}} actius",
+    "registered_entities": "Entitats registrades",
+    "entities_summary": "{{parcels}} parcel·les · {{sensors}} sensors · {{robots}} robots",
+    "updated_at": "Actualitzat {{time}}",
+    "view_all_entities": "Veure totes les entitats",
+    "no_parcels": "No hi ha parcel·les registrades",
+    "add_parcel": "Afegir parcel·la",
+    "crop_not_specified": "Cultiu no especificat",
+    "environmental_sensors": "Sensors ambientals"
+  },
+  "sensors": {
+    "empty_title": "No hi ha sensors registrats",
+    "no_sensors_registered": "No hi ha sensors registrats",
+    "new_sensor": "Nou sensor"
   }
 }
