@@ -113,7 +113,7 @@ export async function changeLanguage(language: SupportedLanguage): Promise<void>
  * Get current language
  */
 export function getCurrentLanguage(): SupportedLanguage {
-  return (i18n.language.split('-')[0] as SupportedLanguage) || 'es';
+  return ((i18n.language || 'es').split('-')[0] as SupportedLanguage) || 'es';
 }
 
 /**

@@ -308,8 +308,8 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
                 updateUserRolesFromToken(kc);
               }
             } catch (e) {
-              logger.warn('Token refresh failed, forcing login');
-              kc.login();
+              logger.warn('Token refresh failed, redirecting to landing');
+              kc.logout({ redirectUri: `${window.location.origin}/` });
             }
           };
 
@@ -470,8 +470,8 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
                 updateUserRolesFromToken(kc);
               }
             } catch (e) {
-              logger.warn('Token refresh failed, forcing login');
-              kc.login();
+              logger.warn('Token refresh failed, redirecting to landing');
+              kc.logout({ redirectUri: `${window.location.origin}/` });
             }
           };
 
@@ -588,12 +588,12 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
 
   const logout = () => {
     if (keycloak) {
-      keycloak.logout();
+      api.clearSession().catch(() => {});
       setKeycloak(null);
       setUser(null);
       setIsAuthenticated(false);
       setSessionReady(false);
-      api.clearSession().catch(() => {});
+      keycloak.logout({ redirectUri: `${window.location.origin}/` });
     }
   };
 
