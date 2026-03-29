@@ -6,7 +6,6 @@ metadata:
   name: datahub-api-config
   namespace: nekazari
 data:
-  PLATFORM_API_URL: "https://nkz.robotika.cloud"
-  # Vegetation-Health timeseries adapter.
-  # Source "vegetation_health" (underscore) → matches this env var pattern in the BFF.
+  PLATFORM_API_URL: "http://api-gateway-service:5000"
+  CORS_ORIGINS: "https://nekazari.robotika.cloud,https://nkz.robotika.cloud"
   TIMESERIES_ADAPTER_VEGETATION_HEALTH_URL: "http://vegetation-health-service:8000"
