@@ -42,6 +42,7 @@ import { Risks } from '@/pages/Risks';
 import { IntelligenceInfoPage } from '@/pages/IntelligenceInfoPage';
 import { NotFound } from '@/components/error/NotFound';
 import MobileViewer from '@/pages/MobileViewer';
+import { hostI18nConfig } from '@/config/hostI18nConfig';
 
 // Dynamic routes component that includes remote modules
 const DynamicRoutes = () => {
@@ -269,19 +270,10 @@ function App() {
         >
           <ErrorBoundary componentName="AuthProvider" fallback={renderFallback}>
             <AuthProvider>
-              <ErrorBoundary componentName="I18nProvider" fallback={renderFallback}>
-                <I18nProvider>
-                  <ErrorBoundary componentName="NekazariI18nProvider" fallback={renderFallback}>
-                    <NekazariI18nProvider
-                      config={{
-                        defaultLanguage: 'es',
-                        fallbackLanguage: 'es',
-                        supportedLanguages: ['es', 'en', 'ca', 'eu', 'fr', 'pt'],
-                        loadPath: '/locales/{{lng}}/{{ns}}.json',
-                        namespaces: ['common', 'navigation', 'layout'],
-                        debug: import.meta.env.DEV,
-                      }}
-                    >
+              <ErrorBoundary componentName="NekazariI18nProvider" fallback={renderFallback}>
+                <NekazariI18nProvider config={hostI18nConfig}>
+                  <ErrorBoundary componentName="I18nProvider" fallback={renderFallback}>
+                    <I18nProvider>
                       <ErrorBoundary componentName="ThemeProvider" fallback={renderFallback}>
                         <ThemeProvider>
                           <ErrorBoundary componentName="ToastProvider" fallback={renderFallback}>
@@ -293,9 +285,9 @@ function App() {
                           </ErrorBoundary>
                         </ThemeProvider>
                       </ErrorBoundary>
-                    </NekazariI18nProvider>
+                    </I18nProvider>
                   </ErrorBoundary>
-                </I18nProvider>
+                </NekazariI18nProvider>
               </ErrorBoundary>
             </AuthProvider>
           </ErrorBoundary>

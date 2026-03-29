@@ -35,19 +35,18 @@ const DEFAULT_CONFIG: Required<I18nConfig> = {
   debug: false,
 };
 
-/**
- * Initialize i18next with the provided configuration
- * 
- * @param config Configuration options for i18next
- * @returns Promise that resolves when i18next is initialized
- */
-export async function initI18n(config: I18nConfig = {}): Promise<void> {
+/** Serialize concurrent init calls (StrictMode / unstable `config` identity in consumers). */
+let initI18nPromise: Promise<void> | null = null;
+
+async function runI18nInit(config: I18nConfig): Promise<void> {
+  if (i18n.isInitialized) return;
+
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
-  // Get language from localStorage or browser
   const storedLang = localStorage.getItem('language') as SupportedLanguage | null;
   const browserLang = navigator.language.split('-')[0] as SupportedLanguage;
-  const detectedLang = storedLang || 
+  const detectedLang =
+    storedLang ||
     (finalConfig.supportedLanguages.includes(browserLang) ? browserLang : finalConfig.defaultLanguage);
 
   await i18n
@@ -60,43 +59,51 @@ export async function initI18n(config: I18nConfig = {}): Promise<void> {
       supportedLngs: finalConfig.supportedLanguages,
       ns: finalConfig.namespaces,
       defaultNS: 'common',
-      
-      // Backend configuration for loading translations
+
       backend: {
         loadPath: finalConfig.loadPath,
-        // Allow cross-origin requests if needed
         crossDomain: false,
       },
 
-      // Language detection
       detection: {
         order: ['localStorage', 'navigator'],
         caches: ['localStorage'],
         lookupLocalStorage: 'language',
       },
 
-      // React i18next options
       react: {
         useSuspense: false,
       },
 
-      // Interpolation
       interpolation: {
-        escapeValue: false, // React already escapes
+        escapeValue: false,
       },
 
-      // Debug mode
       debug: finalConfig.debug,
 
-      // Performance optimizations
-      load: 'languageOnly', // Load 'es' instead of 'es-ES'
-      cleanCode: true, // Clean language codes
+      load: 'languageOnly',
+      cleanCode: true,
     });
 
-  // Store detected language
   if (!storedLang) {
     localStorage.setItem('language', detectedLang);
   }
+}
+
+/**
+ * Initialize i18next with the provided configuration
+ *
+ * @param config Configuration options for i18next
+ * @returns Promise that resolves when i18next is initialized
+ */
+export async function initI18n(config: I18nConfig = {}): Promise<void> {
+  if (i18n.isInitialized) return;
+  if (!initI18nPromise) {
+    initI18nPromise = runI18nInit(config).finally(() => {
+      initI18nPromise = null;
+    });
+  }
+  await initI18nPromise;
 }
 
 /**

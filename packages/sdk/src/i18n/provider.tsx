@@ -69,7 +69,10 @@ export const NekazariI18nProvider: React.FC<NekazariI18nProviderProps> = ({
         i18n.off('languageChanged', handleLanguageChanged);
       }
     };
-  }, [config, onLanguageChange]);
+    // Run once per mount. Putting `config` here breaks when the host passes an inline object
+    // (new reference every render) and retriggers init — i18n.t can become invalid (minified: t.t is not a function).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
+  }, []);
 
   // Show loading state while initializing
   if (!isInitialized) {

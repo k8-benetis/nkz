@@ -72,6 +72,9 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
     const ns = knownNamespaces.has(maybeNs) ? maybeNs : 'common';
     const realKey = knownNamespaces.has(maybeNs) ? rest.join('.') : key;
 
+    if (typeof i18n?.t !== 'function') {
+      return realKey || key;
+    }
     return i18n.t(realKey, { ns, ...(params ?? {}) });
   };
 
