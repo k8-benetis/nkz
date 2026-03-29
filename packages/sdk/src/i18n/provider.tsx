@@ -37,17 +37,25 @@ export const NekazariI18nProvider: React.FC<NekazariI18nProviderProps> = ({
   useEffect(() => {
     let isMounted = true;
 
+    const handleLanguageChanged = (lng: string) => {
+      const lang = lng.split('-')[0] as SupportedLanguage;
+      onLanguageChange?.(lang);
+    };
+
     const initialize = async () => {
       try {
         await initI18n(config);
         if (isMounted) {
           setIsInitialized(true);
+          // Register listener AFTER init so i18n instance is fully ready
+          if (typeof i18n.on === 'function') {
+            i18n.on('languageChanged', handleLanguageChanged);
+          }
         }
       } catch (error) {
         console.error('[NekazariI18n] Failed to initialize i18n:', error);
         if (isMounted) {
           setInitError(error instanceof Error ? error : new Error('Unknown error'));
-          // Still set initialized to true to avoid blocking the app
           setIsInitialized(true);
         }
       }
@@ -55,17 +63,11 @@ export const NekazariI18nProvider: React.FC<NekazariI18nProviderProps> = ({
 
     initialize();
 
-    // Listen for language changes
-    const handleLanguageChanged = (lng: string) => {
-      const lang = lng.split('-')[0] as SupportedLanguage;
-      onLanguageChange?.(lang);
-    };
-
-    i18n.on('languageChanged', handleLanguageChanged);
-
     return () => {
       isMounted = false;
-      i18n.off('languageChanged', handleLanguageChanged);
+      if (typeof i18n.off === 'function') {
+        i18n.off('languageChanged', handleLanguageChanged);
+      }
     };
   }, [config, onLanguageChange]);
 

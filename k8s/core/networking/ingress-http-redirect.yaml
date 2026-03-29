@@ -1,0 +1,33 @@
+# HTTP → HTTPS redirect for all domains
+# Listens on port 80 (web entrypoint) and redirects to HTTPS (301)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nekazari-http-redirect
+  namespace: nekazari
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: nekazari-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: nekazari.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-host-service
+                port:
+                  number: 80
+    - host: nkz.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000

@@ -27,9 +27,13 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       setLanguage(lng.split('-')[0] as SupportedLanguage);
     };
 
-    i18n.on('languageChanged', handleLanguageChanged);
+    if (typeof i18n.on === 'function') {
+      i18n.on('languageChanged', handleLanguageChanged);
+    }
     return () => {
-      i18n.off('languageChanged', handleLanguageChanged);
+      if (typeof i18n.off === 'function') {
+        i18n.off('languageChanged', handleLanguageChanged);
+      }
     };
   }, [i18n]);
 

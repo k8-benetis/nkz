@@ -50,9 +50,13 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
     const handler = (lng: string) => {
       setLanguageState(lng.split('-')[0] as SupportedLanguage);
     };
-    i18n.on('languageChanged', handler);
+    if (typeof i18n.on === 'function') {
+      i18n.on('languageChanged', handler);
+    }
     return () => {
-      i18n.off('languageChanged', handler);
+      if (typeof i18n.off === 'function') {
+        i18n.off('languageChanged', handler);
+      }
     };
   }, [i18n]);
 
