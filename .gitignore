@@ -250,6 +250,8 @@ docker-volumes/
 *.kubeconfig
 # Production ingress (server-specific; use ingress.yaml.example as template)
 k8s/core/networking/ingress.yaml
+# Production nginx ConfigMap (contains runtime URLs; use .example as template)
+k8s/core/frontend/frontend-static-configmap.yaml
 
 # Terraform
 *.tfstate
