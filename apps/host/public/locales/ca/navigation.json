@@ -1,4 +1,6 @@
 {
+  "entities": "Entitats",
+  "control_center": "Centre de control",
   "robots": "Robots",
   "sensors": "Sensors",
   "parcels": "Parceles",
