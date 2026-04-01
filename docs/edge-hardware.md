@@ -24,15 +24,18 @@ To minimize bandwidth on low-power IoT networks (LoRaWAN, NB-IoT, 2G), devices d
 /{api-key}/{device-id}/attrs
 ```
 
-**Payload Example (Compatible with Smart Data Models):**
+**Payload Example (Smart Data Model attributes):**
 ```json
 {
-  "t": 24.5,       // Temperature (mapped to 'temperature' in NGSI-LD)
-  "h": 60.2,       // Humidity (mapped to 'relativeHumidity')
-  "sm": 0.35       // Soil Moisture (mapped to 'soilMoisture')
+  "airTemperature": 24.5,
+  "relativeHumidity": 60.2,
+  "soilMoisture": 0.35
 }
 ```
-*The mapping between these short keys (e.g., `t`) and the semantic NGSI-LD properties (e.g., `https://smartdatamodels.org/dataModel.Weather/temperature`) is managed during device provisioning via the Platform API.*
+
+The attribute names must match those declared in the device's **DeviceProfile**. The IoT Agent runs with `explicitAttrs=true` — only profiled attributes are forwarded to Orion-LD. Undeclared keys are silently dropped.
+
+If your datalogger uses short keys (e.g. `t`, `h`), the DeviceProfile handles the translation: `incoming_key: "t"` maps to `target_attribute: "airTemperature"` via JEXL expressions if needed.
 
 ## Open Hardware Reference Designs
 
@@ -51,10 +54,12 @@ In the near future, the **[nkz-os/hardware-reference](https://github.com/nkz-os/
 
 For scenarios where edge computing is required (e.g., remote farms with a local PC gathering sensor data before transmitting it to the cloud), Nekazari provides **[Datak](https://github.com/nkz-os/datak)**.
 
-Datak is an open-source software datalogger designed to run on a separate local machine or Raspberry Pi. It acts as an edge gateway that:
-1. **Collects** data locally from serial ports, Modbus, or local network sensors.
+DaTaK is an open-source software datalogger designed to run on a separate local machine or Raspberry Pi. It acts as an edge gateway that:
+1. **Collects** data locally from serial ports, Modbus, CANbus, or local network sensors.
 2. **Buffers** the data if the internet connection is unstable.
-3. **Translates** the payloads into the native JSON format expected by the Nekazari IoT Agent.
-4. **Transmits** securely via MQTT to the `nkz.robotika.cloud` broker when connectivity is restored.
+3. **Auto-maps** sensor names to SDM attributes (e.g. "Piranometro solar" becomes `solarRadiation`).
+4. **Transmits** securely via MQTT to the platform broker when connectivity is restored.
 
-By utilizing Datak on your edge PCs, you guarantee 100% native compatibility with the Nekazari telemetry pipeline without writing custom MQTT clients.
+DaTaK can auto-generate a DeviceProfile compatible with the platform wizard (`GET /api/config/device-profile`). Import the JSON file in the Entity Wizard to create a sensor with the correct attribute mappings.
+
+By utilizing DaTaK on your edge PCs, you guarantee 100% native compatibility with the Nekazari telemetry pipeline without writing custom MQTT clients.
