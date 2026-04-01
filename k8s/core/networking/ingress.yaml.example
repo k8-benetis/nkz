@@ -298,6 +298,14 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
+          # Weather API (entity-manager via gateway — useTenantMunicipality /api/weather/municipality/near)
+          - path: /api/weather
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
           # DataHub Module BFF (same-origin /api/datahub from SPA; must match nkz.robotika.cloud routing)
           - path: /api/datahub
             pathType: Prefix
