@@ -34,6 +34,10 @@ initNKZRuntime();
 // =============================================================================
 
 window.onerror = (message, source, lineno, colno, error) => {
+  // Benign browser quirk when layout reads run inside ResizeObserver (uPlot, charts, flex).
+  if (typeof message === 'string' && message.includes('ResizeObserver loop')) {
+    return true;
+  }
   console.error('[NKZ] Uncaught error:', message, { source, lineno, colno, error });
   return false;
 };

@@ -20,7 +20,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
     constructor(props: Props) {
         super(props);
-        console.log(`[ErrorBoundary] Constructor called for: ${props.componentName || 'unknown'}`);
+        if (import.meta.env.DEV) {
+            console.log(`[ErrorBoundary] Constructor called for: ${props.componentName || 'unknown'}`);
+        }
     }
 
     public static getDerivedStateFromError(error: Error): State {
@@ -36,7 +38,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
     }
 
     public render() {
-        console.log(`[ErrorBoundary] Render called for: ${this.props.componentName}, hasError: ${this.state.hasError}`);
+        if (import.meta.env.DEV) {
+            console.log(`[ErrorBoundary] Render called for: ${this.props.componentName}, hasError: ${this.state.hasError}`);
+        }
         if (this.state.hasError) {
             console.error('[ErrorBoundary] Rendering fallback, error was:', this.state.error?.message);
             if (this.props.fallback) {
