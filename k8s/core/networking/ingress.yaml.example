@@ -306,6 +306,22 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
+          # Tenant API (PAT /api/tenant/api-keys, profile, etc. — DataHub Integrations tab)
+          - path: /api/tenant
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
+          # Timeseries reader v2 (Power BI POST /api/timeseries/v2/query — not the DataHub BFF)
+          - path: /api/timeseries
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
           # DataHub Module BFF (same-origin /api/datahub from SPA; must match nkz.robotika.cloud routing)
           - path: /api/datahub
             pathType: Prefix
