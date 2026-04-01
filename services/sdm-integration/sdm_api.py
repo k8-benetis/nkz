@@ -362,13 +362,41 @@ def get_sdm_entities():
             }
         },
         "AgriSensor": {
-            "description": "Agricultural sensor device",
+            "description": "Agricultural sensor device (SAREF4AGRI)",
             "attributes": {
                 "name": {"type": "Text", "description": "Sensor name"},
+                "description": {"type": "Text", "description": "Sensor description"},
                 "location": {"type": "geo:json", "description": "Sensor location"},
                 "sensorType": {"type": "Text", "description": "Type of sensor"},
-                "measurement": {"type": "Number", "description": "Current measurement value"},
-                "unit": {"type": "Text", "description": "Measurement unit"}
+                "controlledProperty": {"type": "List", "description": "Properties measured by this sensor"},
+                "refDeviceProfile": {"type": "Relationship", "description": "Link to DeviceProfile"},
+                # Meteorological / environmental measurements
+                "airTemperature": {"type": "Number", "description": "Air temperature (CEL)"},
+                "relativeHumidity": {"type": "Number", "description": "Relative humidity (P1)"},
+                "atmosphericPressure": {"type": "Number", "description": "Atmospheric pressure (HPA)"},
+                "solarRadiation": {"type": "Number", "description": "Solar radiation (WM2)"},
+                "windSpeed": {"type": "Number", "description": "Wind speed (MTS)"},
+                "windDirection": {"type": "Number", "description": "Wind direction (DD)"},
+                "precipitation": {"type": "Number", "description": "Precipitation (MMT)"},
+                # Soil measurements
+                "soilMoisture": {"type": "Number", "description": "Soil volumetric water content (P1)"},
+                "soilTemperature": {"type": "Number", "description": "Soil temperature (CEL)"},
+                "soilConductivity": {"type": "Number", "description": "Soil electrical conductivity"},
+                # Plant measurements
+                "leafTemperature": {"type": "Number", "description": "Leaf temperature (CEL)"},
+                "leafWetness": {"type": "Number", "description": "Leaf wetness (P1)"},
+                "dendrometerValue": {"type": "Number", "description": "Dendrometer trunk diameter variation"},
+                "photosyntheticallyActiveRadiation": {"type": "Number", "description": "PAR (UMOL/M2S)"},
+                # Energy / agrivoltaic
+                "panelTemperature": {"type": "Number", "description": "PV panel temperature (CEL)"},
+                "energyProduction": {"type": "Number", "description": "Energy production (KWH)"},
+                "panelInclination": {"type": "Number", "description": "Panel tilt angle (DD)"},
+                # Device health
+                "batteryLevel": {"type": "Number", "description": "Battery level (P1)"},
+                "rssi": {"type": "Number", "description": "Signal strength (DBM)"},
+                # Legacy / generic
+                "measurement": {"type": "Number", "description": "Generic measurement value"},
+                "unit": {"type": "Text", "description": "Measurement unit (UNECE code)"},
             }
         },
         "AgriParcel": {
