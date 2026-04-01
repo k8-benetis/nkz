@@ -1,0 +1,12 @@
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/nkz-os/nkz/security/advisories/new
+    about: Report security issues privately (do not open a public issue).
+  - name: Website & documentation (nkz-os.org)
+    url: https://nkz-os.org
+    about: Product documentation and marketing site (Astro / Starlight).
+  - name: Organization
+    url: https://github.com/nkz-os
+    about: All NKZ OS repositories on GitHub.

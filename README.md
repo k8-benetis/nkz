@@ -17,6 +17,19 @@
 
 ---
 
+## Documentation, website & organization
+
+| Resource | URL |
+|----------|-----|
+| **Product documentation & marketing** | [nkz-os.org](https://nkz-os.org) (Astro / Starlight) |
+| **GitHub organization** | [github.com/nkz-os](https://github.com/nkz-os) |
+| **Roadmap (high level)** | [ROADMAP.md](ROADMAP.md) |
+| **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Security** | [SECURITY.md](SECURITY.md) |
+| **Code of Conduct** | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
+
+---
+
 ## Quick Start
 
 ```bash
@@ -86,7 +99,6 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | [Vegetation Health](https://github.com/nkz-os/vegetation-health-nkz) | NDVI/vegetation indices from satellite imagery | Active |
 | [LiDAR](https://github.com/nkz-os/nkz-module-lidar) | Point cloud analysis and 3D terrain tiles | Active |
 | [Intelligence](https://github.com/nkz-os/nekazari-module-intelligence) | AI/ML predictive analytics | Active |
-| [Connectivity](https://github.com/nkz-os/nkz-module-conectivity) | Cellular/network monitoring for IoT | Active |
 | [Cadastral](https://github.com/nkz-os/catastro-sp-module-nekazari) | Spanish cadastral registry integration | Active |
 | [Robotics](https://github.com/nkz-os/nkz-module-robotics) | ROS2 + ISOBUS agricultural equipment | Active |
 | [Odoo ERP](https://github.com/nkz-os/nkz-module-odoo) | Enterprise resource planning integration | Active |
@@ -184,7 +196,7 @@ packages/           @nekazari/sdk, @nekazari/ui-kit, module-builder
 
 ## Contributing
 
-We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions. See **[CONTRIBUTING.md](CONTRIBUTING.md)** ([roadmap](ROADMAP.md), [security](SECURITY.md), [code of conduct](CODE_OF_CONDUCT.md)). Use GitHub **Issues** with templates for bugs and features.
 
 ## License
 

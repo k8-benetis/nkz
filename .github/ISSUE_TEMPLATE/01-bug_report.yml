@@ -1,0 +1,62 @@
+name: Bug Report
+description: Report incorrect behaviour in the core platform (this repository).
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Nekazari. **Do not** use this form for [security vulnerabilities](https://github.com/nkz-os/nkz/security/advisories/new).
+        For **external modules**, open an issue in the module’s repository when possible.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong in one or two sentences?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps (environment, clicks, API calls).
+      placeholder: "1. …\n2. …\n3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area (best guess)
+      options:
+        - host / frontend
+        - api-gateway
+        - entity-manager / FIWARE / NGSI-LD
+        - auth / Keycloak
+        - telemetry / timeseries
+        - weather / risks
+        - CI / dev experience
+        - docs in this repo
+        - other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit (if known)
+      placeholder: "main @ abc1234 or release tag"
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "docker compose local / K8s production / etc."

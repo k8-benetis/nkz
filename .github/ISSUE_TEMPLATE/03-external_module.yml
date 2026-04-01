@@ -1,0 +1,29 @@
+name: External module (integration question)
+description: Questions about building or publishing modules that extend the host via slots.
+labels: ["module", "question", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Module bugs and features** should be reported in the **module’s own repo** whenever possible.
+        Use this issue for **cross-cutting integration** questions about the host, SDK, or marketplace.
+  - type: input
+    id: module_repo
+    attributes:
+      label: Module repository URL (if any)
+      placeholder: "https://github.com/nkz-os/…"
+  - type: textarea
+    id: question
+    attributes:
+      label: Question or blocker
+      description: IIFE build, slots, `/api` routing, GHCR, ArgoCD, etc.
+    validations:
+      required: true
+  - type: checkboxes
+    id: docs
+    attributes:
+      label: Documentation already consulted
+      options:
+        - label: EXTERNAL_DEVELOPER_GUIDE.md
+        - label: MODULE_SYSTEM_ARCHITECTURE.md
+        - label: Platform conventions (docs/development/PLATFORM_CONVENTIONS.md)

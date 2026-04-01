@@ -80,12 +80,36 @@ _VALID_TELEMETRY_BASE = frozenset({
     'humidity', 'temperature',
 })
 
+# NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
+# telemetry_events.measurements uses the canonical JSON key (right-hand side).
+_TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
+    "sensorsinsolation": "solarRadiation",
+}
+
+
 def _telemetry_measurement_whitelist() -> frozenset:
     extra = os.getenv("TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA", "")
     if not extra.strip():
         return _VALID_TELEMETRY_BASE
     more = frozenset(x.strip() for x in extra.split(",") if x.strip())
     return _VALID_TELEMETRY_BASE | more
+
+
+def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
+    """
+    Map a requested attribute (from Orion/Data BFF) to the key inside payload.measurements.
+    Returns None if neither the request nor a known alias targets a whitelisted key.
+    """
+    twl = _telemetry_measurement_whitelist()
+    r = (requested or "").strip()
+    if not r:
+        return None
+    if r in twl:
+        return r
+    canonical = _TELEMETRY_MEASUREMENT_UI_ALIASES.get(r)
+    if canonical and canonical in twl:
+        return canonical
+    return None
 
 # Hard cap for POST /v2/query series count (DoS / query size). Override via env if needed.
 MAX_V2_QUERY_SERIES = int(os.getenv("MAX_V2_QUERY_SERIES", "10"))
@@ -1081,10 +1105,13 @@ def get_v2_entity_timeseries(entity_urn: str):
     with get_db_connection() as conn:
         if mode == "telemetry":
             if attrs_list:
-                twl = _telemetry_measurement_whitelist()
+                resolved_attrs: List[str] = []
                 for a in attrs_list:
-                    if a not in twl:
+                    sk = _resolve_telemetry_measurement_key(a)
+                    if sk is None:
                         return jsonify({"error": f"Unknown telemetry attribute: {a}"}), 400
+                    resolved_attrs.append(sk)
+                attrs_list = list(dict.fromkeys(resolved_attrs))
             rows = _fetch_telemetry_rows(
                 conn, tenant_id, plan.get("device_candidates") or [], start_dt, end_dt, limit
             )
@@ -1239,7 +1266,6 @@ def post_v2_timeseries_query():
             }
         ), 413
 
-    telemetry_whitelist = _telemetry_measurement_whitelist()
     start_dt = parse_datetime(time_from)
     end_dt = parse_datetime(time_to)
     if start_dt >= end_dt:
@@ -1269,14 +1295,15 @@ def post_v2_timeseries_query():
                 return jsonify({"error": f"series[{i}]: invalid weather timeseries key"}), 400
             ordered_specs.append(("weather", wk, attr_s))
         else:
-            if attr_s not in telemetry_whitelist:
+            storage_attr = _resolve_telemetry_measurement_key(attr_s)
+            if storage_attr is None:
                 return jsonify(
                     {"error": f"Unknown telemetry attribute (not in whitelist): {attr_s}"}
                 ), 400
             dev = normalize_device_id(str(urn).strip())
             if not dev or not _SAFE_DEVICE_ID.match(dev):
                 return jsonify({"error": f"series[{i}]: invalid device id derived from URN"}), 400
-            ordered_specs.append(("telemetry", dev, attr_s))
+            ordered_specs.append(("telemetry", dev, storage_attr))
 
     accept = (request.headers.get("Accept") or "").split(",")[0].strip().lower()
     kinds = {s[0] for s in ordered_specs}

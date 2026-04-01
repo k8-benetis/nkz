@@ -1,0 +1,35 @@
+name: Feature Request
+description: Propose a new capability for the core platform (this repository).
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for **core** changes in `nkz-os/nkz`. For **new or existing external modules**, prefer the module repository.
+        Large proposals may start as a **GitHub Discussion** once enabled.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What user or operator pain does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: High-level design, APIs, or UX. Link to specs if any.
+    validations:
+      required: true
+  - type: textarea
+    id: fiware
+    attributes:
+      label: FIWARE / NGSI-LD impact
+      description: If relevant — entity types (Smart Data Models), Context Broker patterns, no direct Timescale writes for twin data.
+      placeholder: "N/A or brief note"
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Contributor acknowledgement
+      options:
+        - label: I have read CONTRIBUTING.md and PLATFORM_CONVENTIONS.md (NGSI-LD rules) where applicable.
