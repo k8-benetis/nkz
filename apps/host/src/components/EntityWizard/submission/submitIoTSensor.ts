@@ -37,12 +37,17 @@ export async function submitIoTSensor(
     };
   }
 
-  if (formData.deviceProfileId) {
-    const profileUrn = formData.deviceProfileId.startsWith('urn:')
-      ? formData.deviceProfileId
-      : `urn:ngsi-ld:DeviceProfile:${formData.deviceProfileId}`;
-    body.refDeviceProfile = profileUrn;
+  // refDeviceProfile as NGSI-LD Relationship (mandatory for IoT sensors)
+  if (!formData.deviceProfileId) {
+    throw new Error('DeviceProfile is required for IoT sensors');
   }
+  const profileUrn = formData.deviceProfileId.startsWith('urn:')
+    ? formData.deviceProfileId
+    : `urn:ngsi-ld:DeviceProfile:${formData.deviceProfileId}`;
+  body.refDeviceProfile = {
+    type: 'Relationship',
+    object: profileUrn,
+  };
 
   if (formData.iconUrl) {
     body.icon2d = formData.iconUrl;

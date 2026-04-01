@@ -81,9 +81,15 @@ function validateStep(
       return entityType ? null : 'Por favor selecciona un tipo de entidad';
 
     case 'geo-config':
-    case 'iot-config':
     case 'fleet-config':
       return formData?.name.trim() ? null : 'El nombre es obligatorio';
+
+    case 'iot-config': {
+      if (!formData?.name.trim()) return 'El nombre es obligatorio';
+      const iotData = formData as IoTSensorFormData;
+      if (!iotData.deviceProfileId) return 'El perfil de dispositivo es obligatorio para sensores IoT';
+      return null;
+    }
 
     case 'geometry':
       if (placementState.mode === 'stamp') {

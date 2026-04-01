@@ -166,14 +166,13 @@ def get_or_create_service_group(tenant_id: str) -> str | None:
 
 def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
                          device_name: str, location: dict = None,
-                         controlled_properties: list = None,
                          profile_id: str = None) -> dict:
     """
     Provision an IoT device in the IoT Agent.
     Returns provisioning result with MQTT credentials.
 
-    Args:
-        profile_id: Optional DeviceProfile ID to use for attribute mapping.
+    Requires a valid DeviceProfile with attribute mappings.
+    Provision without profile is rejected for IoT entity types.
     """
     result = {
         'provisioned': False,
@@ -226,24 +225,10 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
             except Exception as e:
                 logger.warning(f"Failed to load profile {profile_id}: {e}, using defaults")
         
-        # If no profile or profile loading failed, use provided properties or defaults
+        # Reject provisioning without valid profile mappings
         if not attributes:
-            if controlled_properties:
-                for prop in controlled_properties:
-                    attr = {
-                        'object_id': prop.lower().replace(' ', '_'),
-                        'name': prop,
-                        'type': 'Number'
-                    }
-                    attributes.append(attr)
-            else:
-                # Default attributes for sensors
-                attributes = [
-                    {'object_id': 'v', 'name': 'value', 'type': 'Number'},
-                    {'object_id': 't', 'name': 'temperature', 'type': 'Number'},
-                    {'object_id': 'h', 'name': 'humidity', 'type': 'Number'},
-                    {'object_id': 'b', 'name': 'batteryLevel', 'type': 'Number'}
-                ]
+            result['error'] = "No valid DeviceProfile with attribute mappings. IoT devices require a profile for SDM-compliant provisioning."
+            return result
         
         device_config = {
             'devices': [{
@@ -840,30 +825,24 @@ def create_entity_instance(entity_type):
                         location = loc['value']
                 
                 # Extract controlled properties if present
-                controlled_props = None
-                if 'controlledProperty' in data:
-                    cp = data['controlledProperty']
-                    if isinstance(cp, list):
-                        controlled_props = cp
-                    elif isinstance(cp, dict) and 'value' in cp:
-                        controlled_props = cp['value'] if isinstance(cp['value'], list) else [cp['value']]
-                
                 # Get device name
                 device_name = data.get('name', entity_id)
                 if isinstance(device_name, dict):
                     device_name = device_name.get('value', entity_id)
-                
-                # Extract Profile ID if present
+
+                # Extract Profile ID from Relationship (mandatory for IoT types)
                 profile_id = None
                 if 'refDeviceProfile' in data:
                     ref = data['refDeviceProfile']
                     if isinstance(ref, dict) and 'object' in ref:
-                         # Extract ID from URN: urn:ngsi-ld:DeviceProfile:123 -> 123
                          ref_obj = ref['object']
-                         if ':' in ref_obj:
-                             profile_id = ref_obj.split(':')[-1]
-                         else:
-                             profile_id = ref_obj
+                         profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
+
+                if not profile_id:
+                    return jsonify({
+                        'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
+                                 'Provide refDeviceProfile as a Relationship with a valid profile ID.'
+                    }), 400
 
                 # Provision in IoT Agent
                 iot_result = provision_iot_device(
@@ -872,7 +851,6 @@ def create_entity_instance(entity_type):
                     tenant_id=g.tenant,
                     device_name=device_name,
                     location=location,
-                    controlled_properties=controlled_props,
                     profile_id=profile_id
                 )
                 
@@ -1142,13 +1120,28 @@ def regenerate_iot_key(entity_id):
         if 'name' in entity:
              val = entity['name']
              device_name = val['value'] if isinstance(val, dict) and 'value' in val else val
-             
-        # Re-provision (this generates a new key)
+
+        # Extract profile_id from refDeviceProfile Relationship
+        profile_id = None
+        if 'refDeviceProfile' in entity:
+            ref = entity['refDeviceProfile']
+            if isinstance(ref, dict) and 'object' in ref:
+                ref_obj = ref['object']
+                profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
+
+        if not profile_id:
+            return jsonify({
+                'error': 'Entity has no refDeviceProfile. Cannot regenerate key without a valid DeviceProfile. '
+                         'Re-provision the sensor with a profile first.'
+            }), 400
+
+        # Re-provision with profile (generates a new key)
         result = provision_iot_device(
             entity_id=entity_id,
             entity_type=entity_type,
             tenant_id=g.tenant,
-            device_name=device_name
+            device_name=device_name,
+            profile_id=profile_id
         )
         
         if result['provisioned']:

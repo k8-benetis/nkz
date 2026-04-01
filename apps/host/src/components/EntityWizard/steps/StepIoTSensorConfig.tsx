@@ -93,15 +93,17 @@ export function StepIoTSensorConfig() {
           {/* Profile selector */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Perfil de Dispositivo (Mapeo de Datos)
+              Perfil de Dispositivo (Mapeo de Datos) *
             </label>
             <div className="flex gap-2">
               <select
                 value={data.deviceProfileId ?? ''}
                 onChange={e => updateFormData({ deviceProfileId: e.target.value || null })}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white"
+                className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 bg-white ${
+                  !data.deviceProfileId ? 'border-red-300' : 'border-gray-300'
+                }`}
               >
-                <option value="">-- Sin perfil (configurar manualmente después) --</option>
+                <option value="">-- Selecciona un perfil --</option>
                 {publicProfiles.length > 0 && (
                   <optgroup label="🏛️ Perfiles Oficiales">
                     {publicProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -157,7 +159,7 @@ export function StepIoTSensorConfig() {
           </div>
 
           <p className="text-xs text-gray-500 italic">
-            * Si no seleccionas un perfil ahora, podrás configurar el mapeo JSON manualmente desde el panel de "Conectividad" una vez creada la entidad.
+            * El perfil de dispositivo es obligatorio. Define cómo se traducen los datos del datalogger a atributos SDM estándar. Si no encuentras un perfil adecuado, importa uno o crea uno nuevo desde "Ver Plantillas".
           </p>
         </div>
       </div>
