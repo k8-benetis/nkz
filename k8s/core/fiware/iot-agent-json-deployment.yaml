@@ -192,9 +192,10 @@ spec:
         # Without this, updates for new attributes fail with "entity does not have such attribute"
         - name: IOTA_APPEND_MODE
           value: "true"
-        # Explicit attrs false: accept any attribute from devices, not just declared ones
+        # Explicit attrs true: only declared attributes (from DeviceProfile) are forwarded to Orion
+        # Undeclared MQTT keys are silently ignored — enforces SDM compliance
         - name: IOTA_EXPLICIT_ATTRS
-          value: "false"
+          value: "true"
         volumeMounts:
         - name: config
           mountPath: /opt/iotagent-json/conf

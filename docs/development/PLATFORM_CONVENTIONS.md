@@ -45,8 +45,9 @@ Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON → Orion-LD (NGSI-LD)
 | **One apikey per tenant** | The service group apikey identifies the tenant in MQTT topics. All devices in a tenant share it. The `device_id` differentiates individual devices. |
 | **Topic format** | `/<tenant_apikey>/<device_id>/attrs` |
 | **Payload format** | `{"attributeName": value}` (FIWARE IoT Agent JSON standard) |
-| **IoT Agent mode** | NGSIv2 + `appendMode=true` (auto-creates new attributes in Orion-LD) |
-| **explicitAttrs** | `false` — any attribute sent by a device is passed through, not just declared ones |
+| **IoT Agent mode** | **NGSI-LD native** (`IOTA_CB_NGSI_VERSION=ld`) + `appendMode=true`. The agent writes JSON-LD to Orion-LD. |
+| **explicitAttrs** | `true` — only attributes declared in the DeviceProfile are forwarded to Orion. Undeclared MQTT keys are silently ignored. |
+| **DeviceProfile** | **Mandatory** for all IoT entity types. Stored as `refDeviceProfile` (NGSI-LD Relationship) on the entity. Provisioning without a profile is rejected (HTTP 400). |
 | **Entity types with IoT** | `AgriSensor`, `Sensor`, `Actuator`, `WeatherStation`, `AgriculturalTractor`, `LivestockAnimal`, `AgriculturalMachine` |
 | **MQTT external endpoint** | Configured via `MQTT_EXTERNAL_HOST` / `MQTT_EXTERNAL_PORT` in `nekazari-config` ConfigMap |
 | **Credentials security** | API key shown ONCE at creation. Cannot be recovered. User must save it. |
