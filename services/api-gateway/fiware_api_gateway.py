@@ -55,6 +55,7 @@ except ImportError as e:
             return auth_header.split(" ")[1]
         return request.cookies.get("nkz_token")
 
+
 try:
     from gateway_pat import (
         is_pat_token,
@@ -95,6 +96,9 @@ ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager:5000
 NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager:5000")
 TENANT_USER_API_URL = os.getenv("TENANT_USER_API_URL", "http://tenant-user-api:5000")
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
+SDM_INTEGRATION_URL = os.getenv(
+    "SDM_INTEGRATION_URL", "http://sdm-integration-service:5000"
+)
 VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
 )
@@ -760,7 +764,9 @@ def timeseries_proxy(path):
             logger.warning(
                 f"Blocked mutation request to {path} for user with role_pro_expired"
             )
-            return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
+            return jsonify(
+                {"error": "Subscription expired. Read-only mode active."}
+            ), 403
 
     # Forward request
     try:
@@ -918,6 +924,7 @@ def request_offline_basemap():
     try:
         # Import task queue dynamically to avoid coupling problems
         import importlib.util
+
         task_queue_file = "/app/task-queue/task_queue.py"
         if os.path.exists(task_queue_file):
             spec = importlib.util.spec_from_file_location("task_queue", task_queue_file)
@@ -926,14 +933,21 @@ def request_offline_basemap():
             spec.loader.exec_module(task_queue_module)
             TaskQueue = task_queue_module.TaskQueue
             pmtiles_queue = TaskQueue(stream_name="pmtiles:requests")
-            
+
             task_id = pmtiles_queue.enqueue_task(
                 tenant_id=tenant,
                 task_type="pmtiles_generation",
-                payload={"tenant_id": tenant, "parcel_id": parcel_id, "bbox": bbox, "max_zoom": max_zoom},
-                max_retries=1
+                payload={
+                    "tenant_id": tenant,
+                    "parcel_id": parcel_id,
+                    "bbox": bbox,
+                    "max_zoom": max_zoom,
+                },
+                max_retries=1,
             )
-            return jsonify({"message": "Packaging task enqueued", "task_id": task_id}), 202
+            return jsonify(
+                {"message": "Packaging task enqueued", "task_id": task_id}
+            ), 202
         else:
             logger.error("Task Queue module not found")
             return jsonify({"error": "Task Queue module not found in API Gateway"}), 500
@@ -1701,7 +1715,7 @@ def proxy_vector_sync_requests():
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({"error": "Invalid token"}), 401
-        
+
     tenant = extract_tenant_id(payload)
     if not tenant:
         return jsonify({"error": "Tenant not present in token"}), 401
@@ -3084,6 +3098,70 @@ def provision_mqtt_credentials():
     except Exception as e:
         logger.error(f"MQTT provisioning error: {e}")
         return jsonify({"error": "MQTT provisioning failed"}), 502
+
+
+# =============================================================================
+# SDM Integration Proxy (/api/sdm/*)
+# =============================================================================
+
+
+@app.route(
+    "/api/sdm/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_sdm_integration(subpath):
+    """Proxy SDM integration requests (device profiles, schemas)."""
+    if request.method == "OPTIONS":
+        return "", 204
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    target_url = f"{SDM_INTEGRATION_URL}/sdm/{subpath}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": request.content_type or "application/json",
+        "X-Tenant-ID": tenant,
+    }
+
+    try:
+        params = dict(request.args)
+        json_data = None
+        if request.method in ("POST", "PUT", "PATCH") and request.is_json:
+            json_data = request.get_json(silent=True)
+
+        resp = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            params=params,
+            json=json_data,
+            timeout=30,
+        )
+
+        if resp.status_code >= 400:
+            logger.warning(
+                f"SDM integration returned {resp.status_code} for /api/sdm/{subpath}: {resp.text[:200]}"
+            )
+
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error forwarding SDM integration request: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 if __name__ == "__main__":
