@@ -21,6 +21,7 @@
 
 | Resource | URL |
 |----------|-----|
+| **Live demo** | [nekazari.robotika.cloud](https://nekazari.robotika.cloud) |
 | **Product documentation & marketing** | [nkz-os.org](https://nkz-os.org) (Astro / Starlight) |
 | **GitHub organization** | [github.com/nkz-os](https://github.com/nkz-os) |
 | **Roadmap (high level)** | [ROADMAP.md](ROADMAP.md) |
