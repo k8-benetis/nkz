@@ -3,33 +3,10 @@
 // =============================================================================
 // Service for interacting with Cadastral API
 
-import axios, { AxiosInstance } from 'axios';
-import { getConfig } from '@/config/environment';
-
-const config = getConfig();
-const API_BASE_URL = config.api.baseUrl;
+import { api } from './api';
 
 class CadastralApiService {
-  private client: AxiosInstance;
-
-  constructor() {
-    this.client = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Add auth token to requests
-    this.client.interceptors.request.use((requestConfig) => {
-      const token = (window as any).keycloak?.token || '';
-      if (token) {
-        requestConfig.headers.Authorization = `Bearer ${token}`;
-      }
-      return requestConfig;
-    });
-  }
+  private get client() { return api; }
 
   async getParcels(): Promise<any[]> {
     const response = await this.client.get('/api/cadastral-api/parcels');

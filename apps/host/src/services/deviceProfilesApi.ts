@@ -1,23 +1,14 @@
 /**
  * Device Profiles API Client
- * 
+ *
  * CRUD operations for DeviceProfile entities (IoT data mapping).
  * These profiles define how raw sensor data is mapped to SDM attributes.
+ *
+ * Uses the shared ApiService (withCredentials: true) so the httpOnly
+ * cookie nkz_token is sent automatically on every request.
  */
 
-import { getConfig } from '@/config/environment';
-
-const envConfig = getConfig();
-const API_BASE_URL = envConfig.api.baseUrl;
-
-// Helper to get auth headers
-const getApiHeaders = (): HeadersInit => {
-    const token = (typeof window !== 'undefined' && (window as any).keycloak?.token) || '';
-    return {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json',
-    };
-};
+import { api } from './api';
 
 // =============================================================================
 // Types
@@ -74,115 +65,56 @@ export async function listDeviceProfiles(params?: {
     sdm_entity_type?: string;
     include_global?: boolean;
 }): Promise<DeviceProfile[]> {
-    const queryParams = new URLSearchParams();
-    if (params?.sdm_entity_type) queryParams.set('sdm_entity_type', params.sdm_entity_type);
-    if (params?.include_global !== undefined) queryParams.set('include_global', params.include_global.toString());
+    const queryParams: Record<string, string> = {};
+    if (params?.sdm_entity_type) queryParams.sdm_entity_type = params.sdm_entity_type;
+    if (params?.include_global !== undefined) queryParams.include_global = params.include_global.toString();
 
-    const url = `${API_BASE_URL}/sdm/profiles${queryParams.toString() ? '?' + queryParams : ''}`;
-
-    const response = await fetch(url, {
-        headers: getApiHeaders(),
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to list device profiles: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.profiles;
+    const response = await api.get('/api/sdm/profiles', { params: queryParams });
+    return response.data.profiles;
 }
 
 /**
  * Get a single device profile by ID
  */
 export async function getDeviceProfile(id: string): Promise<DeviceProfile> {
-    const response = await fetch(`${API_BASE_URL}/sdm/profiles/${id}`, {
-        headers: getApiHeaders(),
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to get device profile: ${response.statusText}`);
-    }
-
-    return response.json();
+    const response = await api.get(`/api/sdm/profiles/${id}`);
+    return response.data;
 }
 
 /**
  * Create a new device profile
  */
 export async function createDeviceProfile(data: CreateDeviceProfileData): Promise<{ id: string; message: string }> {
-    const response = await fetch(`${API_BASE_URL}/sdm/profiles`, {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create device profile');
-    }
-
-    return response.json();
+    const response = await api.post('/api/sdm/profiles', data);
+    return response.data;
 }
 
 /**
  * Update an existing device profile
  */
 export async function updateDeviceProfile(id: string, data: Partial<CreateDeviceProfileData>): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/sdm/profiles/${id}`, {
-        method: 'PUT',
-        headers: getApiHeaders(),
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update device profile');
-    }
+    await api.put(`/api/sdm/profiles/${id}`, data);
 }
 
 /**
  * Delete a device profile
  */
 export async function deleteDeviceProfile(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/sdm/profiles/${id}`, {
-        method: 'DELETE',
-        headers: getApiHeaders(),
-    });
-
-    if (!response.ok) {
-        throw new Error('Failed to delete device profile');
-    }
+    await api.delete(`/api/sdm/profiles/${id}`);
 }
 
 /**
  * List all SDM schemas (entity types)
  */
 export async function listSDMSchemas(): Promise<SDMSchema[]> {
-    const response = await fetch(`${API_BASE_URL}/sdm/profiles/schemas`, {
-        headers: getApiHeaders(),
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to list SDM schemas: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.schemas;
+    const response = await api.get('/api/sdm/profiles/schemas');
+    return response.data.schemas;
 }
 
 /**
  * Get attributes for a specific SDM entity type
  */
 export async function getSDMAttributes(entityType: string): Promise<SDMAttribute[]> {
-    const response = await fetch(`${API_BASE_URL}/sdm/profiles/schemas/${entityType}/attributes`, {
-        headers: getApiHeaders(),
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to get SDM attributes: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.attributes;
+    const response = await api.get(`/api/sdm/profiles/schemas/${entityType}/attributes`);
+    return response.data.attributes;
 }
