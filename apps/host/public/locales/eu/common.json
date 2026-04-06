@@ -557,7 +557,13 @@
     "activation_takes_time": "Aktibazio prozesuak minutu batzuk har ditzake. Ez itxi leiho hau.",
     "timeout_error": "Aktibazio prozesua espero baino gehiago ari da hartzen. Mesedez, itxaron minutu batzuk eta egiaztatu zure posta elektronikoa aktibazioa osatu den ala ez baieztatzeko.",
     "timeout_reason": "Prozesuak minutu batzuk har ditzake. Baieztapen mezu bat jasotzen baduzu, aktibazioa arrakastatsua izan da. Bestela, mesedez jarri harremanetan laguntzarekin.",
-    "error_help": "Administratzaileari errorearen xehetasunekin mezu elektroniko bat bidali zaio. Arazoak jarraitzen badu, jarri harremanetan laguntzarekin."
+    "error_help": "Administratzaileari errorearen xehetasunekin mezu elektroniko bat bidali zaio. Arazoak jarraitzen badu, jarri harremanetan laguntzarekin.",
+    "tenant_name_empty": "Nekazaritza edo erakundearen izena ezin da hutsik egon.",
+    "tenant_name_too_short": "Izenak gutxienez {{min}} karaktere izan behar ditu normalizazioaren ondoren (oraingoz: {{current}}).",
+    "tenant_name_too_long": "Izenak gehienez {{max}} karaktere izan behar ditu normalizazioaren ondoren (oraingoz: {{current}}).",
+    "tenant_name_invalid_chars": "Izenak karaktere baliogabeak ditu. Letra xehez, zenbaki eta azpimarrak bakarrik.",
+    "tenant_name_normalize_hint": "Izena «{{normalized}}» gisa normalizatuko da. Karaktere bereziak, zuriuneak eta maiuskulak automatikoki doitu.",
+    "tenant_name_invalid": "Nekazaritza edo erakundearen izen baliogabea."
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

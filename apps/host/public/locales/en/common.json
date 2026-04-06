@@ -570,7 +570,13 @@
     "activation_takes_time": "The activation process may take several minutes. Do not close this window.",
     "timeout_error": "The activation process is taking longer than expected. Please wait a few minutes and check your email to confirm if the activation completed.",
     "timeout_reason": "The process may take several minutes. If you receive a confirmation email, the activation was successful. If not, please contact support.",
-    "error_help": "An email has been sent to the administrator with error details. If the problem persists, contact support."
+    "error_help": "An email has been sent to the administrator with error details. If the problem persists, contact support.",
+    "tenant_name_empty": "The farm or organization name cannot be empty.",
+    "tenant_name_too_short": "The name must be at least {{min}} characters after normalization (currently {{current}}).",
+    "tenant_name_too_long": "The name must be at most {{max}} characters after normalization (currently {{current}}).",
+    "tenant_name_invalid_chars": "The name contains invalid characters. Only lowercase letters, numbers, and underscores are allowed.",
+    "tenant_name_normalize_hint": "The name will be normalized to \"{{normalized}}\". Special characters, spaces, and uppercase letters are adjusted automatically.",
+    "tenant_name_invalid": "Invalid farm or organization name."
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

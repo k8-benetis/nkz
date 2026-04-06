@@ -549,7 +549,13 @@
     "activation_takes_time": "O processo de ativação pode demorar vários minutos. Não feche esta janela.",
     "timeout_error": "O processo de ativação está a demorar mais do que o esperado. Por favor, aguarde alguns minutos e verifique o seu email para confirmar se a ativação foi concluída.",
     "timeout_reason": "O processo pode demorar vários minutos. Se receber um email de confirmação, a ativação foi bem-sucedida. Caso contrário, por favor contacte o suporte.",
-    "error_help": "Foi enviado um email ao administrador com os detalhes do erro. Se o problema persistir, contacte o suporte."
+    "error_help": "Foi enviado um email ao administrador com os detalhes do erro. Se o problema persistir, contacte o suporte.",
+    "tenant_name_empty": "O nome da exploração ou organização não pode estar vazio.",
+    "tenant_name_too_short": "O nome deve ter pelo menos {{min}} caracteres após normalização (atualmente {{current}}).",
+    "tenant_name_too_long": "O nome deve ter no máximo {{max}} caracteres após normalização (atualmente {{current}}).",
+    "tenant_name_invalid_chars": "O nome contém caracteres não permitidos. Apenas minúsculas, números e sublinhados.",
+    "tenant_name_normalize_hint": "O nome será normalizado para «{{normalized}}». Caracteres especiais, espaços e maiúsculas são ajustados automaticamente.",
+    "tenant_name_invalid": "Nome de exploração ou organização inválido."
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

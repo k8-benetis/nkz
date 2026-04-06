@@ -631,7 +631,13 @@
     "activation_takes_time": "El proceso de activación puede tardar varios minutos. No cierres esta ventana.",
     "timeout_error": "El proceso de activación está tardando más de lo esperado. Por favor, espera unos minutos y verifica tu email para confirmar si la activación se completó.",
     "timeout_reason": "El proceso puede tardar varios minutos. Si recibes un email de confirmación, la activación fue exitosa. Si no, por favor contacta con soporte.",
-    "error_help": "Se ha enviado un email al administrador con los detalles del error. Si el problema persiste, contacta con soporte."
+    "error_help": "Se ha enviado un email al administrador con los detalles del error. Si el problema persiste, contacta con soporte.",
+    "tenant_name_empty": "El nombre de la explotación u organización no puede estar vacío.",
+    "tenant_name_too_short": "El nombre debe tener al menos {{min}} caracteres tras la normalización (ahora: {{current}}).",
+    "tenant_name_too_long": "El nombre debe tener como máximo {{max}} caracteres tras la normalización (ahora: {{current}}).",
+    "tenant_name_invalid_chars": "El nombre contiene caracteres no permitidos. Solo letras minúsculas, números y guiones bajos.",
+    "tenant_name_normalize_hint": "El nombre se normalizará a «{{normalized}}». Los caracteres especiales, espacios y mayúsculas se ajustan automáticamente.",
+    "tenant_name_invalid": "Nombre de explotación u organización no válido."
   },
   "terms": {
     "title": "Términos y Condiciones de Uso",

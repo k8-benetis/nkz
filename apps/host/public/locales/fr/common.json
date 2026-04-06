@@ -549,7 +549,13 @@
     "activation_takes_time": "Le processus d'activation peut prendre plusieurs minutes. Ne fermez pas cette fenêtre.",
     "timeout_error": "Le processus d'activation prend plus de temps que prévu. Veuillez attendre quelques minutes et vérifier votre email pour confirmer si l'activation est terminée.",
     "timeout_reason": "Le processus peut prendre plusieurs minutes. Si vous recevez un email de confirmation, l'activation a réussi. Sinon, veuillez contacter le support.",
-    "error_help": "Un email a été envoyé à l'administrateur avec les détails de l'erreur. Si le problème persiste, contactez le support."
+    "error_help": "Un email a été envoyé à l'administrateur avec les détails de l'erreur. Si le problème persiste, contactez le support.",
+    "tenant_name_empty": "Le nom de l'exploitation ou de l'organisation ne peut pas être vide.",
+    "tenant_name_too_short": "Le nom doit comporter au moins {{min}} caractères après normalisation (actuellement {{current}}).",
+    "tenant_name_too_long": "Le nom doit comporter au plus {{max}} caractères après normalisation (actuellement {{current}}).",
+    "tenant_name_invalid_chars": "Le nom contient des caractères non autorisés. Lettres minuscules, chiffres et tirets bas uniquement.",
+    "tenant_name_normalize_hint": "Le nom sera normalisé en « {{normalized}} ». Caractères spéciaux, espaces et majuscules sont ajustés automatiquement.",
+    "tenant_name_invalid": "Nom d'exploitation ou d'organisation invalide."
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

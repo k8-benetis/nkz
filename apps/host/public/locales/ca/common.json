@@ -549,7 +549,13 @@
     "activation_takes_time": "El procés d'activació pot trigar diversos minuts. No tanquis aquesta finestra.",
     "timeout_error": "El procés d'activació està trigant més del previst. Si us plau, espera uns minuts i verifica el teu correu electrònic per confirmar si l'activació s'ha completat.",
     "timeout_reason": "El procés pot trigar diversos minuts. Si rep un correu de confirmació, l'activació ha estat exitosa. Si no, si us plau contacta amb suport.",
-    "error_help": "S'ha enviat un correu electrònic a l'administrador amb els detalls de l'error. Si el problema persisteix, contacta amb suport."
+    "error_help": "S'ha enviat un correu electrònic a l'administrador amb els detalls de l'error. Si el problema persisteix, contacta amb suport.",
+    "tenant_name_empty": "El nom de la explotació o organització no pot estar buit.",
+    "tenant_name_too_short": "El nom ha de tenir com a mínim {{min}} caràcters després de la normalització (ara: {{current}}).",
+    "tenant_name_too_long": "El nom ha de tenir com a màxim {{max}} caràcters després de la normalització (ara: {{current}}).",
+    "tenant_name_invalid_chars": "El nom conté caràcters no permesos. Només minúscules, números i guions baixos.",
+    "tenant_name_normalize_hint": "El nom es normalitzarà a «{{normalized}}». Els caràcters especials, espais i majúscules s'ajusten automàticament.",
+    "tenant_name_invalid": "Nom d'explotació o organització no vàlid."
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

@@ -10,8 +10,12 @@ const ALLOWED_CHARS_PATTERN = /^[a-z0-9_]+$/;
 export interface TenantValidationResult {
   isValid: boolean;
   normalized?: string;
-  error?: string;
-  warnings?: string[];
+  /** i18n key (common namespace) for use with useI18n().t */
+  errorKey?: string;
+  errorParams?: Record<string, string | number>;
+  /** Shown as secondary line when normalization differs from raw input */
+  warningKey?: string;
+  warningParams?: Record<string, string>;
 }
 
 /**
@@ -43,19 +47,18 @@ export function validateTenantId(input: string): TenantValidationResult {
   if (!input || !input.trim()) {
     return {
       isValid: false,
-      error: 'El nombre de la explotación no puede estar vacío'
+      errorKey: 'activation.tenant_name_empty',
     };
   }
 
   const normalized = normalizeTenantId(input);
-  const warnings: string[] = [];
+  let warningKey: string | undefined;
+  let warningParams: Record<string, string> | undefined;
 
-  // Check if normalization changed the input
+  // Hint when normalization changes the visible identity (for UX only)
   if (input.toLowerCase().trim() !== normalized && normalized) {
-    warnings.push(
-      `El nombre se normalizará a: "${normalized}". ` +
-      'Los caracteres especiales, espacios y mayúsculas se convertirán automáticamente.'
-    );
+    warningKey = 'activation.tenant_name_normalize_hint';
+    warningParams = { normalized };
   }
 
   // Validate length
@@ -63,9 +66,13 @@ export function validateTenantId(input: string): TenantValidationResult {
     return {
       isValid: false,
       normalized,
-      error: `El nombre debe tener al menos ${MIN_TENANT_ID_LENGTH} caracteres después de la normalización. ` +
-             `Actualmente tiene ${normalized.length} caracteres.`,
-      warnings
+      errorKey: 'activation.tenant_name_too_short',
+      errorParams: {
+        min: MIN_TENANT_ID_LENGTH,
+        current: normalized.length,
+      },
+      warningKey,
+      warningParams,
     };
   }
 
@@ -73,9 +80,13 @@ export function validateTenantId(input: string): TenantValidationResult {
     return {
       isValid: false,
       normalized,
-      error: `El nombre debe tener como máximo ${MAX_TENANT_ID_LENGTH} caracteres después de la normalización. ` +
-             `Actualmente tiene ${normalized.length} caracteres.`,
-      warnings
+      errorKey: 'activation.tenant_name_too_long',
+      errorParams: {
+        max: MAX_TENANT_ID_LENGTH,
+        current: normalized.length,
+      },
+      warningKey,
+      warningParams,
     };
   }
 
@@ -84,16 +95,17 @@ export function validateTenantId(input: string): TenantValidationResult {
     return {
       isValid: false,
       normalized,
-      error: 'El nombre contiene caracteres no permitidos. ' +
-             'Solo se permiten letras minúsculas, números y guiones bajos.',
-      warnings
+      errorKey: 'activation.tenant_name_invalid_chars',
+      warningKey,
+      warningParams,
     };
   }
 
   return {
     isValid: true,
     normalized,
-    warnings: warnings.length > 0 ? warnings : undefined
+    warningKey,
+    warningParams,
   };
 }
 
