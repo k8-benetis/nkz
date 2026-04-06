@@ -9,7 +9,7 @@ import { useI18n } from '@/context/I18nContext';
 import { TermsAcceptance } from '@/components/TermsAcceptance';
 import axios from 'axios';
 import { getConfig } from '@/config/environment';
-import { validateTenantId } from '@/utils/tenantValidation';
+import { validateTenantId, type TenantValidationResult } from '@/utils/tenantValidation';
 import {
   Key,
   CheckCircle,
@@ -69,7 +69,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(''); // Mensaje de progreso
-  const [tenantValidation, setTenantValidation] = useState<{ isValid: boolean; normalized?: string; error?: string; warnings?: string[] } | null>(null);
+  const [tenantValidation, setTenantValidation] = useState<TenantValidationResult | null>(null);
   
   // Password validation requirements
   interface PasswordRequirements {
@@ -128,10 +128,17 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
     }
 
     // Validate tenant_name format
-    const tenantValidation = validateTenantId(formData.tenant_name);
-    if (!tenantValidation.isValid) {
-      setError(tenantValidation.error || 'Nombre de explotación inválido');
-      setErrorReason(tenantValidation.warnings?.join(' ') || '');
+    const tenantValidationResult = validateTenantId(formData.tenant_name);
+    if (!tenantValidationResult.isValid) {
+      const msg = tenantValidationResult.errorKey
+        ? t(tenantValidationResult.errorKey, tenantValidationResult.errorParams as Record<string, unknown> | undefined)
+        : t('activation.tenant_name_invalid');
+      setError(msg);
+      setErrorReason(
+        tenantValidationResult.warningKey
+          ? t(tenantValidationResult.warningKey, tenantValidationResult.warningParams as Record<string, unknown> | undefined)
+          : ''
+      );
       return false;
     }
 
@@ -461,11 +468,25 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
                 }`}
                 required
               />
-              {formData.tenant_name && tenantValidation?.normalized && (
-                <div className="mt-1 text-xs text-gray-600">
-                  <span className="font-medium">ID:</span>{' '}
-                  <span className="font-mono text-gray-800">{tenantValidation.normalized}</span>
-                </div>
+              {formData.tenant_name && tenantValidation && (
+                <>
+                  {!tenantValidation.isValid && tenantValidation.errorKey && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {t(tenantValidation.errorKey, tenantValidation.errorParams as Record<string, unknown> | undefined)}
+                    </p>
+                  )}
+                  {tenantValidation.isValid && tenantValidation.warningKey && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      {t(tenantValidation.warningKey, tenantValidation.warningParams as Record<string, unknown> | undefined)}
+                    </p>
+                  )}
+                  {tenantValidation.normalized && (
+                    <div className="mt-1 text-xs text-gray-600">
+                      <span className="font-medium">ID:</span>{' '}
+                      <span className="font-mono text-gray-800">{tenantValidation.normalized}</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

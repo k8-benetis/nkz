@@ -49,13 +49,13 @@ describe('validateTenantId', () => {
     const result = validateTenantId('myfarm')
     expect(result.isValid).toBe(true)
     expect(result.normalized).toBe('myfarm')
-    expect(result.error).toBeUndefined()
+    expect(result.errorKey).toBeUndefined()
   })
 
   it('rejects empty string', () => {
     const result = validateTenantId('')
     expect(result.isValid).toBe(false)
-    expect(result.error).toBeDefined()
+    expect(result.errorKey).toBe('activation.tenant_name_empty')
   })
 
   it('rejects whitespace-only string', () => {
@@ -66,14 +66,16 @@ describe('validateTenantId', () => {
   it('rejects too-short tenant ID after normalization', () => {
     const result = validateTenantId('ab')
     expect(result.isValid).toBe(false)
-    expect(result.error).toContain('3')
+    expect(result.errorKey).toBe('activation.tenant_name_too_short')
+    expect(result.errorParams?.min).toBe(3)
   })
 
   it('rejects too-long tenant ID', () => {
     const longId = 'a'.repeat(64)
     const result = validateTenantId(longId)
     expect(result.isValid).toBe(false)
-    expect(result.error).toContain('63')
+    expect(result.errorKey).toBe('activation.tenant_name_too_long')
+    expect(result.errorParams?.max).toBe(63)
   })
 
   it('accepts maximum length tenant ID', () => {
@@ -85,13 +87,13 @@ describe('validateTenantId', () => {
   it('adds warning when normalization changes input', () => {
     const result = validateTenantId('My-Farm')
     expect(result.isValid).toBe(true)
-    expect(result.warnings).toBeDefined()
-    expect(result.warnings!.length).toBeGreaterThan(0)
+    expect(result.warningKey).toBe('activation.tenant_name_normalize_hint')
+    expect(result.warningParams?.normalized).toBe('my_farm')
   })
 
   it('no warnings when input is already normalized', () => {
     const result = validateTenantId('myfarm')
-    expect(result.warnings).toBeUndefined()
+    expect(result.warningKey).toBeUndefined()
   })
 
   it('handles input that normalizes to empty string', () => {
