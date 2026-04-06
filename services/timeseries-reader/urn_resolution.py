@@ -75,6 +75,44 @@ def fetch_orion_entity(tenant_id: str, entity_id: str) -> Optional[Dict[str, Any
         return None
 
 
+def _municipality_from_parcel_address_entity(
+    parcel_entity: Optional[Dict[str, Any]],
+) -> Optional[Tuple[str, str]]:
+    """
+    Match catalog_municipalities.ine_code from Orion parcel address (addressLocality / addressRegion).
+    Used when cadastral_parcels has no row (common) or URN has no extractable UUID.
+    """
+    if not parcel_entity or not POSTGRES_URL:
+        return None
+    addr = parcel_entity.get("address")
+    if isinstance(addr, dict) and "value" in addr:
+        addr = addr["value"]
+    if not isinstance(addr, dict):
+        return None
+    loc = addr.get("addressLocality") or addr.get("addressRegion") or ""
+    if not isinstance(loc, str) or not loc.strip():
+        return None
+    try:
+        conn = psycopg2.connect(POSTGRES_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT ine_code FROM catalog_municipalities
+            WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
+            LIMIT 1
+            """,
+            (loc.strip(),),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            return (row["ine_code"], "municipality")
+    except Exception as e:
+        logger.debug("Catalog lookup for municipality name failed: %s", e)
+    return None
+
+
 def _parcel_urn_to_municipality_code(
     tenant_id: str, parcel_urn: str, parcel_entity: Optional[dict] = None
 ) -> Optional[Tuple[str, str]]:
@@ -92,32 +130,7 @@ def _parcel_urn_to_municipality_code(
             if not re.match(r"^[0-9a-fA-F-]{36}$", uuid_candidate):
                 uuid_candidate = None
     if not uuid_candidate:
-        if parcel_entity:
-            addr = parcel_entity.get("address")
-            if isinstance(addr, dict) and "value" in addr:
-                addr = addr["value"]
-            if isinstance(addr, dict):
-                loc = addr.get("addressLocality") or addr.get("addressRegion") or ""
-                if isinstance(loc, str) and loc.strip():
-                    try:
-                        conn = psycopg2.connect(POSTGRES_URL)
-                        cur = conn.cursor(cursor_factory=RealDictCursor)
-                        cur.execute(
-                            """
-                            SELECT ine_code FROM catalog_municipalities
-                            WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
-                            LIMIT 1
-                            """,
-                            (loc.strip(),),
-                        )
-                        row = cur.fetchone()
-                        cur.close()
-                        conn.close()
-                        if row:
-                            return (row["ine_code"], "municipality")
-                    except Exception as e:
-                        logger.debug("Catalog lookup for municipality name failed: %s", e)
-        return None
+        return _municipality_from_parcel_address_entity(parcel_entity)
 
     try:
         conn = psycopg2.connect(POSTGRES_URL)
@@ -154,7 +167,9 @@ def _parcel_urn_to_municipality_code(
             return (row["ine_code"], "municipality")
     except Exception as e:
         logger.debug("cadastral_parcels lookup failed for %s: %s", uuid_candidate, e)
-    return None
+
+    # No cadastral row (table often empty): still resolve weather key from Orion address
+    return _municipality_from_parcel_address_entity(parcel_entity)
 
 
 def _resolve_urn_to_weather_key(

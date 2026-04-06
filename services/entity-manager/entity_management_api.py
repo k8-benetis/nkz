@@ -4217,6 +4217,29 @@ def _parcel_urn_to_municipality_code(tenant_id: str, parcel_urn: str, parcel_ent
                 return (row['ine_code'], 'municipality')
         except Exception as e:
             logger.debug(f"cadastral_parcels lookup failed for {uuid_candidate}: {e}")
+    # No cadastral row: resolve from Orion parcel address (matches timeseries-reader)
+    if parcel_entity:
+        addr = parcel_entity.get('address')
+        if isinstance(addr, dict) and 'value' in addr:
+            addr = addr['value']
+        if isinstance(addr, dict):
+            loc = addr.get('addressLocality') or addr.get('addressRegion') or ''
+            if isinstance(loc, str) and loc.strip():
+                with get_db_connection_with_tenant(tenant_id) as conn:
+                    if conn:
+                        try:
+                            cur = conn.cursor(cursor_factory=RealDictCursor)
+                            cur.execute("""
+                                SELECT ine_code FROM catalog_municipalities
+                                WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
+                                LIMIT 1
+                            """, (loc.strip(),))
+                            row = cur.fetchone()
+                            cur.close()
+                            if row:
+                                return (row['ine_code'], 'municipality')
+                        except Exception as e:
+                            logger.debug(f'Catalog lookup for municipality name failed: {e}')
     return None
 
 
