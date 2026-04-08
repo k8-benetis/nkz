@@ -1,0 +1,23 @@
+# =============================================================================
+# TLS certificate for MinIO public S3 API (minio.robotika.cloud)
+# =============================================================================
+# Preconditions:
+# - DNS A/AAAA record for minio.robotika.cloud points to the cluster ingress.
+# - Apply after ClusterIssuer letsencrypt-prod exists.
+# =============================================================================
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: minio-tls
+  namespace: nekazari
+spec:
+  secretName: minio-tls
+  duration: 2160h
+  renewBefore: 360h
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: minio.robotika.cloud
+  dnsNames:
+    - minio.robotika.cloud

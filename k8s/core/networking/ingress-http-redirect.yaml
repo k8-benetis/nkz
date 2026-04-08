@@ -31,3 +31,13 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
+    - host: minio.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio-service
+                port:
+                  number: 9000

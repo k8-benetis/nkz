@@ -45,6 +45,10 @@ spec:
         - --console-address
         - ":9001"
         env:
+        # Public URL of the S3 API (browser + presigned URLs). Keep in sync with
+        # minio-public-ingress / DNS. Internal clients still use http://minio-service:9000.
+        - name: MINIO_SERVER_URL
+          value: "https://minio.robotika.cloud"
         - name: MINIO_ROOT_USER
           valueFrom:
             secretKeyRef:

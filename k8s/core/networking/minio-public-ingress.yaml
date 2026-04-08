@@ -1,0 +1,38 @@
+# =============================================================================
+# Public HTTPS ingress: MinIO S3 API only (port 9000)
+# =============================================================================
+# Security design:
+# - Exposes ONLY the S3 API. MinIO Console (9001) must NOT be published here.
+# - TLS via cert-manager (secret minio-tls from certificate-minio.yaml).
+# - Bucket CORS is enforced by LiDAR backend on lidar-tilesets (strict origins),
+#   not via Traefik wildcard CORS (see nkz-module-lidar storage service).
+#
+# Apply order: certificate-minio.yaml → this file (or rely on Ingress TLS +
+# cert-manager annotations if you prefer auto-cert; we use explicit Certificate).
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-public-s3
+  namespace: nekazari
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - minio.robotika.cloud
+      secretName: minio-tls
+  rules:
+    - host: minio.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio-service
+                port:
+                  number: 9000
