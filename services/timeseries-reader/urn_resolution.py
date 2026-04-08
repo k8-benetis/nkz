@@ -31,7 +31,9 @@ PARCEL_ENTITY_TYPES = set(
 )
 
 
-def _orion_headers(tenant_id: str, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def _orion_headers(
+    tenant_id: str, extra: Optional[Dict[str, str]] = None
+) -> Dict[str, str]:
     h: Dict[str, str] = {"Accept": "application/ld+json"}
     if tenant_id:
         h["NGSILD-Tenant"] = tenant_id
@@ -201,10 +203,22 @@ def _resolve_urn_to_weather_key(
     etype_short = etype.split("/")[-1] if "/" in etype else etype
 
     if etype_short == "WeatherObserved" or etype.endswith("WeatherObserved"):
+        # Direct resolution: entity carries its own municipality code
+        muni_prop = entity.get("municipalityCode")
+        if muni_prop:
+            muni_val = (
+                muni_prop.get("value") if isinstance(muni_prop, dict) else muni_prop
+            )
+            if isinstance(muni_val, str) and muni_val.strip():
+                return (muni_val.strip(), "municipality")
+
+        # Fallback: legacy chain via refParcel -> parcel -> address
         ref_parcel = entity.get("refParcel")
         if not ref_parcel:
             return None, "no_location"
-        parcel_urn = ref_parcel.get("object") if isinstance(ref_parcel, dict) else ref_parcel
+        parcel_urn = (
+            ref_parcel.get("object") if isinstance(ref_parcel, dict) else ref_parcel
+        )
         if not parcel_urn:
             return None, "no_location"
         parcel_urn = str(parcel_urn).strip()
@@ -221,9 +235,7 @@ def _resolve_urn_to_weather_key(
     return None, "no_location"
 
 
-def plan_timeseries_read(
-    tenant_id: str, entity_urn: str
-) -> Dict[str, Any]:
+def plan_timeseries_read(tenant_id: str, entity_urn: str) -> Dict[str, Any]:
     """
     Decide whether to read telemetry_events (IoT) or weather_observations for this URN.
     """
