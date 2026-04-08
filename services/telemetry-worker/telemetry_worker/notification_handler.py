@@ -146,35 +146,55 @@ async def _process_entity(
     )
 
 
+_ENTITY_METADATA_KEYS = frozenset(
+    {
+        "id",
+        "type",
+        "@context",
+        "location",
+        # NGSI-LD system / metadata
+        "name",
+        "description",
+        "dateCreated",
+        "dateModified",
+        "observedAt",
+        "controlledProperty",
+        "category",
+        "source",
+        "provider",
+        "seeAlso",
+        "ownedBy",
+        "address",
+        # Relationships (not measurements)
+        "refDeviceProfile",
+        "refDevice",
+        "refAgriParcel",
+        "refParcel",
+        "refWeatherStation",
+    }
+)
+
+
 def _extract_measurements(entity: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract measurement values from NGSI-LD entity attributes.
 
-    NGSI-LD format:
-    {
-        "temperature": {
-            "type": "Property",
-            "value": 23.5,
-            "observedAt": "2024-01-01T12:00:00Z"
-        }
-    }
+    Only extracts Property-type attributes with scalar values.
+    Skips Relationships, GeoProperties, metadata keys, and non-scalar values.
     """
     measurements = {}
-    skip_keys = {"id", "type", "@context", "location"}
 
     for key, attr in entity.items():
-        if key in skip_keys:
+        if key in _ENTITY_METADATA_KEYS:
             continue
 
         if isinstance(attr, dict):
             attr_type = attr.get("type")
-
             if attr_type == "Property":
-                measurements[key] = attr.get("value")
-            elif attr_type == "GeoProperty":
-                measurements[key] = attr.get("value")
-            elif attr_type == "Relationship":
-                measurements[key] = attr.get("object")
+                val = attr.get("value")
+                if val is not None and not isinstance(val, (dict, list)):
+                    measurements[key] = val
+            # GeoProperty and Relationship: skip (not measurements)
 
     return measurements
 
