@@ -167,6 +167,7 @@ def create_weather_observed_entity(
     location: Tuple[float, float],
     weather_data: Dict[str, Any],
     observed_at: Optional[datetime] = None,
+    municipality_code: Optional[str] = None,
 ) -> Optional[str]:
     """
     Create or update a WeatherObserved entity in Orion-LD for a parcel.
@@ -177,6 +178,7 @@ def create_weather_observed_entity(
         location: Tuple of (longitude, latitude)
         weather_data: Weather data dict with keys like temp_avg, humidity_avg, etc.
         observed_at: Observation timestamp (defaults to now)
+        municipality_code: Optional INE/AEMET municipality code for direct timeseries resolution
 
     Returns:
         Entity ID if successful, None otherwise
@@ -209,6 +211,13 @@ def create_weather_observed_entity(
             },
             "refParcel": {"type": "Relationship", "object": parcel_id},
         }
+
+        # Self-describing: carry municipality code for direct timeseries resolution
+        if municipality_code:
+            entity["municipalityCode"] = {
+                "type": "Property",
+                "value": municipality_code,
+            }
 
         # Add weather properties (map from weather_observations table format)
         if weather_data.get("temp_avg") is not None:
@@ -448,6 +457,7 @@ def sync_weather_to_orion(
     weather_data: Dict[str, Any],
     observed_at: Optional[datetime] = None,
     radius_km: float = 10.0,
+    municipality_code: Optional[str] = None,
 ) -> int:
     """
     Sync weather data to Orion-LD for all parcels near a location.
@@ -463,6 +473,7 @@ def sync_weather_to_orion(
         weather_data: Weather data dict (from weather_observations table format)
         observed_at: Observation timestamp
         radius_km: Search radius for parcels (default: 10km)
+        municipality_code: Optional INE/AEMET municipality code forwarded to each entity
 
     Returns:
         Number of WeatherObserved entities synced
@@ -537,6 +548,7 @@ def sync_weather_to_orion(
                 location=parcel_location,
                 weather_data=weather_data,
                 observed_at=observed_at,
+                municipality_code=municipality_code,
             )
 
             if entity_id:
