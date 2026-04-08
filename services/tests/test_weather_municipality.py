@@ -1,5 +1,11 @@
 """Tests for municipality_code on WeatherObserved entities."""
 
+import sys
+import os
+
+# Add weather-worker to path so we can import weather_worker.storage.orion_writer
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather-worker"))
+
 from unittest.mock import patch, MagicMock
 
 
