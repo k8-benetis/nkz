@@ -87,7 +87,7 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
 
     return (
         <div
-            className={`absolute top-16 left-0 bottom-4 z-30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? '' : 'w-0'
+            className={`absolute top-16 left-0 bottom-4 z-30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? 'pointer-events-auto' : 'w-0 pointer-events-none'
                 }`}
             style={{ width: isOpen ? `${currentWidth}px` : '0px' }}
         >
@@ -120,7 +120,7 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                     onClick={onCycleState}
                     className={`absolute top-1/2 -translate-y-1/2 z-40 p-2 rounded-full ${glassPanel.base}
                         hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-lg group
-                        flex items-center justify-center border-slate-200/50 text-slate-600 hover:text-blue-600`}
+                        flex items-center justify-center border-slate-200/50 text-slate-600 hover:text-blue-600 pointer-events-auto`}
                     style={{
                         left: isOpen ? `${currentWidth - 8}px` : '4px',
                         // Rotate icon for expanded state closing action if desired, but changing icon is enough
