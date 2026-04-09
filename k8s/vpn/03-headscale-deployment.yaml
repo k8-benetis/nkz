@@ -148,7 +148,7 @@ spec:
   type: ClusterIP
 
 ---
-# Ingress — expone el control plane en vpn.nkz.robotika.cloud
+# Ingress — expone el control plane en vpn.robotika.cloud
 # Los clientes Tailscale se conectan aquí para registrarse.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -166,7 +166,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares: nekazari-headscale-headers@kubernetescrd
 spec:
   rules:
-    - host: vpn.nkz.robotika.cloud
+    - host: vpn.robotika.cloud
       http:
         paths:
           - path: /

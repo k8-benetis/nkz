@@ -5,7 +5,7 @@
 # Gestiona: peers, Pre-Auth Keys, rutas de subred y políticas ACL.
 #
 # Estado: PostgreSQL (DB 'headscale' en postgresql-service).
-# Control plane: https://vpn.nkz.robotika.cloud (via Traefik ingress).
+# Control plane: https://vpn.robotika.cloud (via Traefik ingress).
 # =============================================================================
 
 ---
@@ -20,7 +20,7 @@ metadata:
 data:
   config.yaml: |
     # URL pública del servidor — los clientes Tailscale se registran aquí
-    server_url: https://vpn.nkz.robotika.cloud
+    server_url: https://vpn.robotika.cloud
 
     # Socket Unix (debe ser ruta escribible; el pod corre como UID 1000)
     unix_socket: /var/lib/headscale/headscale.sock

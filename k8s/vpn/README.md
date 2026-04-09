@@ -34,7 +34,7 @@ curl -fsSL https://tailscale.com/install.sh | sh
 #   kubectl exec -n nekazari deploy/headscale -- headscale preauthkeys create \
 #     --user cluster-router --expiration 1h --reusable
 tailscale up \
-  --login-server=https://vpn.nkz.robotika.cloud \
+  --login-server=https://vpn.robotika.cloud \
   --authkey=<PRE_AUTH_KEY> \
   --advertise-routes=10.43.0.0/16 \
   --accept-routes \
