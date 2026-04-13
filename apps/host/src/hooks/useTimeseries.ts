@@ -171,7 +171,31 @@ export function useTimeseries(options: UseTimeseriesOptions): UseTimeseriesRetur
         limit,
       });
 
-      setData(response.data || []);
+      // Handle both v1 (weather) and v2 (telemetry) response formats
+      // V1: { data: [{ timestamp, ...attrs }] }
+      // V2: { timestamps: [], attributes: { attr1: [], attr2: [] } }
+      let processedData: TimeseriesPoint[] = [];
+      if (response.data) {
+        // V1 format (weather_observations)
+        processedData = response.data;
+      } else if (response.timestamps && response.attributes) {
+        // V2 format (telemetry_events) - convert columnar to row format
+        const timestamps = response.timestamps;
+        const attrs = response.attributes || {};
+        const attrNames = Object.keys(attrs);
+        processedData = timestamps.map((ts, idx) => {
+          const point: TimeseriesPoint = { timestamp: ts };
+          attrNames.forEach(attr => {
+            const values = attrs[attr];
+            if (values && values[idx] !== undefined && values[idx] !== null) {
+              point[attr] = values[idx] as number;
+            }
+          });
+          return point;
+        });
+      }
+
+      setData(processedData);
       
       // Update state if override options provided
       if (overrideOptions?.timeRange) {
