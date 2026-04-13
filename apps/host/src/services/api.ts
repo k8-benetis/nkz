@@ -523,7 +523,8 @@ class ApiService {
   // =============================================================================
 
   /**
-   * Get historical timeseries data for an entity from TimescaleDB
+   * Get historical timeseries data for an entity from TimescaleDB.
+   * Detects telemetry entities (IoT sensors) and routes to v2 endpoint for telemetry_events.
    */
   async getTimeseriesData(
     entityId: string,
@@ -535,21 +536,28 @@ class ApiService {
       limit?: number;
     }
   ): Promise<{
-    entity_id: string;
+    entity_id?: string;
+    entity_urn?: string;
+    series_kind?: string;
     start_time: string;
     end_time: string;
     aggregation: string;
     count: number;
-    data: Array<{
+    data?: Array<{
       timestamp: string;
       [attribute: string]: string | number;
     }>;
+    timestamps?: string[];
+    attributes?: Record<string, (number | null)[]>;
   }> {
-    // Use timeseries-reader service (assumes it's proxied via api-gateway or direct)
-    // TODO: Configure base URL for timeseries-reader service
-    const response = await this.client.get(`/api/timeseries/entities/${entityId}/data`, {
-      params: options,
-    });
+    const isTelemetryEntity = entityId.startsWith('urn:ngsi-ld:AgriSensor:') ||
+                               entityId.startsWith('urn:ngsi-ld:Sensor:') ||
+                               entityId.startsWith('urn:ngsi-ld:Device:');
+    const endpoint = isTelemetryEntity
+      ? `/api/timeseries/v2/entities/${encodeURIComponent(entityId)}/data`
+      : `/api/timeseries/entities/${entityId}/data`;
+
+    const response = await this.client.get(endpoint, { params: options });
     return response.data;
   }
 
