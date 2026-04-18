@@ -100,6 +100,7 @@ _VALID_TELEMETRY_BASE = frozenset({
     'atmosphericPressure', 'windSpeed', 'windDirection', 'solarRadiation',
     'rainGauge', 'illuminance', 'depth', 'conductance', 'batteryLevel',
     'humidity', 'temperature',
+    'panelInclination',
 })
 
 # NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
