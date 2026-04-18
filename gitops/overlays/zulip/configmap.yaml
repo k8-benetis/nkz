@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zulip-config
+  namespace: nekazari
+  labels:
+    app: zulip
+data:
+  external-host: "messaging.robotika.cloud"
+  admin-email: "admin@robotika.cloud"
+  keycloak-public-url: "https://auth.robotika.cloud/auth"
+  keycloak-realm: "nekazari"

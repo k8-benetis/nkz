@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zulip-ingress
+  namespace: nekazari
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  labels:
+    app: zulip
+spec:
+  tls:
+    - hosts:
+        - messaging.robotika.cloud
+      secretName: zulip-tls
+  rules:
+    - host: messaging.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zulip-service
+                port:
+                  number: 80
