@@ -42,6 +42,33 @@ spec:
         volumeMounts:
         - name: postgresql-storage
           mountPath: /data
+      # Install hunspell dictionaries required by Zulip full-text search.
+      # Zulip migration 0001_initial creates a tsearch config needing:
+      #   en_us.dict, en_us.affix (from hunspell-en-us)
+      #   zulip_english.stop (custom stop words from ConfigMap)
+      # These files must exist in PostgreSQL's tsearch_data directory.
+      - name: install-zulip-tsearch
+        image: postgres:14-alpine
+        securityContext:
+          runAsUser: 0
+        command:
+        - sh
+        - -c
+        - |
+          echo "Installing hunspell dictionaries for Zulip tsearch..."
+          apk add --no-cache hunspell-en
+          DEST=/tsearch-extra
+          cp /usr/share/hunspell/en_US.dic $DEST/en_us.dict
+          cp /usr/share/hunspell/en_US.aff $DEST/en_us.affix
+          cp /zulip-stop/zulip_english.stop $DEST/zulip_english.stop
+          chmod 644 $DEST/*
+          ls -la $DEST/
+          echo "Zulip tsearch files ready."
+        volumeMounts:
+        - name: tsearch-extra
+          mountPath: /tsearch-extra
+        - name: zulip-tsearch-stop
+          mountPath: /zulip-stop
       securityContext:
         fsGroup: 999
         runAsUser: 999
@@ -84,6 +111,16 @@ spec:
           mountPath: /home/postgres/pgdata/data
         - name: init-scripts
           mountPath: /docker-entrypoint-initdb.d
+        # Zulip tsearch files (populated by install-zulip-tsearch init container)
+        - name: tsearch-extra
+          mountPath: /usr/share/postgresql/14/tsearch_data/en_us.dict
+          subPath: en_us.dict
+        - name: tsearch-extra
+          mountPath: /usr/share/postgresql/14/tsearch_data/en_us.affix
+          subPath: en_us.affix
+        - name: tsearch-extra
+          mountPath: /usr/share/postgresql/14/tsearch_data/zulip_english.stop
+          subPath: zulip_english.stop
         livenessProbe:
           exec:
             command:
@@ -127,5 +164,12 @@ spec:
       - name: migrations
         configMap:
           name: postgresql-migrations
+          optional: true
+      # Zulip tsearch: emptyDir populated by init container with hunspell dicts
+      - name: tsearch-extra
+        emptyDir: {}
+      - name: zulip-tsearch-stop
+        configMap:
+          name: zulip-tsearch-files
           optional: true
       restartPolicy: Always

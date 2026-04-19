@@ -11,7 +11,7 @@ import uuid
 import json
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple, Union
 from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
@@ -23,6 +23,7 @@ try:
     import pyarrow as pa
     import pyarrow.csv as pa_csv
     import pyarrow.parquet as pa_parquet
+
     HAS_PYARROW = True
 except ImportError:
     HAS_PYARROW = False
@@ -36,22 +37,24 @@ EXPORT_BUCKET_PREFIX = "exports/"
 PRESIGNED_EXPIRY_SECONDS = 3600  # 1 hour; must match MinIO ILM TTL for exports/
 
 # Add common directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'common'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "common"))
 
 try:
     from auth_middleware import require_auth, inject_fiware_headers
 except ImportError:
     logging.warning("auth_middleware not available - auth will be disabled")
+
     def require_auth(f):
         return f
+
     def inject_fiware_headers(headers, tenant):
-        headers['Fiware-Service'] = tenant
+        headers["Fiware-Service"] = tenant
         return headers
+
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -59,29 +62,40 @@ try:
     from urn_resolution import plan_timeseries_read, normalize_device_id
 except ImportError:
     plan_timeseries_read = None  # type: ignore
-    normalize_device_id = lambda x: x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")  # type: ignore
+
+    def normalize_device_id(x):  # type: ignore
+        return x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")
+
 
 # Whitelist of valid column names to prevent SQL injection (weather_observations only).
 # Never interpolate user input into SQL as identifiers except values verified against these sets.
-VALID_ATTRIBUTES = frozenset({
-    'temp_avg', 'temp_min', 'temp_max',
-    'humidity_avg', 'precip_mm',
-    'solar_rad_w_m2', 'eto_mm',
-    'soil_moisture_0_10cm', 'wind_speed_ms',
-    'pressure_hpa', 'wind_direction_deg',
-})
+VALID_ATTRIBUTES = frozenset(
+    {
+        "temp_avg",
+        "temp_min",
+        "temp_max",
+        "humidity_avg",
+        "precip_mm",
+        "solar_rad_w_m2",
+        "eto_mm",
+        "soil_moisture_0_10cm",
+        "wind_speed_ms",
+        "pressure_hpa",
+        "wind_direction_deg",
+    }
+)
 
 # NGSI-LD (Smart Data Models) attribute name -> weather_observations DB column
 _WEATHER_ATTRIBUTE_MAP: Dict[str, str] = {
-    "temperature":          "temp_avg",
-    "relativeHumidity":     "humidity_avg",
-    "windSpeed":            "wind_speed_ms",
-    "windDirection":        "wind_direction_deg",
-    "atmosphericPressure":  "pressure_hpa",
-    "precipitation":        "precip_mm",
-    "et0":                  "eto_mm",
-    "solarRadiation":       "solar_rad_w_m2",
-    "soilMoisture":         "soil_moisture_0_10cm",
+    "temperature": "temp_avg",
+    "relativeHumidity": "humidity_avg",
+    "windSpeed": "wind_speed_ms",
+    "windDirection": "wind_direction_deg",
+    "atmosphericPressure": "pressure_hpa",
+    "precipitation": "precip_mm",
+    "et0": "eto_mm",
+    "solarRadiation": "solar_rad_w_m2",
+    "soilMoisture": "soil_moisture_0_10cm",
 }
 # DB column names also accepted (passthrough for scripts, direct API)
 for _col in VALID_ATTRIBUTES:
@@ -93,15 +107,29 @@ def _resolve_weather_attribute(requested: str) -> Optional[str]:
     r = (requested or "").strip() if requested else ""
     return _WEATHER_ATTRIBUTE_MAP.get(r)
 
+
 # Whitelist for telemetry payload.measurements object keys (bound as %s via ->>; restricted to known names).
 # Extend via env TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA=comma,separated,keys
-_VALID_TELEMETRY_BASE = frozenset({
-    'soilMoisture', 'soilTemperature', 'airTemperature', 'relativeHumidity',
-    'atmosphericPressure', 'windSpeed', 'windDirection', 'solarRadiation',
-    'rainGauge', 'illuminance', 'depth', 'conductance', 'batteryLevel',
-    'humidity', 'temperature',
-    'panelInclination',
-})
+_VALID_TELEMETRY_BASE = frozenset(
+    {
+        "soilMoisture",
+        "soilTemperature",
+        "airTemperature",
+        "relativeHumidity",
+        "atmosphericPressure",
+        "windSpeed",
+        "windDirection",
+        "solarRadiation",
+        "rainGauge",
+        "illuminance",
+        "depth",
+        "conductance",
+        "batteryLevel",
+        "humidity",
+        "temperature",
+        "panelInclination",
+    }
+)
 
 # NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
 # telemetry_events.measurements uses the canonical JSON key (right-hand side).
@@ -134,19 +162,26 @@ def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
         return canonical
     return None
 
+
 # Hard cap for POST /v2/query series count (DoS / query size). Override via env if needed.
 MAX_V2_QUERY_SERIES = int(os.getenv("MAX_V2_QUERY_SERIES", "10"))
 
 app = Flask(__name__)
-_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
+_cors_origins = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
+    ).split(",")
+    if o.strip()
+]
 CORS(app, origins=_cors_origins, supports_credentials=True)
 
 # Configuration
-POSTGRES_URL = os.getenv('POSTGRES_URL')
+POSTGRES_URL = os.getenv("POSTGRES_URL")
 if not POSTGRES_URL:
     raise ValueError("POSTGRES_URL environment variable is required")
 
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 logger.setLevel(getattr(logging, LOG_LEVEL))
 
 
@@ -154,13 +189,11 @@ logger.setLevel(getattr(logging, LOG_LEVEL))
 # Database Connection
 # =============================================================================
 
+
 def get_db_connection():
     """Get PostgreSQL connection"""
     try:
-        conn = psycopg2.connect(
-            POSTGRES_URL,
-            cursor_factory=RealDictCursor
-        )
+        conn = psycopg2.connect(POSTGRES_URL, cursor_factory=RealDictCursor)
         return conn
     except Exception as e:
         logger.error(f"Database connection error: {e}")
@@ -170,6 +203,7 @@ def get_db_connection():
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def parse_datetime(value: str) -> datetime:
     """Parse ISO 8601 datetime string"""
@@ -186,8 +220,10 @@ def get_tenant_from_request() -> Optional[str]:
             return str(t).strip()
         return None
 
-    jwt_tenant = getattr(g, 'tenant', None) or getattr(g, 'tenant_id', None)
-    header_tenant = request.headers.get('X-Tenant-ID') or request.headers.get('Fiware-Service')
+    jwt_tenant = getattr(g, "tenant", None) or getattr(g, "tenant_id", None)
+    header_tenant = request.headers.get("X-Tenant-ID") or request.headers.get(
+        "Fiware-Service"
+    )
     if header_tenant:
         header_tenant = header_tenant.strip() or None
     g._tenant_mismatch = False
@@ -201,23 +237,23 @@ def get_tenant_from_request() -> Optional[str]:
 def _resolve_tenant_context() -> Union[str, Tuple[Any, int]]:
     """Return tenant_id or (jsonify body, status_code)."""
     tenant_id = get_tenant_from_request()
-    if getattr(g, '_tenant_mismatch', False):
-        return jsonify({'error': 'Tenant header does not match token'}), 403
+    if getattr(g, "_tenant_mismatch", False):
+        return jsonify({"error": "Tenant header does not match token"}), 403
     if not tenant_id:
-        return jsonify({'error': 'Tenant ID required'}), 400
+        return jsonify({"error": "Tenant ID required"}), 400
     return tenant_id
 
 
 def format_time_bucket(aggregation: str) -> Optional[str]:
     """Convert aggregation type to TimescaleDB time_bucket interval"""
     mapping = {
-        'none': None,  # No aggregation
-        'hourly': '1 hour',
-        'daily': '1 day',
-        'weekly': '7 days',
-        'monthly': '1 month',
+        "none": None,  # No aggregation
+        "hourly": "1 hour",
+        "daily": "1 day",
+        "weekly": "7 days",
+        "monthly": "1 month",
     }
-    return mapping.get(aggregation.lower(), '1 hour')
+    return mapping.get(aggregation.lower(), "1 hour")
 
 
 # Standard intervals for quantization (seconds, PostgreSQL interval string).
@@ -266,7 +302,10 @@ def _execute_align_query(
     n = len(validated_series)
     entity_ids = [eid for eid, _ in validated_series]
     in_placeholders = ", ".join(["%s"] * n)
-    if bucket_interval_override and bucket_interval_override in STANDARD_INTERVAL_STRINGS:
+    if (
+        bucket_interval_override
+        and bucket_interval_override in STANDARD_INTERVAL_STRINGS
+    ):
         bucket_interval = bucket_interval_override
     else:
         bucket_interval = calculate_dynamic_bucket(start_dt, end_dt, resolution)
@@ -300,7 +339,9 @@ def _execute_align_query(
     cursor = conn.cursor()
     try:
         try:
-            cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            cursor.execute(
+                "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+            )
         except Exception:
             pass
         cursor.execute(sql, params)
@@ -315,7 +356,9 @@ def _execute_align_query(
     timestamps = pa.array([r["timestamp"] for r in rows], type=pa.float64())
     cols = {"timestamp": timestamps}
     for idx in range(n):
-        cols[f"value_{idx}"] = pa.array([r[f"value_{idx}"] for r in rows], type=pa.float64())
+        cols[f"value_{idx}"] = pa.array(
+            [r[f"value_{idx}"] for r in rows], type=pa.float64()
+        )
     return pa.table(cols)
 
 
@@ -335,7 +378,10 @@ def _execute_telemetry_align_query(
     Arrow: Float64 epoch seconds on timestamp column.
     """
     n = len(validated_series)
-    if bucket_interval_override and bucket_interval_override in STANDARD_INTERVAL_STRINGS:
+    if (
+        bucket_interval_override
+        and bucket_interval_override in STANDARD_INTERVAL_STRINGS
+    ):
         bucket_interval = bucket_interval_override
     else:
         bucket_interval = calculate_dynamic_bucket(start_dt, end_dt, resolution)
@@ -372,7 +418,9 @@ def _execute_telemetry_align_query(
     cursor = conn.cursor()
     try:
         try:
-            cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            cursor.execute(
+                "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+            )
         except Exception:
             pass
         cursor.execute(sql, params)
@@ -387,7 +435,9 @@ def _execute_telemetry_align_query(
     timestamps = pa.array([r["timestamp"] for r in rows], type=pa.float64())
     cols: Dict[str, pa.Array] = {"timestamp": timestamps}
     for idx in range(n):
-        cols[f"value_{idx}"] = pa.array([r[f"value_{idx}"] for r in rows], type=pa.float64())
+        cols[f"value_{idx}"] = pa.array(
+            [r[f"value_{idx}"] for r in rows], type=pa.float64()
+        )
     return pa.table(cols)
 
 
@@ -413,7 +463,10 @@ def _execute_v2_align_unified_sql(
     if n == 0:
         raise ValueError("no series")
 
-    if bucket_interval_override and bucket_interval_override in STANDARD_INTERVAL_STRINGS:
+    if (
+        bucket_interval_override
+        and bucket_interval_override in STANDARD_INTERVAL_STRINGS
+    ):
         bucket_interval = bucket_interval_override
     else:
         bucket_interval = calculate_dynamic_bucket(start_dt, end_dt, resolution)
@@ -438,7 +491,17 @@ def _execute_v2_align_unified_sql(
   GROUP BY time_bucket_gapfill(%s::interval, observed_at)
 )"""
             )
-            params.extend([bucket_interval, tenant_id, start_dt, end_dt, key, key, bucket_interval])
+            params.extend(
+                [
+                    bucket_interval,
+                    tenant_id,
+                    start_dt,
+                    end_dt,
+                    key,
+                    key,
+                    bucket_interval,
+                ]
+            )
         elif kind == "telemetry":
             cte_sql_parts.append(
                 f"""series_{i} AS (
@@ -450,7 +513,17 @@ def _execute_v2_align_unified_sql(
   GROUP BY time_bucket_gapfill(%s::interval, e.observed_at)
 )"""
             )
-            params.extend([bucket_interval, attr, tenant_id, start_dt, end_dt, key, bucket_interval])
+            params.extend(
+                [
+                    bucket_interval,
+                    attr,
+                    tenant_id,
+                    start_dt,
+                    end_dt,
+                    key,
+                    bucket_interval,
+                ]
+            )
         else:
             raise ValueError(f"Unknown series kind: {kind}")
 
@@ -460,8 +533,7 @@ def _execute_v2_align_unified_sql(
         from_sql = "series_0 s0"
     else:
         join_lines = [
-            f"FULL OUTER JOIN series_{i} s{i} USING (bucket)"
-            for i in range(1, n)
+            f"FULL OUTER JOIN series_{i} s{i} USING (bucket)" for i in range(1, n)
         ]
         from_sql = "series_0 s0\n" + "\n".join(join_lines)
 
@@ -477,7 +549,9 @@ ORDER BY timestamp ASC
     cursor = conn.cursor()
     try:
         try:
-            cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            cursor.execute(
+                "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+            )
         except Exception:
             pass
         cursor.execute(sql, params)
@@ -494,11 +568,15 @@ ORDER BY timestamp ASC
     ts_col = pa.array([r["timestamp"] for r in rows], type=pa.float64())
     cols_out: Dict[str, pa.Array] = {"timestamp": ts_col}
     for idx in range(n):
-        cols_out[f"value_{idx}"] = pa.array([r[f"value_{idx}"] for r in rows], type=pa.float64())
+        cols_out[f"value_{idx}"] = pa.array(
+            [r[f"value_{idx}"] for r in rows], type=pa.float64()
+        )
     return pa.table(cols_out)
 
 
-def calculate_dynamic_bucket(start_time: datetime, end_time: datetime, resolution: int) -> str:
+def calculate_dynamic_bucket(
+    start_time: datetime, end_time: datetime, resolution: int
+) -> str:
     """
     Compute the time_bucket interval so that the number of points does not exceed
     resolution, using only standard PostgreSQL intervals (quantization).
@@ -517,21 +595,22 @@ def calculate_dynamic_bucket(start_time: datetime, end_time: datetime, resolutio
 # API Endpoints
 # =============================================================================
 
-@app.route('/health', methods=['GET'])
+
+@app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT 1')
+            cursor.execute("SELECT 1")
             cursor.close()
-        return jsonify({'status': 'healthy'}), 200
+        return jsonify({"status": "healthy"}), 200
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
 
 
-@app.route('/api/timeseries/entities', methods=['GET'])
+@app.route("/api/timeseries/entities", methods=["GET"])
 @require_auth
 def list_timeseries_entities():
     """
@@ -548,30 +627,40 @@ def list_timeseries_entities():
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
             except Exception:
                 pass
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT DISTINCT station_id AS id FROM weather_observations
                 WHERE tenant_id = %s AND station_id IS NOT NULL AND station_id != ''
                 UNION
                 SELECT DISTINCT municipality_code AS id FROM weather_observations
                 WHERE tenant_id = %s AND municipality_code IS NOT NULL AND municipality_code != ''
                 ORDER BY id
-            """, (tenant_id, tenant_id))
+            """,
+                (tenant_id, tenant_id),
+            )
             rows = cursor.fetchall()
             cursor.close()
         entities = [
-            {"id": str(r["id"]), "name": str(r["id"]), "attributes": attributes_list, "source": "timescale"}
+            {
+                "id": str(r["id"]),
+                "name": str(r["id"]),
+                "attributes": attributes_list,
+                "source": "timescale",
+            }
             for r in rows
         ]
         return jsonify({"entities": entities})
     except Exception as e:
         logger.error(f"Error listing timeseries entities: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/timeseries/entities/<entity_id>/data', methods=['GET'])
+@app.route("/api/timeseries/entities/<entity_id>/data", methods=["GET"])
 @require_auth
 def get_entity_timeseries(entity_id: str):
     """
@@ -592,36 +681,47 @@ def get_entity_timeseries(entity_id: str):
     tenant_id = ctx
 
     try:
-        start_time = request.args.get('start_time')
-        end_time = request.args.get('end_time')
-        aggregation = request.args.get('aggregation', 'none')
-        resolution_param = request.args.get('resolution', type=int)
-        attribute = request.args.get('attribute')
-        limit = int(request.args.get('limit', 1000))
-        fmt = (request.args.get('format') or request.headers.get('Accept', '')).split(',')[0].strip().lower()
-        if 'arrow' in fmt or request.args.get('format') == 'arrow':
-            fmt = 'arrow'
+        start_time = request.args.get("start_time")
+        end_time = request.args.get("end_time")
+        aggregation = request.args.get("aggregation", "none")
+        resolution_param = request.args.get("resolution", type=int)
+        attribute = request.args.get("attribute")
+        limit = int(request.args.get("limit", 1000))
+        fmt = (
+            (request.args.get("format") or request.headers.get("Accept", ""))
+            .split(",")[0]
+            .strip()
+            .lower()
+        )
+        if "arrow" in fmt or request.args.get("format") == "arrow":
+            fmt = "arrow"
         else:
-            fmt = 'json'
+            fmt = "json"
 
         if not start_time:
-            return jsonify({'error': 'start_time parameter is required'}), 400
+            return jsonify({"error": "start_time parameter is required"}), 400
         if attribute and attribute not in VALID_ATTRIBUTES:
-            return jsonify({'error': f'Invalid attribute: {attribute}'}), 400
-        if fmt == 'arrow':
+            return jsonify({"error": f"Invalid attribute: {attribute}"}), 400
+        if fmt == "arrow":
             if not HAS_PYARROW:
-                return jsonify({'error': 'Arrow format not available (pyarrow not installed)'}), 503
+                return jsonify(
+                    {"error": "Arrow format not available (pyarrow not installed)"}
+                ), 503
             if not attribute:
-                return jsonify({'error': 'attribute is required when format=arrow'}), 400
+                return jsonify(
+                    {"error": "attribute is required when format=arrow"}
+                ), 400
 
         start_dt = parse_datetime(start_time)
         end_dt = parse_datetime(end_time) if end_time else datetime.utcnow()
         if start_dt >= end_dt:
-            return jsonify({'error': 'start_time must be before end_time'}), 400
+            return jsonify({"error": "start_time must be before end_time"}), 400
 
         # When resolution is set, use quantized standard bucket; otherwise use aggregation
         if resolution_param is not None and resolution_param > 0:
-            bucket_interval = calculate_dynamic_bucket(start_dt, end_dt, min(resolution_param, limit))
+            bucket_interval = calculate_dynamic_bucket(
+                start_dt, end_dt, min(resolution_param, limit)
+            )
             if bucket_interval not in STANDARD_INTERVAL_STRINGS:
                 bucket_interval = "1 hour"
             time_bucket = bucket_interval
@@ -631,25 +731,39 @@ def get_entity_timeseries(entity_id: str):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
             except Exception:
                 pass
 
-            if fmt == 'arrow' and time_bucket:
+            if fmt == "arrow" and time_bucket:
                 # Arrow path: single attribute, epoch float8 + value float8 (parameterised bucket)
-                query_arrow = """
+                query_arrow = (
+                    """
                     SELECT
                         EXTRACT(EPOCH FROM time_bucket(%s::interval, observed_at))::float8 AS timestamp,
-                        AVG(""" + attribute + """)::float8 AS value
+                        AVG("""
+                    + attribute
+                    + """)::float8 AS value
                     FROM weather_observations
                     WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
                       AND (station_id = %s OR municipality_code = %s)
                     GROUP BY time_bucket(%s::interval, observed_at)
                     ORDER BY timestamp ASC
                 """
+                )
                 cursor.execute(
                     query_arrow,
-                    (time_bucket, tenant_id, start_dt, end_dt, entity_id, entity_id, time_bucket),
+                    (
+                        time_bucket,
+                        tenant_id,
+                        start_dt,
+                        end_dt,
+                        entity_id,
+                        entity_id,
+                        time_bucket,
+                    ),
                 )
                 rows = cursor.fetchall()
                 cursor.close()
@@ -666,8 +780,10 @@ def get_entity_timeseries(entity_id: str):
                     mimetype=ARROW_STREAM_TYPE,
                     headers={"Content-Length": str(len(body))},
                 )
-            elif fmt == 'arrow':
-                return jsonify({'error': 'format=arrow requires aggregation or resolution'}), 400
+            elif fmt == "arrow":
+                return jsonify(
+                    {"error": "format=arrow requires aggregation or resolution"}
+                ), 400
 
             # JSON path
             if time_bucket:
@@ -693,7 +809,16 @@ def get_entity_timeseries(entity_id: str):
                 """
                 cursor.execute(
                     query,
-                    (time_bucket, tenant_id, start_dt, end_dt, entity_id, entity_id, time_bucket, limit),
+                    (
+                        time_bucket,
+                        tenant_id,
+                        start_dt,
+                        end_dt,
+                        entity_id,
+                        entity_id,
+                        time_bucket,
+                        limit,
+                    ),
                 )
             else:
                 query = """
@@ -707,35 +832,43 @@ def get_entity_timeseries(entity_id: str):
                     ORDER BY observed_at ASC
                     LIMIT %s
                 """
-                cursor.execute(query, (tenant_id, start_dt, end_dt, entity_id, entity_id, limit))
+                cursor.execute(
+                    query, (tenant_id, start_dt, end_dt, entity_id, entity_id, limit)
+                )
 
             rows = cursor.fetchall()
             cursor.close()
             data = []
             for row in rows:
                 point = {
-                    "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
+                    "timestamp": row["timestamp"].isoformat()
+                    if row["timestamp"]
+                    else None,
                 }
                 for attr in VALID_ATTRIBUTES:
-                    if (not attribute or attribute == attr) and row.get(attr) is not None:
+                    if (not attribute or attribute == attr) and row.get(
+                        attr
+                    ) is not None:
                         point[attr] = float(row[attr])
                 if len(point) > 1:
                     data.append(point)
-            return jsonify({
-                "entity_id": entity_id,
-                "start_time": start_dt.isoformat(),
-                "end_time": end_dt.isoformat(),
-                "aggregation": aggregation,
-                "count": len(data),
-                "data": data,
-            }), 200
+            return jsonify(
+                {
+                    "entity_id": entity_id,
+                    "start_time": start_dt.isoformat(),
+                    "end_time": end_dt.isoformat(),
+                    "aggregation": aggregation,
+                    "count": len(data),
+                    "data": data,
+                }
+            ), 200
 
     except Exception as e:
         logger.error(f"Error querying timeseries: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/timeseries/align', methods=['POST'])
+@app.route("/api/timeseries/align", methods=["POST"])
 @require_auth
 def post_timeseries_align():
     """
@@ -748,41 +881,55 @@ def post_timeseries_align():
         return ctx
     tenant_id = ctx
     if not HAS_PYARROW:
-        return jsonify({'error': 'Arrow format not available (pyarrow not installed)'}), 503
+        return jsonify(
+            {"error": "Arrow format not available (pyarrow not installed)"}
+        ), 503
 
     try:
         body = request.get_json(force=True, silent=True) or {}
-        start_time = body.get('start_time')
-        end_time = body.get('end_time')
-        resolution = int(body.get('resolution', 1000))
-        series = body.get('series') or []
+        start_time = body.get("start_time")
+        end_time = body.get("end_time")
+        resolution = int(body.get("resolution", 1000))
+        series = body.get("series") or []
 
         if not start_time or not end_time:
-            return jsonify({'error': 'start_time and end_time are required'}), 400
+            return jsonify({"error": "start_time and end_time are required"}), 400
         if not isinstance(series, list) or len(series) == 0:
-            return jsonify({'error': 'series must be a non-empty array of {entity_id, attribute}'}), 400
+            return jsonify(
+                {"error": "series must be a non-empty array of {entity_id, attribute}"}
+            ), 400
 
         start_dt = parse_datetime(start_time)
         end_dt = parse_datetime(end_time)
         if start_dt >= end_dt:
-            return jsonify({'error': 'start_time must be before end_time'}), 400
+            return jsonify({"error": "start_time must be before end_time"}), 400
 
         resolution = max(100, min(resolution, 10000))
 
         validated_series: List[Tuple[str, str]] = []
         for i, item in enumerate(series):
             if not isinstance(item, dict):
-                return jsonify({'error': f'series[{i}] must be an object with entity_id and attribute'}), 400
-            eid = item.get('entity_id')
-            attr = item.get('attribute')
+                return jsonify(
+                    {
+                        "error": f"series[{i}] must be an object with entity_id and attribute"
+                    }
+                ), 400
+            eid = item.get("entity_id")
+            attr = item.get("attribute")
             if not eid or not attr:
-                return jsonify({'error': f'series[{i}] must have entity_id and attribute'}), 400
+                return jsonify(
+                    {"error": f"series[{i}] must have entity_id and attribute"}
+                ), 400
             if attr not in VALID_ATTRIBUTES:
-                return jsonify({'error': f'Invalid attribute "{attr}" in series[{i}]'}), 400
+                return jsonify(
+                    {"error": f'Invalid attribute "{attr}" in series[{i}]'}
+                ), 400
             validated_series.append((str(eid).strip(), attr))
 
         with get_db_connection() as conn:
-            table = _execute_align_query(conn, tenant_id, start_dt, end_dt, resolution, validated_series)
+            table = _execute_align_query(
+                conn, tenant_id, start_dt, end_dt, resolution, validated_series
+            )
             sink = pa.BufferOutputStream()
             with pa.ipc.new_stream(sink, table.schema) as writer:
                 writer.write_table(table)
@@ -795,16 +942,17 @@ def post_timeseries_align():
             )
     except (ValueError, TypeError) as e:
         logger.warning(f"Align request validation error: {e}")
-        return jsonify({'error': str(e)}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error in align: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 def _get_s3_client():
     """S3 client for MinIO (exports bucket). Requires S3_* env vars."""
     import boto3
     from botocore.config import Config
+
     endpoint = os.getenv("S3_ENDPOINT_URL", "http://minio-service:9000")
     key = os.getenv("S3_ACCESS_KEY")
     secret = os.getenv("S3_SECRET_KEY")
@@ -835,7 +983,9 @@ def _upload_parquet_and_presign(table: pa.Table, tenant_id: str) -> Optional[str
     bucket = os.getenv("S3_BUCKET", "nekazari-frontend")
     key = f"{EXPORT_BUCKET_PREFIX}{tenant_id}/{uuid.uuid4().hex}.parquet"
     try:
-        with tempfile.SpooledTemporaryFile(max_size=_PARQUET_SPOOL_MAX_SIZE, mode="wb") as spool_tmp:
+        with tempfile.SpooledTemporaryFile(
+            max_size=_PARQUET_SPOOL_MAX_SIZE, mode="wb"
+        ) as spool_tmp:
             pa_parquet.write_table(table, spool_tmp, compression="snappy")
             spool_tmp.seek(0)
             client.upload_fileobj(
@@ -845,7 +995,9 @@ def _upload_parquet_and_presign(table: pa.Table, tenant_id: str) -> Optional[str
                 ExtraArgs={"ContentType": "application/vnd.apache.parquet"},
             )
         url = client.generate_presigned_url(
-            "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=PRESIGNED_EXPIRY_SECONDS
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=PRESIGNED_EXPIRY_SECONDS,
         )
         return url
     except Exception as e:
@@ -861,7 +1013,7 @@ EXPORT_AGGREGATION_MAP = {
 }
 
 
-@app.route('/api/timeseries/export', methods=['POST'])
+@app.route("/api/timeseries/export", methods=["POST"])
 @require_auth
 def post_timeseries_export():
     """
@@ -874,50 +1026,65 @@ def post_timeseries_export():
         return ctx
     tenant_id = ctx
     if not HAS_PYARROW or not pa_csv or not pa_parquet:
-        return jsonify({'error': 'Export requires pyarrow (csv + parquet)'}), 503
+        return jsonify({"error": "Export requires pyarrow (csv + parquet)"}), 503
 
     try:
         body = request.get_json(force=True, silent=True) or {}
-        start_time = body.get('start_time')
-        end_time = body.get('end_time')
-        series = body.get('series') or []
-        fmt = (body.get('format') or 'csv').strip().lower()
-        aggregation = (body.get('aggregation') or '1 hour').strip().lower()
-        if fmt not in ('csv', 'parquet'):
-            return jsonify({'error': 'format must be csv or parquet'}), 400
+        start_time = body.get("start_time")
+        end_time = body.get("end_time")
+        series = body.get("series") or []
+        fmt = (body.get("format") or "csv").strip().lower()
+        aggregation = (body.get("aggregation") or "1 hour").strip().lower()
+        if fmt not in ("csv", "parquet"):
+            return jsonify({"error": "format must be csv or parquet"}), 400
         if aggregation not in EXPORT_AGGREGATION_MAP:
-            return jsonify({'error': 'aggregation must be raw, 1 hour, or 1 day'}), 400
+            return jsonify({"error": "aggregation must be raw, 1 hour, or 1 day"}), 400
 
         if not start_time or not end_time:
-            return jsonify({'error': 'start_time and end_time are required'}), 400
+            return jsonify({"error": "start_time and end_time are required"}), 400
         if not isinstance(series, list) or len(series) == 0:
-            return jsonify({'error': 'series must be a non-empty array of {entity_id, attribute}'}), 400
+            return jsonify(
+                {"error": "series must be a non-empty array of {entity_id, attribute}"}
+            ), 400
 
         start_dt = parse_datetime(start_time)
         end_dt = parse_datetime(end_time)
         if start_dt >= end_dt:
-            return jsonify({'error': 'start_time must be before end_time'}), 400
+            return jsonify({"error": "start_time must be before end_time"}), 400
 
         bucket_interval = EXPORT_AGGREGATION_MAP[aggregation]
         validated_series: List[Tuple[str, str]] = []
         for i, item in enumerate(series):
             if not isinstance(item, dict):
-                return jsonify({'error': f'series[{i}] must be an object with entity_id and attribute'}), 400
-            eid = item.get('entity_id')
-            attr = item.get('attribute')
+                return jsonify(
+                    {
+                        "error": f"series[{i}] must be an object with entity_id and attribute"
+                    }
+                ), 400
+            eid = item.get("entity_id")
+            attr = item.get("attribute")
             if not eid or not attr:
-                return jsonify({'error': f'series[{i}] must have entity_id and attribute'}), 400
+                return jsonify(
+                    {"error": f"series[{i}] must have entity_id and attribute"}
+                ), 400
             if attr not in VALID_ATTRIBUTES:
-                return jsonify({'error': f'Invalid attribute "{attr}" in series[{i}]'}), 400
+                return jsonify(
+                    {"error": f'Invalid attribute "{attr}" in series[{i}]'}
+                ), 400
             validated_series.append((str(eid).strip(), attr))
 
         with get_db_connection() as conn:
             table = _execute_align_query(
-                conn, tenant_id, start_dt, end_dt, resolution=1000, validated_series=validated_series,
+                conn,
+                tenant_id,
+                start_dt,
+                end_dt,
+                resolution=1000,
+                validated_series=validated_series,
                 bucket_interval_override=bucket_interval,
             )
 
-        if fmt == 'csv':
+        if fmt == "csv":
             # Stream CSV by record batches to avoid one giant BytesIO (OOM). Header only on first chunk.
             write_opts_header = pa_csv.WriteOptions(include_header=True)
             write_opts_no_header = pa_csv.WriteOptions(include_header=False)
@@ -934,30 +1101,38 @@ def post_timeseries_export():
             return Response(
                 stream(),
                 status=200,
-                mimetype='text/csv',
+                mimetype="text/csv",
                 headers={
-                    'Content-Disposition': 'attachment; filename="timeseries_export.csv"',
+                    "Content-Disposition": 'attachment; filename="timeseries_export.csv"',
                 },
                 direct_passthrough=True,
             )
         else:
             download_url = _upload_parquet_and_presign(table, tenant_id)
             if not download_url:
-                return jsonify({'error': 'Parquet export failed (MinIO not configured or upload failed)'}), 503
-            return jsonify({
-                'download_url': download_url,
-                'expires_in': PRESIGNED_EXPIRY_SECONDS,
-                'format': 'parquet',
-            }), 200
+                return jsonify(
+                    {
+                        "error": "Parquet export failed (MinIO not configured or upload failed)"
+                    }
+                ), 503
+            return jsonify(
+                {
+                    "download_url": download_url,
+                    "expires_in": PRESIGNED_EXPIRY_SECONDS,
+                    "format": "parquet",
+                }
+            ), 200
     except (ValueError, TypeError) as e:
         logger.warning(f"Export request validation error: {e}")
-        return jsonify({'error': str(e)}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error in export: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-def _build_telemetry_columnar(rows: List[Dict[str, Any]], attrs_filter: Optional[List[str]]) -> Dict[str, Any]:
+def _build_telemetry_columnar(
+    rows: List[Dict[str, Any]], attrs_filter: Optional[List[str]]
+) -> Dict[str, Any]:
     """Build unified timestamp list + attribute arrays from telemetry_events payloads."""
     flt: Optional[set] = set(attrs_filter) if attrs_filter else None
     by_ts: Dict[datetime, Dict[str, Any]] = {}
@@ -967,7 +1142,9 @@ def _build_telemetry_columnar(rows: List[Dict[str, Any]], attrs_filter: Optional
             return
         if ts_key not in by_ts:
             by_ts[ts_key] = {}
-        by_ts[ts_key][name] = float(val) if val is not None and isinstance(val, (int, float)) else val
+        by_ts[ts_key][name] = (
+            float(val) if val is not None and isinstance(val, (int, float)) else val
+        )
 
     for row in rows:
         ts = row.get("observed_at")
@@ -1004,7 +1181,9 @@ def _build_telemetry_columnar(rows: List[Dict[str, Any]], attrs_filter: Optional
     if flt is not None:
         all_attrs &= flt
     attr_list = sorted(all_attrs)
-    timestamps = [t.isoformat() if hasattr(t, "isoformat") else str(t) for t in sorted_ts]
+    timestamps = [
+        t.isoformat() if hasattr(t, "isoformat") else str(t) for t in sorted_ts
+    ]
     attributes: Dict[str, List[Any]] = {a: [] for a in attr_list}
     for t in sorted_ts:
         rd = by_ts[t]
@@ -1014,7 +1193,12 @@ def _build_telemetry_columnar(rows: List[Dict[str, Any]], attrs_filter: Optional
 
 
 def _fetch_telemetry_rows(
-    conn, tenant_id: str, device_candidates: List[str], start_dt: datetime, end_dt: datetime, limit: int
+    conn,
+    tenant_id: str,
+    device_candidates: List[str],
+    start_dt: datetime,
+    end_dt: datetime,
+    limit: int,
 ) -> List[Dict[str, Any]]:
     if not device_candidates:
         return []
@@ -1022,7 +1206,9 @@ def _fetch_telemetry_rows(
     cur = conn.cursor()
     try:
         try:
-            cur.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            cur.execute(
+                "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+            )
         except Exception:
             pass
         cur.execute(
@@ -1057,7 +1243,9 @@ def _weather_query_columnar(
     cur = conn.cursor()
     try:
         try:
-            cur.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            cur.execute(
+                "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+            )
         except Exception:
             pass
         col_sql = ", ".join(f'"{a}"' for a in want)
@@ -1086,7 +1274,7 @@ def _weather_query_columnar(
     return {"timestamps": timestamps, "attributes": attributes}
 
 
-@app.route('/api/timeseries/v2/entities/<path:entity_urn>/data', methods=['GET'])
+@app.route("/api/timeseries/v2/entities/<path:entity_urn>/data", methods=["GET"])
 @require_auth
 def get_v2_entity_timeseries(entity_urn: str):
     """
@@ -1119,7 +1307,12 @@ def get_v2_entity_timeseries(entity_urn: str):
     if attrs_raw:
         attrs_list = [a.strip() for a in attrs_raw.split(",") if a.strip()]
 
-    accept = (request.headers.get("Accept") or "application/json").split(",")[0].strip().lower()
+    accept = (
+        (request.headers.get("Accept") or "application/json")
+        .split(",")[0]
+        .strip()
+        .lower()
+    )
     want_arrow = accept == ARROW_STREAM_TYPE or "arrow" in accept
 
     plan = plan_timeseries_read(tenant_id, entity_urn)
@@ -1132,11 +1325,18 @@ def get_v2_entity_timeseries(entity_urn: str):
                 for a in attrs_list:
                     sk = _resolve_telemetry_measurement_key(a)
                     if sk is None:
-                        return jsonify({"error": f"Unknown telemetry attribute: {a}"}), 400
+                        return jsonify(
+                            {"error": f"Unknown telemetry attribute: {a}"}
+                        ), 400
                     resolved_attrs.append(sk)
                 attrs_list = list(dict.fromkeys(resolved_attrs))
             rows = _fetch_telemetry_rows(
-                conn, tenant_id, plan.get("device_candidates") or [], start_dt, end_dt, limit
+                conn,
+                tenant_id,
+                plan.get("device_candidates") or [],
+                start_dt,
+                end_dt,
+                limit,
             )
             col = _build_telemetry_columnar(rows, attrs_list)
             if want_arrow:
@@ -1147,7 +1347,9 @@ def get_v2_entity_timeseries(entity_urn: str):
                     ts_arr = []
                     val_arr = []
                     for i, t in enumerate(col["timestamps"]):
-                        v = col["attributes"].get(attr, [None] * len(col["timestamps"]))[i]
+                        v = col["attributes"].get(
+                            attr, [None] * len(col["timestamps"])
+                        )[i]
                         if v is None:
                             continue
                         try:
@@ -1189,7 +1391,9 @@ def get_v2_entity_timeseries(entity_urn: str):
         # weather
         wkey = plan.get("weather_key")
         if not wkey:
-            return jsonify({"error": "No weather or device timeseries resolved for this entity"}), 404
+            return jsonify(
+                {"error": "No weather or device timeseries resolved for this entity"}
+            ), 404
         if not _SAFE_WEATHER_ENTITY_KEY.match(str(wkey).strip()):
             return jsonify({"error": "Invalid weather timeseries key"}), 400
 
@@ -1202,7 +1406,9 @@ def get_v2_entity_timeseries(entity_urn: str):
                 resolved_attrs.append(resolved)
             attrs_list = resolved_attrs
 
-        col = _weather_query_columnar(conn, tenant_id, wkey, start_dt, end_dt, attrs_list, limit)
+        col = _weather_query_columnar(
+            conn, tenant_id, wkey, start_dt, end_dt, attrs_list, limit
+        )
 
         if want_arrow:
             if not HAS_PYARROW:
@@ -1210,7 +1416,9 @@ def get_v2_entity_timeseries(entity_urn: str):
             use_attrs = list(col["attributes"].keys())
             if len(use_attrs) != 1:
                 return jsonify(
-                    {"error": "Arrow stream for v2 weather requires exactly one attrs= parameter"}
+                    {
+                        "error": "Arrow stream for v2 weather requires exactly one attrs= parameter"
+                    }
                 ), 400
             attr = use_attrs[0]
             ts_arr = []
@@ -1254,7 +1462,7 @@ def get_v2_entity_timeseries(entity_urn: str):
         )
 
 
-@app.route('/api/timeseries/v2/query', methods=['POST'])
+@app.route("/api/timeseries/v2/query", methods=["POST"])
 @require_auth
 def post_v2_timeseries_query():
     """
@@ -1306,7 +1514,9 @@ def post_v2_timeseries_query():
         urn = item.get("entity_urn") or item.get("entity_id")
         attr = item.get("attribute")
         if not urn or not attr:
-            return jsonify({"error": f"series[{i}] needs entity_urn and attribute"}), 400
+            return jsonify(
+                {"error": f"series[{i}] needs entity_urn and attribute"}
+            ), 400
         attr_s = str(attr).strip()
         plan = plan_timeseries_read(tenant_id, str(urn).strip())
         mode = plan.get("mode")
@@ -1316,20 +1526,28 @@ def post_v2_timeseries_query():
                 return jsonify({"error": f"Invalid weather attribute: {attr_s}"}), 400
             wkey = plan.get("weather_key")
             if not wkey:
-                return jsonify({"error": f"series[{i}]: no weather timeseries key for entity"}), 400
+                return jsonify(
+                    {"error": f"series[{i}]: no weather timeseries key for entity"}
+                ), 400
             wk = str(wkey).strip()
             if not _SAFE_WEATHER_ENTITY_KEY.match(wk):
-                return jsonify({"error": f"series[{i}]: invalid weather timeseries key"}), 400
+                return jsonify(
+                    {"error": f"series[{i}]: invalid weather timeseries key"}
+                ), 400
             ordered_specs.append(("weather", wk, attr_s))
         else:
             storage_attr = _resolve_telemetry_measurement_key(attr_s)
             if storage_attr is None:
                 return jsonify(
-                    {"error": f"Unknown telemetry attribute (not in whitelist): {attr_s}"}
+                    {
+                        "error": f"Unknown telemetry attribute (not in whitelist): {attr_s}"
+                    }
                 ), 400
             dev = normalize_device_id(str(urn).strip())
             if not dev or not _SAFE_DEVICE_ID.match(dev):
-                return jsonify({"error": f"series[{i}]: invalid device id derived from URN"}), 400
+                return jsonify(
+                    {"error": f"series[{i}]: invalid device id derived from URN"}
+                ), 400
             ordered_specs.append(("telemetry", dev, storage_attr))
 
     accept = (request.headers.get("Accept") or "").split(",")[0].strip().lower()
@@ -1367,10 +1585,14 @@ def post_v2_timeseries_query():
     timestamps = []
     for t in ts:
         try:
-            timestamps.append(datetime.fromtimestamp(float(t), tz=timezone.utc).isoformat())
+            timestamps.append(
+                datetime.fromtimestamp(float(t), tz=timezone.utc).isoformat()
+            )
         except Exception:
             timestamps.append(str(t))
-    attributes = {k: [float(x) if x is not None else None for x in cols[k]] for k in keys}
+    attributes = {
+        k: [float(x) if x is not None else None for x in cols[k]] for k in keys
+    }
     return jsonify(
         {
             "timestamps": timestamps,
@@ -1380,12 +1602,12 @@ def post_v2_timeseries_query():
     )
 
 
-@app.route('/api/timeseries/entities/<entity_id>/stats', methods=['GET'])
+@app.route("/api/timeseries/entities/<entity_id>/stats", methods=["GET"])
 @require_auth
 def get_entity_stats(entity_id: str):
     """
     Get statistical summary for entity timeseries data
-    
+
     Query params:
         - start_time: ISO 8601 datetime (required)
         - end_time: ISO 8601 datetime (default: now)
@@ -1395,34 +1617,36 @@ def get_entity_stats(entity_id: str):
     if isinstance(ctx, tuple):
         return ctx
     tenant_id = ctx
-    
+
     try:
-        start_time = request.args.get('start_time')
-        end_time = request.args.get('end_time')
-        attribute = request.args.get('attribute')
-        
+        start_time = request.args.get("start_time")
+        end_time = request.args.get("end_time")
+        attribute = request.args.get("attribute")
+
         if not start_time:
-            return jsonify({'error': 'start_time parameter is required'}), 400
-        
+            return jsonify({"error": "start_time parameter is required"}), 400
+
         start_dt = parse_datetime(start_time)
         end_dt = parse_datetime(end_time) if end_time else datetime.utcnow()
-        
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Set tenant context
             try:
-                cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
             except Exception:
                 pass
-            
+
             # Build stats query (only whitelisted column names)
-            attributes = ['temp_avg', 'humidity_avg', 'precip_mm', 'pressure_hpa']
+            attributes = ["temp_avg", "humidity_avg", "precip_mm", "pressure_hpa"]
             if attribute:
                 if attribute not in VALID_ATTRIBUTES:
-                    return jsonify({'error': f'Invalid attribute: {attribute}'}), 400
+                    return jsonify({"error": f"Invalid attribute: {attribute}"}), 400
                 attributes = [attribute]
-            
+
             stats = {}
             for attr in attributes:
                 query = f"""
@@ -1440,35 +1664,48 @@ def get_entity_stats(entity_id: str):
                         AND (station_id = %s OR municipality_code = %s)
                         AND {attr} IS NOT NULL
                 """
-                cursor.execute(query, (tenant_id, start_dt, end_dt, entity_id, entity_id))
+                cursor.execute(
+                    query, (tenant_id, start_dt, end_dt, entity_id, entity_id)
+                )
                 row = cursor.fetchone()
-                
-                if row and row['count_val'] > 0:
+
+                if row and row["count_val"] > 0:
                     stats[attr] = {
-                        'min': float(row['min_val']) if row['min_val'] is not None else None,
-                        'max': float(row['max_val']) if row['max_val'] is not None else None,
-                        'avg': float(row['avg_val']) if row['avg_val'] is not None else None,
-                        'count': int(row['count_val']),
-                        'first_observed': row['first_observed'].isoformat() if row['first_observed'] else None,
-                        'last_observed': row['last_observed'].isoformat() if row['last_observed'] else None,
+                        "min": float(row["min_val"])
+                        if row["min_val"] is not None
+                        else None,
+                        "max": float(row["max_val"])
+                        if row["max_val"] is not None
+                        else None,
+                        "avg": float(row["avg_val"])
+                        if row["avg_val"] is not None
+                        else None,
+                        "count": int(row["count_val"]),
+                        "first_observed": row["first_observed"].isoformat()
+                        if row["first_observed"]
+                        else None,
+                        "last_observed": row["last_observed"].isoformat()
+                        if row["last_observed"]
+                        else None,
                     }
-            
+
             cursor.close()
-            
-            return jsonify({
-                'entity_id': entity_id,
-                'start_time': start_dt.isoformat(),
-                'end_time': end_dt.isoformat(),
-                'stats': stats
-            }), 200
-            
+
+            return jsonify(
+                {
+                    "entity_id": entity_id,
+                    "start_time": start_dt.isoformat(),
+                    "end_time": end_dt.isoformat(),
+                    "stats": stats,
+                }
+            ), 200
+
     except Exception as e:
         logger.error(f"Error querying stats: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('DEBUG', 'false').lower() == 'true'
-    app.run(host='0.0.0.0', port=port, debug=debug)
-
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=port, debug=debug)
