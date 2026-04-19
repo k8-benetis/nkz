@@ -303,3 +303,22 @@ data:
   # ROS2 Domain ID (0-232, default: 0)
   # Different domain IDs allow multiple ROS2 networks to coexist
   ROS_DOMAIN_ID: "0"
+
+---
+# =============================================================================
+# Platform Shared Configuration
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: nekazari
+  labels:
+    app: nekazari
+    layer: config
+data:
+  headscale_public_url: "https://vpn.robotika.cloud"
+  keycloak_url: "http://keycloak-service:8080"
+  jwt_issuer: "https://auth.robotika.cloud/auth/realms/nekazari"
+  cors_origins: "https://nekazari.robotika.cloud"
+
